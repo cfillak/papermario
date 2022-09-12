@@ -57,7 +57,16 @@ ApiStatus func_80240614_EDC5F4(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 #else
-INCLUDE_ASM(s32, "EDC020", func_80240614_EDC5F4);
+// INCLUDE_ASM(s32, "EDC020", func_80240614_EDC5F4);
+extern s32 D_80241850_EDD830;
+extern s32 D_80241854_EDD834;
+
+s32 func_80240614_EDC5F4(Evt *arg0) {
+    D_80241854_EDD834 = dead_evt_get_variable(arg0, *arg0->ptrReadPos);
+    D_80241850_EDD830 = 1;
+    return 2;
+}
+
 #endif
 
 ApiStatus func_8024064C_EDC62C(Evt* script, s32 isInitialCall) {
