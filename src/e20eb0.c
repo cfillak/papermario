@@ -5,9 +5,6 @@
 #include "common/UnkAngleFunc1.inc.c"
 
 #include "speech_bubble.png.h"
-#include "speech_bubble.png.inc.c"
-#include "speech_bubble.pal.inc.c"
-#include "speech_bubble_dlist.gfx.inc.c"
 
 typedef struct UnkE20EB0 {
     /* 0x00 */ Npc* unk_00;
@@ -23,6 +20,10 @@ typedef struct UnkE20EB0 {
 } UnkE20EB0; /* size = 0x2C */
 
 BSS UnkE20EB0 D_802B79C0_E21870;
+
+#include "speech_bubble.png.inc.c"
+#include "speech_bubble.pal.inc.c"
+#include "speech_bubble_dlist.gfx.inc.c"
 
 UnkE20EB0* D_802B79A8_E21858 = &D_802B79C0_E21870;
 
@@ -91,13 +92,13 @@ void func_802B742C(void) {
     Npc* npc;
 
     if (((playerStatus->flags &
-            (PLAYER_STATUS_FLAGS_HAS_CONVERSATION_NPC |
-             PLAYER_STATUS_FLAGS_40000 |
-             PLAYER_STATUS_FLAGS_20)) != PLAYER_STATUS_FLAGS_HAS_CONVERSATION_NPC) ||
+            (PS_FLAGS_HAS_CONVERSATION_NPC |
+             PS_FLAGS_40000 |
+             PS_FLAGS_20)) != PS_FLAGS_HAS_CONVERSATION_NPC) ||
         (gGameState == 4) ||
-        (playerStatus->animFlags & PLAYER_STATUS_ANIM_FLAGS_HOLDING_WATT) ||
+        (playerStatus->animFlags & PA_FLAGS_HOLDING_WATT) ||
         (playerStatus->inputEnabledCounter != 0) ||
-        (playerStatus->animFlags & PLAYER_STATUS_ANIM_FLAGS_SPINNING))
+        (playerStatus->animFlags & PA_FLAGS_SPINNING))
     {
         D_802B79A8_E21858->unk_2A = 3;
     }
@@ -138,7 +139,7 @@ void func_802B742C(void) {
             if ((unk10 >= 70.0f && unk10 <= 110.0f) || (unk10 >= 250.0f && unk10 <= 290.0f)) {
                 D_8010C940 = NULL;
                 playerStatus->encounteredNPC = NULL;
-                playerStatus->animFlags &= ~PLAYER_STATUS_ANIM_FLAGS_SPEECH_PROMPT_AVAILABLE;
+                playerStatus->animFlags &= ~PA_FLAGS_SPEECH_PROMPT_AVAILABLE;
                 return;
             }
             var_a2 = e20eb0_UnkAngleFunc1(unk10);
