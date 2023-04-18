@@ -2,7 +2,8 @@ from segtypes.n64.segment import N64Segment
 from pathlib import Path
 import struct
 from util.n64 import Yay0decompress
-from util.iter import iter_in_groups
+from util.n64.Yay0decompress import Yay0Decompressor
+from segtypes.n64.palette import iter_in_groups
 from util.color import unpack_color
 from util import options
 import png
@@ -24,6 +25,7 @@ class Sprite:
         self.image_names = []
         self.palette_names = []
         self.animation_names = []
+        self.variation_names = []
 
     @staticmethod
     def from_bytes(data):
@@ -68,10 +70,17 @@ class Sprite:
         return l
 
     def write_to_dir(self, path):
-        SpriteSheet = ET.Element("SpriteSheet", {
-            "maxComponents": str(self.max_components),
-            "paletteGroups": str(self.num_variations),
-        })
+        if len(self.variation_names) > 1:
+            SpriteSheet = ET.Element("SpriteSheet", {
+                "maxComponents": str(self.max_components),
+                "paletteGroups": str(self.num_variations),
+                "variations": ",".join(self.variation_names),
+            })
+        else:
+            SpriteSheet = ET.Element("SpriteSheet", {
+                "maxComponents": str(self.max_components),
+                "paletteGroups": str(self.num_variations),
+            })
 
         PaletteList = ET.SubElement(SpriteSheet, "PaletteList")
         RasterList = ET.SubElement(SpriteSheet, "RasterList")
@@ -80,7 +89,7 @@ class Sprite:
         palette_to_raster = {}
 
         for i, image in enumerate(self.images):
-            name = self.image_names[i] if self.image_names else f"Raster_{i:02X}"
+            name = self.image_names[i] if self.image_names else f"Raster{i:02X}"
             image.write(path / (name + ".png"), self.palettes[image.palette_index])
 
             if image.palette_index not in palette_to_raster:
@@ -94,7 +103,7 @@ class Sprite:
             })
 
         for i, palette in enumerate(self.palettes):
-            name = self.palette_names[i] if (self.palette_names and i < len(self.palette_names)) else f"Palette_{i:02X}"
+            name = self.palette_names[i] if (self.palette_names and i < len(self.palette_names)) else f"Pal{i:02X}"
 
             if i in palette_to_raster:
                 img = palette_to_raster[i][0]
@@ -110,7 +119,7 @@ class Sprite:
 
         for i, components in enumerate(self.animations):
             Animation = ET.SubElement(AnimationList, "Animation", {
-                "name": self.animation_names[i] if self.animation_names else f"Anim_{i:X}",
+                "name": self.animation_names[i] if self.animation_names else f"Anim{i:02X}",
             })
 
             for j, comp in enumerate(components):
@@ -140,6 +149,7 @@ class Sprite:
         true_max_components = 0
         self.max_components = int(SpriteSheet.get("a") or SpriteSheet.get("maxComponents")) # ignored
         self.num_variations = int(SpriteSheet.get("b") or SpriteSheet.get("paletteGroups"))
+        self.variation_names = SpriteSheet.get("variations", default="").split(",")
 
         for Palette in SpriteSheet.findall("./PaletteList/Palette"):
             if read_images:
@@ -260,12 +270,6 @@ class N64SegPm_npc_sprites(N64Segment):
         type,
         name,
         vram_start,
-        extract,
-        given_subalign,
-        exclusive_ram_id,
-        given_dir,
-        symbol_name_format,
-        symbol_name_format_no_rom,
         args,
         yaml,
     ):
@@ -275,12 +279,6 @@ class N64SegPm_npc_sprites(N64Segment):
             type,
             name,
             vram_start,
-            extract,
-            given_subalign,
-            exclusive_ram_id,
-            given_dir,
-            symbol_name_format=symbol_name_format,
-            symbol_name_format_no_rom=symbol_name_format_no_rom,
             args=args,
             yaml=yaml,
         )
@@ -291,7 +289,7 @@ class N64SegPm_npc_sprites(N64Segment):
             self.sprite_cfg = yaml_loader.load(f.read(), Loader=yaml_loader.SafeLoader)
 
     def split(self, rom_bytes):
-        out_dir = options.get_asset_path() / self.dir / self.name
+        out_dir = options.opts.asset_path / self.dir / self.name
 
         data = rom_bytes[self.rom_start:self.rom_end]
         pos = 0
@@ -305,21 +303,22 @@ class N64SegPm_npc_sprites(N64Segment):
             start = int.from_bytes(data[i * 4 : (i + 1) * 4], byteorder="big")
             end = int.from_bytes(data[(i + 1) * 4 : (i + 2) * 4], byteorder="big")
 
-            sprite_data = Yay0decompress.decompress_yay0(data[start:end])
+            sprite_data = Yay0Decompressor.decompress_python(data[start:end])
             sprite = Sprite.from_bytes(sprite_data)
 
             if sprite_name in self.sprite_cfg:
                 sprite.image_names = self.sprite_cfg[sprite_name].get("frames", [])
                 sprite.palette_names = self.sprite_cfg[sprite_name].get("palettes", [])
                 sprite.animation_names = self.sprite_cfg[sprite_name].get("animations", [])
+                sprite.variation_names = self.sprite_cfg[sprite_name].get("variations", [])
 
             sprite.write_to_dir(sprite_dir)
 
     def get_linker_entries(self):
         from segtypes.linker_entry import LinkerEntry
 
-        basepath = options.get_asset_path() / "sprite" / f"{self.name}"
-        out_paths = [options.get_asset_path() / "sprite" / self.name / (f["name"] if type(f) is dict else f)
+        basepath = options.opts.asset_path / "sprite" / f"{self.name}"
+        out_paths = [options.opts.asset_path / "sprite" / self.name / (f["name"] if type(f) is dict else f)
                      for f in self.files]
 
         return [LinkerEntry(self, out_paths, basepath, ".data")]

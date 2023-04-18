@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A948C_42A97C(void);
+API_CALLABLE(action_command_water_block_init);
+API_CALLABLE(action_command_water_block_start);
+void action_command_water_block_update(void);
+void action_command_water_block_draw(void);
+void action_command_water_block_free(void);
 
 #endif

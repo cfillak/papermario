@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9228_425D78(void);
+API_CALLABLE(action_command_07_init);
+API_CALLABLE(action_command_07_start);
+void action_command_07_update(void);
+void action_command_07_draw(void);
+void action_command_07_free(void);
 
 #endif

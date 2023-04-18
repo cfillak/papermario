@@ -3,9 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A928C_4263FC(void);
-
-ApiStatus func_802A9000_426170(Evt* script, s32 isInitialCall);
-ApiStatus action_command_dizzy_shell_MashActionCommandInit(Evt* script, s32 isInitialCall);
+API_CALLABLE(action_command_dizzy_shell_init);
+API_CALLABLE(action_command_dizzy_shell_start);
+void action_command_dizzy_shell_update(void);
+void action_command_dizzy_shell_draw(void);
+void action_command_dizzy_shell_free(void);
 
 #endif

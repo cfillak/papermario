@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9298_4302B8(void);
+API_CALLABLE(action_command_spook_init);
+API_CALLABLE(action_command_spook_start);
+void action_command_spook_update(void);
+void action_command_spook_draw(void);
+void action_command_spook_free(void);
 
 #endif

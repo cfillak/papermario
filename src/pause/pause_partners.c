@@ -1,16 +1,16 @@
 #include "pause_common.h"
 #include "message_ids.h"
+#include "hud_element.h"
 #include "sprite.h"
-#include "sprite/npc/world_goombario.h"
-#include "sprite/npc/world_kooper.h"
-#include "sprite/npc/world_bombette.h"
-#include "sprite/npc/world_parakarry.h"
-#include "sprite/npc/world_bow.h"
-#include "sprite/npc/world_watt.h"
-#include "sprite/npc/world_sushie.h"
-#include "sprite/npc/world_lakilester.h"
+#include "sprite/npc/WorldGoombario.h"
+#include "sprite/npc/WorldKooper.h"
+#include "sprite/npc/WorldBombette.h"
+#include "sprite/npc/WorldParakarry.h"
+#include "sprite/npc/WorldBow.h"
+#include "sprite/npc/WorldWatt.h"
+#include "sprite/npc/WorldSushie.h"
+#include "sprite/npc/WorldLakilester.h"
 
-extern s32 gPartnerPopupProperties[13][4];
 extern s8 gPauseBufferPal1[512];
 extern s8 gPauseBufferImg1[15752];
 extern s8 gPauseBufferPal2[512];
@@ -39,74 +39,115 @@ HudScript* gPausePartnersIconScripts[] = {
     &HES_FPCost, &HES_StatFp_1, &HES_PartnerRank, &HES_PartnerRank,
     &HES_MoveDiamond, &HES_MoveBlueOrb, &HES_MoveGreenOrb, &HES_MoveRedOrb
 };
+
 Vp gPausePartnersViewport = {
     .vp = {
         .vscale = { 640, 480, 511, 0 },
         .vtrans = { 640, 480, 511, 0 },
     }
 };
+
 s32 gPausePartnersSpriteAnims[][4] = {
     {
-        NPC_ANIM_world_goombario_normal_still,
-        NPC_ANIM_world_goombario_normal_walk,
-        NPC_ANIM_world_goombario_normal_talk,
+        ANIM_WorldGoombario_Still,
+        ANIM_WorldGoombario_Walk,
+        ANIM_WorldGoombario_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_kooper_normal_still,
-        NPC_ANIM_world_kooper_normal_walk,
-        NPC_ANIM_world_kooper_normal_talk,
+        ANIM_WorldKooper_Still,
+        ANIM_WorldKooper_Walk,
+        ANIM_WorldKooper_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_bombette_normal_still,
-        NPC_ANIM_world_bombette_normal_walk,
-        NPC_ANIM_world_bombette_normal_idle_fast,
+        ANIM_WorldBombette_Still,
+        ANIM_WorldBombette_Walk,
+        ANIM_WorldBombette_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_parakarry_Palette_00_Anim_0,
-        NPC_ANIM_world_parakarry_Palette_00_Anim_2,
-        NPC_ANIM_world_parakarry_Palette_00_Anim_6,
+        ANIM_WorldParakarry_Still,
+        ANIM_WorldParakarry_Walk,
+        ANIM_WorldParakarry_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_bow_Palette_00_Anim_0,
-        NPC_ANIM_world_bow_Palette_00_Anim_2,
-        NPC_ANIM_world_bow_Palette_00_Anim_4,
+        ANIM_WorldBow_Still,
+        ANIM_WorldBow_Walk,
+        ANIM_WorldBow_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_watt_Palette_00_Anim_0,
-        NPC_ANIM_world_watt_Palette_00_Anim_2,
-        NPC_ANIM_world_watt_Palette_00_Anim_4,
+        ANIM_WorldWatt_Still,
+        ANIM_WorldWatt_Walk,
+        ANIM_WorldWatt_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_sushie_Palette_00_Anim_0,
-        NPC_ANIM_world_sushie_Palette_00_Anim_2,
-        NPC_ANIM_world_sushie_Palette_00_Anim_4,
+        ANIM_WorldSushie_Still,
+        ANIM_WorldSushie_Walk,
+        ANIM_WorldSushie_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_lakilester_Palette_00_Anim_0,
-        NPC_ANIM_world_lakilester_Palette_00_Anim_5,
-        NPC_ANIM_world_lakilester_Palette_00_Anim_9,
+        ANIM_WorldLakilester_Still,
+        ANIM_WorldLakilester_Walk,
+        ANIM_WorldLakilester_Talk,
         ANIM_LIST_END
     }
 };
-s32 gPausePartnersPartnerIDs[] = { 1, 2, 3, 4, 9, 6, 7, 8};
-s32 gPausePartnersMessages[] = {
-    MSG_PartnerDesc_Goombario_Pause, MSG_PartnerDesc_Kooper_Pause, MSG_PartnerDesc_Bombette_Pause, MSG_PartnerDesc_Parakarry_Pause,
-    MSG_PartnerDesc_Bow_Pause, MSG_PartnerDesc_Watt_Pause, MSG_PartnerDesc_Sushie_Pause, MSG_PartnerDesc_Lakilester_Pause
+
+s32 gPausePartnersPartnerIDs[] = {
+    PARTNER_GOOMBARIO,
+    PARTNER_KOOPER,
+    PARTNER_BOMBETTE,
+    PARTNER_PARAKARRY,
+    PARTNER_BOW,
+    PARTNER_WATT,
+    PARTNER_SUSHIE,
+    PARTNER_LAKILESTER,
 };
-s32 gPausePartnersMoveBase[] = { MOVE_HEADBONK1, MOVE_SHELL_TOSS1, MOVE_BODY_SLAM1, MOVE_SKY_DIVE1,
-                                 MOVE_SMACK1, MOVE_ELECTRO_DASH1, MOVE_BELLY_FLOP1, MOVE_SPINY_FLIP1 };
+
+s32 gPausePartnersMessages[] = {
+    MSG_PartnerDesc_Goombario_Pause,
+    MSG_PartnerDesc_Kooper_Pause,
+    MSG_PartnerDesc_Bombette_Pause,
+    MSG_PartnerDesc_Parakarry_Pause,
+    MSG_PartnerDesc_Bow_Pause,
+    MSG_PartnerDesc_Watt_Pause,
+    MSG_PartnerDesc_Sushie_Pause,
+    MSG_PartnerDesc_Lakilester_Pause
+};
+
+s32 gPausePartnersMoveBase[] = {
+    MOVE_HEADBONK1,
+    MOVE_SHELL_TOSS1,
+    MOVE_BODY_SLAM1,
+    MOVE_SKY_DIVE1,
+    MOVE_SMACK1,
+    MOVE_ELECTRO_DASH1,
+    MOVE_BELLY_FLOP1,
+    MOVE_SPINY_FLIP1
+};
+
 s8 gPausePartnersGridData[] = {
     4, 5, 6, 7,
     0, 1, 2, 3
 };
-char* gPausePartnersAssetNames[] = { "party_kurio", "party_kameki", "party_pinki", "party_pareta", "party_resa",  "party_akari", "party_opuku", "party_pokopi", "letter_peach" };
+
+char* gPausePartnersAssetNames[] = {
+    "party_kurio",
+    "party_kameki",
+    "party_pinki",
+    "party_pareta",
+    "party_resa",
+    "party_akari",
+    "party_opuku",
+    "party_pokopi",
+    "letter_peach"
+};
+
 s8* gPausePartnersImageBuffers[] = { gPauseBufferImg1, gPauseBufferImg2 };
 s8* gPausePartnersPaletteBuffers[] = { gPauseBufferPal1, gPauseBufferPal2 };
 s32 D_8024F74C = 0;
@@ -135,7 +176,7 @@ MenuWindowBP gPausePartnersWindowBPs[] = {
         .pos = { .x = 3, .y = 16 },
         .width = 289,
         .height = 154,
-        .priority = 1,
+        .priority = WINDOW_PRIORITY_1,
         .fpDrawContents = &pause_partners_draw_contents,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_MAIN,
@@ -148,7 +189,7 @@ MenuWindowBP gPausePartnersWindowBPs[] = {
         .pos = { .x = 8, .y = 103 },
         .width = 112,
         .height = 20,
-        .priority = 0,
+        .priority = WINDOW_PRIORITY_0,
         .fpDrawContents = &pause_partners_draw_title,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_PARTNERS,
@@ -161,7 +202,7 @@ MenuWindowBP gPausePartnersWindowBPs[] = {
         .pos = { .x = 133, .y = 36 },
         .width = 140,
         .height = 80,
-        .priority = 0,
+        .priority = WINDOW_PRIORITY_0,
         .fpDrawContents = &pause_partners_draw_movelist,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_PARTNERS,
@@ -174,7 +215,7 @@ MenuWindowBP gPausePartnersWindowBPs[] = {
         .pos = { .x = 12, .y = -6 },
         .width = 80,
         .height = 16,
-        .priority = 0,
+        .priority = WINDOW_PRIORITY_0,
         .fpDrawContents = &pause_partners_draw_movelist_title,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_PARTNERS_MOVELIST,
@@ -187,7 +228,7 @@ MenuWindowBP gPausePartnersWindowBPs[] = {
         .pos = { .x = 102, .y = -12 },
         .width = 32,
         .height = 32,
-        .priority = 0,
+        .priority = WINDOW_PRIORITY_0,
         .fpDrawContents = &pause_partners_draw_movelist_flower,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_PARTNERS_MOVELIST,
@@ -245,7 +286,7 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
     s32 x1, y1, x2, y2;
     f32 currentPos, angle, scale;
     f32 offsetX, offsetY, offsetZ;
-    s32 a2;
+    s32 color;
     s8 currentTab;
     s32 portraitScrollPos;
     s32 portraitScrollIndex;
@@ -253,13 +294,13 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
     s32 portraitOffsetX;
     s32 portraitIndex;
 
-    gSPViewport(gMasterGfxPos++, &gPausePartnersViewport);
+    gSPViewport(gMainGfxPos++, &gPausePartnersViewport);
     guOrthoF(matrix, 0.0f, 320.0f, 240.0f, 0.0f, -100.0f, 100.0f, 1.0f);
     guMtxF2L(matrix, &gDisplayContext->matrixStack[gMatrixListPos]);
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
     guTranslateF(matrix, 0.0f, 0.0f, 0.0f);
     guMtxF2L(matrix, &gDisplayContext->matrixStack[gMatrixListPos]);
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
     for (i = 0; i < gPausePartnersNumPartners; i++) {
         currentPos = cos_deg(i * 360 / gPausePartnersNumPartners - gPausePartnersRotAngle) * 20.0f + 0.0f;
@@ -296,15 +337,15 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
         guMtxCatF(matrix2, matrix, matrix);
 
         if (offsetZ > 8.0f) {
-            a2 = 160;
+            color = 160;
         } else {
-            a2 = 255.0f - offsetZ * 95.0f * 0.125f;
+            color = 255.0f - offsetZ * 95.0f * 0.125f;
         }
-        func_802DE894(gPausePartnersSpriteIDs[gPausePartnersPartnerIdx[index]], 6, a2, a2, a2, 0xFF, 0x40);
+        func_802DE894(gPausePartnersSpriteIDs[gPausePartnersPartnerIdx[index]], FOLD_UPD_SET_COLOR, color, color, color, 255, 64);
         spr_draw_npc_sprite(gPausePartnersSpriteIDs[gPausePartnersPartnerIdx[index]], 0, 0, NULL, matrix);
     }
 
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 
     currentTab = gPauseMenuCurrentTab;
     if (currentTab == 4) {
@@ -313,7 +354,7 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
         }
 
         if (gPauseMenuCurrentTab == currentTab && gPausePartnersLevel == 0) {
-            pause_draw_menu_label(8, 18, 158);
+            pause_draw_menu_label(PAUSE_LBL_ABILITIES, 18, 158);
         }
     }
 
@@ -342,14 +383,14 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
 
     portraitScrollPos = (gPausePartnersRotAngle + 360.0f) * 15000.0f * gPausePartnersNumPartners / 360.0f;
     portraitScrollIndex = portraitScrollPos / 15000;
-    gDPSetScissor(gMasterGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
+    gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
     portraitOffsetX = (portraitScrollIndex * 15000 - portraitScrollPos);
     portraitOffsetX *= 0.01;
     portraitIndex = portraitScrollIndex;
     pause_partners_load_portrait(portraitIndex % gPausePartnersNumPartners);
     for (i = 0; i < 2; portraitOffsetX += 150, i++) {
-        gSPDisplayList(gMasterGfxPos++, &gPausePartnersDL);
-        gDPLoadTLUT_pal256(gMasterGfxPos++, gPausePartnersPaletteBuffers[i]);
+        gSPDisplayList(gMainGfxPos++, &gPausePartnersDL);
+        gDPLoadTLUT_pal256(gMainGfxPos++, gPausePartnersPaletteBuffers[i]);
 
         for (index = 0; index < 20; index++) {
             if (12 * index + 12 <= 105) {
@@ -358,12 +399,12 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
                 tileHeight = 106 - 12 * index;
             }
 
-            gDPLoadTextureTile(gMasterGfxPos++, gPausePartnersImageBuffers[i], G_IM_FMT_CI, G_IM_SIZ_8b, 150, 0,
+            gDPLoadTextureTile(gMainGfxPos++, gPausePartnersImageBuffers[i], G_IM_FMT_CI, G_IM_SIZ_8b, 150, 0,
                                 0, 12 * index, 149, 12 * index + tileHeight - 1, 0,
                                 G_TX_CLAMP, G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
             pause_draw_rect((baseX + 130 + portraitOffsetX) * 4, (baseY + 24 + 12 * index) * 4, (baseX + 280 + portraitOffsetX) * 4, (baseY + 24 + 12 * index + tileHeight) * 4, 0, 0,
                             12 * index * 32, 0x400, 0x400);
-            gDPPipeSync(gMasterGfxPos++);
+            gDPPipeSync(gMainGfxPos++);
             if (12 * index + 12 >= 105) {
                 break;
             }
@@ -394,13 +435,13 @@ void pause_partners_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
             y2 = SCREEN_HEIGHT - 1;
         }
 
-        gDPSetScissor(gMasterGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
+        gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
     }
     draw_box(0, &gPauseWS_21, baseX + 122, baseY + 16, 0, 166, 121, opacity, darkening, 1.0f, 1.0f, 0, 0, 0, 0, 0, 0, width, height, 0);
 }
 
 void pause_partners_draw_title(MenuPanel* menu, s32 baseX, s32 baseY, s32 width, s32 height, s32 opacity, s32 darkening) {
-    s32 msgID = gPartnerPopupProperties[gPausePartnersPartnerIDs[gPausePartnersPartnerIdx[gPausePartnersCurrentPartnerIdx]]][0];
+    s32 msgID = gPartnerPopupProperties[gPausePartnersPartnerIDs[gPausePartnersPartnerIdx[gPausePartnersCurrentPartnerIdx]]].nameMsg;
     s32 level = get_player_data()->partners[gPausePartnersPartnerIDs[gPausePartnersPartnerIdx[gPausePartnersCurrentPartnerIdx]]].level;
     s32 msgWidth = get_msg_width(msgID, 0);
     s32 offset = 16;
@@ -416,7 +457,7 @@ void pause_partners_draw_title(MenuPanel* menu, s32 baseX, s32 baseY, s32 width,
         msgWidth += 4;
     }
 
-    draw_msg(msgID, baseX + ((width - offset - msgWidth) >> 1), baseY + 1, 255, 0, 0);
+    draw_msg(msgID, baseX + ((width - offset - msgWidth) >> 1), baseY + 1, 255, MSG_PAL_WHITE, 0);
 
     if (level == 1) {
         hud_element_set_render_pos(gPausePartnersIconIDs[2], baseX + 95, baseY + 10);
@@ -453,7 +494,7 @@ void pause_partners_draw_movelist(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
             continue;
         }
 
-        style = 1;
+        style = DRAW_NUMBER_CHARSET_THIN;
 
         if (i == 0) {
             moveNameID = gMoveTable[gPausePartnersMoveBase[gPausePartnersPartnerIdx[gPausePartnersCurrentPartnerIdx]]].nameMsg;
@@ -467,14 +508,14 @@ void pause_partners_draw_movelist(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
             costFP = 0;
         }
 
-        draw_msg(moveNameID, msgX, msgY, 255, 10, style);
+        draw_msg(moveNameID, msgX, msgY, 255, MSG_PAL_STANDARD, style);
         hud_element_set_scale(gPausePartnersIconIDs[i + 4], 0.5f);
         //TODO find better match
         hud_element_set_render_pos(gPausePartnersIconIDs[i + 4], 12 - (-baseX), baseY + 28 + i * 13);
         hud_element_draw_without_clipping(gPausePartnersIconIDs[i + 4]);
 
         if (costFP != 0) {
-            draw_number(costFP, baseX + 125, baseY + 22 + i * 13, style, 10, 255, 3);
+            draw_number(costFP, baseX + 125, baseY + 22 + i * 13, style, MSG_PAL_STANDARD, 255, DRAW_NUMBER_STYLE_MONOSPACE | DRAW_NUMBER_STYLE_ALIGN_RIGHT);
             if (costFP > 0) {
                 hud_element_set_render_pos(gPausePartnersIconIDs[0], baseX + 134, baseY + 29 + i * 13);
                 hud_element_draw_without_clipping(gPausePartnersIconIDs[0]);
@@ -488,7 +529,7 @@ void pause_partners_draw_movelist(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
 }
 
 void pause_partners_draw_movelist_title(MenuPanel* menu, s32 baseX, s32 baseY, s32 width, s32 height, s32 opacity, s32 darkening) {
-    draw_msg(pause_get_menu_msg(0x55), baseX + 12, baseY + 1, 255, -1, 1);
+    draw_msg(pause_get_menu_msg(PAUSE_MSG_PARTNER_ABILITIES), baseX + 12, baseY + 1, 255, -1, DRAW_MSG_STYLE_MENU);
 }
 
 void pause_partners_draw_movelist_flower(MenuPanel* menu, s32 baseX, s32 baseY, s32 width, s32 height, s32 opacity, s32 darkening) {
@@ -520,7 +561,7 @@ void pause_partners_init(MenuPanel* panel) {
 
     for (i = 0; i < ARRAY_COUNT(gPausePartnersIconScripts); i++) {
         gPausePartnersIconIDs[i] = hud_element_create(gPausePartnersIconScripts[i]);
-        hud_element_set_flags(gPausePartnersIconIDs[i], HUD_ELEMENT_FLAGS_80);
+        hud_element_set_flags(gPausePartnersIconIDs[i], HUD_ELEMENT_FLAG_80);
     }
 
     for (i = 0; i < ARRAY_COUNT(gPausePartnersWindowBPs); i++) {
@@ -546,6 +587,7 @@ void pause_partners_init(MenuPanel* panel) {
 void pause_partners_handle_input(MenuPanel* panel) {
     s32 delta;
     s32 level, level2;
+    s32 partnerID;
     s32 oldPos;
 
     if (gPausePartnersNumPartners >= 2 && (gPausePartnersLevel == 0 || (gPauseHeldButtons & (BUTTON_Z | BUTTON_R)))) {

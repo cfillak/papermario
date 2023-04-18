@@ -1,8 +1,9 @@
 #include "common.h"
+#include "effects.h"
 
 #include "FoliageTransform.inc.c"
 
-EvtScript N(searchBush) = {
+EvtScript N(EVS_SearchBush) = {
     EVT_USE_BUF(LVar0)
     EVT_BUF_READ4(LVar1, LVar2, LVar3, LVar4)
     EVT_CALL(GetPlayerPos, LVar5, LVarF, LVar7)
@@ -17,7 +18,7 @@ EvtScript N(searchBush) = {
                     EVT_CALL(N(TransformFoliage), LVar3, EVT_FLOAT(0.1), 1, LVarF, 0)
                     EVT_IF_EQ(LocalFlag(0), 0)
                         EVT_SET(LocalFlag(0), 1)
-                        EVT_CALL(PlaySoundAtModel, LVar3, 339, 0)
+                        EVT_CALL(PlaySoundAtModel, LVar3, SOUND_SEARCH_BUSH, SOUND_SPACE_MODE_0)
                     EVT_END_IF
                 EVT_END_LOOP
                 EVT_WAIT(1)
@@ -66,14 +67,14 @@ EvtScript N(searchBush) = {
     EVT_END
 };
 
-EvtScript N(shakeTree) = {
+EvtScript N(EVS_ShakeTree) = {
     EVT_SET_TIMESCALE(EVT_FLOAT(2.0))
     EVT_USE_BUF(LVar0)
     EVT_BUF_READ4(LVar1, LVar2, LVar3, LVar4)
     EVT_BUF_READ1(LVar5)
     EVT_CALL(GetPlayerPos, LVar6, LVarF, LVar8)
     EVT_CALL(PlaySound, SOUND_SMASH_GOOMNUT_TREE)
-    EVT_CALL(PlaySound, 358)
+    EVT_CALL(PlaySound, SOUND_SHAKE_TREE)
     EVT_THREAD
         EVT_SET(LocalFlag(0), 0)
         EVT_IF_NE(LVar1, 0)
@@ -86,7 +87,7 @@ EvtScript N(shakeTree) = {
                     EVT_CALL(N(TransformFoliage), LVar3, EVT_FLOAT(0.1), EVT_FLOAT(0.2), LVarF, 0)
                     EVT_IF_EQ(LocalFlag(0), 0)
                         EVT_SET(LocalFlag(0), 1)
-                        EVT_CALL(PlaySoundAtModel, LVar3, 358, 0)
+                        EVT_CALL(PlaySoundAtModel, LVar3, SOUND_SHAKE_TREE, SOUND_SPACE_MODE_0)
                     EVT_END_IF
                 EVT_END_LOOP
                 EVT_WAIT(1)
@@ -118,7 +119,7 @@ EvtScript N(shakeTree) = {
                     EVT_CALL(N(TransformFoliage), LVar4, EVT_FLOAT(0.1), EVT_FLOAT(0.2), LVarF, 0)
                     EVT_IF_EQ(LocalFlag(0), 0)
                         EVT_SET(LocalFlag(0), 1)
-                        EVT_CALL(PlaySoundAtModel, LVar4, 357, 0)
+                        EVT_CALL(PlaySoundAtModel, LVar4, SOUND_SMASH_GOOMNUT_TREE, SOUND_SPACE_MODE_0)
                     EVT_END_IF
                 EVT_END_LOOP
                 EVT_WAIT(1)
@@ -165,7 +166,7 @@ EvtScript N(shakeTree) = {
             EVT_BUF_READ1(LVar5)
             EVT_LOOP(LVar5)
                 EVT_BUF_READ3(LVar6, LVar7, LVar8)
-                EVT_CALL(PlayEffect, 0x14, 0, LVar6, LVar7, LVar8, 100, 0, 0, 0, 0, 0, 0, 0, 0)
+                EVT_PLAY_EFFECT(EFFECT_DROP_LEAVES, 0, LVar6, LVar7, LVar8, 100)
             EVT_END_LOOP
         EVT_END_IF
     EVT_END_THREAD

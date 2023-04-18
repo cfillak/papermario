@@ -1,8 +1,8 @@
 #include "common.h"
 #include "effects_internal.h"
 
-extern Gfx D_09001180[];
-extern Gfx D_09001230[];
+extern Gfx D_09001180_33E790[];
+extern Gfx D_09001230_33E840[];
 
 void drop_leaves_init(EffectInstance* effect);
 void drop_leaves_render(EffectInstance* effect);
@@ -123,7 +123,7 @@ void drop_leaves_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void drop_leaves_appendGfx(void* effect) {
@@ -133,9 +133,9 @@ void drop_leaves_appendGfx(void* effect) {
     Matrix4f sp98;
     s32 i;
 
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
-    gSPDisplayList(gMasterGfxPos++, D_09001180);
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, 20, 100, 20, part->unk_24);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
+    gSPDisplayList(gMainGfxPos++, D_09001180_33E790);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, 20, 100, 20, part->unk_24);
 
     shim_guTranslateF(sp18, part->unk_04, part->unk_08, part->unk_0C);
     shim_guRotateF(sp58, -gCameras[gCurrentCameraID].currentYaw, 0.0f, 1.0f, 0.0f);
@@ -151,8 +151,8 @@ void drop_leaves_appendGfx(void* effect) {
         shim_guMtxCatF(sp58, sp18, sp18);
         shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
-        gSPDisplayList(gMasterGfxPos++, D_09001230);
-        gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+        gSPDisplayList(gMainGfxPos++, D_09001230_33E840);
+        gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     }
 }

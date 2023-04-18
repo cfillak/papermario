@@ -17,43 +17,43 @@ void action_update_land(void) {
     s32 jumpInputCheck;
     AnimID anim;
 
-    if (playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS) {
+    if (playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS) {
         action_update_peach_land();
         return;
     }
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
         playerStatus->flags &= ~(
-            PS_FLAGS_ACTION_STATE_CHANGED |
-            PS_FLAGS_800000 |
-            PS_FLAGS_80000 |
-            PS_FLAGS_AIRBORNE
+            PS_FLAG_ACTION_STATE_CHANGED |
+            PS_FLAG_SCRIPTED_FALL |
+            PS_FLAG_ARMS_RAISED |
+            PS_FLAG_AIRBORNE
         );
         playerStatus->actionSubstate = SUBSTATE_INIT;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
+        playerStatus->peakJumpTime = 0;
         playerStatus->landPos.x = playerStatus->position.x;
         playerStatus->landPos.z = playerStatus->position.z;
 
-        if (playerStatus->animFlags & PA_FLAGS_8BIT_MARIO) {
-            anim = ANIM_Mario_90002;
-        } else if (!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) {
-            anim = ANIM_Mario_10009;
+        if (playerStatus->animFlags & PA_FLAG_8BIT_MARIO) {
+            anim = ANIM_MarioW3_8bit_Still;
+        } else if (!(playerStatus->animFlags & PA_FLAG_USING_WATT)) {
+            anim = ANIM_Mario1_Land;
         } else {
-            anim = ANIM_Mario_6000B;
+            anim = ANIM_MarioW1_LandWatt;
         }
 
-        suggest_player_anim_clearUnkFlag(anim);
-        sfx_play_sound_at_player(SOUND_8161, 0);
-        sfx_play_sound_at_player(SOUND_SOFT_LAND, 0);
+        suggest_player_anim_allow_backward(anim);
+        sfx_play_sound_at_player(SOUND_161 | SOUND_ID_STOP, SOUND_SPACE_MODE_0);
+        sfx_play_sound_at_player(SOUND_SOFT_LAND, SOUND_SPACE_MODE_0);
 
         if (!(collisionStatus->currentFloor & COLLISION_WITH_ENTITY_BIT)) {
             phys_adjust_cam_on_landing();
         }
 
         collisionStatus->lastTouchedFloor = -1;
-        playerStatus->animFlags &= ~PA_FLAGS_40000;
-        camera->moveFlags &= ~CAMERA_MOVE_FLAGS_4;
+        playerStatus->animFlags &= ~PA_FLAG_INTERRUPT_SPIN;
+        camera->moveFlags &= ~CAMERA_MOVE_FLAG_4;
     }
     playerStatus->actionSubstate++; // SUBSTATE_DONE
     playerStatus->currentSpeed *= 0.6f;
@@ -79,21 +79,21 @@ void action_update_step_down_land(void) {
     f32 inputMoveMagnitude;
     f32 inputMoveAngle;
 
-    if (playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS) {
+    if (playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS) {
         action_update_peach_step_down_land();
         return;
     }
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
          playerStatus->flags &= ~(
-            PS_FLAGS_ACTION_STATE_CHANGED |
-            PS_FLAGS_800000 |
-            PS_FLAGS_80000 |
-            PS_FLAGS_AIRBORNE
+            PS_FLAG_ACTION_STATE_CHANGED |
+            PS_FLAG_SCRIPTED_FALL |
+            PS_FLAG_ARMS_RAISED |
+            PS_FLAG_AIRBORNE
         );
         playerStatus->actionSubstate = SUBSTATE_INIT;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
+        playerStatus->peakJumpTime = 0;
         playerStatus->landPos.x = playerStatus->position.x;
         playerStatus->landPos.z = playerStatus->position.z;
 
@@ -123,16 +123,16 @@ void action_update_peach_land(void) {
     f32 inputMoveMagnitude;
     f32 inputMoveAngle;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         playerStatus->actionSubstate = SUBSTATE_INIT;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
-        playerStatus->flags &= ~PS_FLAGS_AIRBORNE;
+        playerStatus->peakJumpTime = 0;
+        playerStatus->flags &= ~PS_FLAG_AIRBORNE;
         playerStatus->landPos.x = playerStatus->position.x;
         playerStatus->landPos.z = playerStatus->position.z;
 
-        sfx_play_sound_at_player(SOUND_SOFT_LAND, 0);
+        sfx_play_sound_at_player(SOUND_SOFT_LAND, SOUND_SPACE_MODE_0);
 
         if (!(collisionStatus->currentFloor & COLLISION_WITH_ENTITY_BIT)) {
             phys_adjust_cam_on_landing();
@@ -167,12 +167,12 @@ void action_update_peach_step_down_land(void) {
     f32 inputMoveMagnitude;
     f32 inputMoveAngle;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         playerStatus->actionSubstate = SUBSTATE_INIT;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
-        playerStatus->flags &= ~PS_FLAGS_AIRBORNE;
+        playerStatus->peakJumpTime = 0;
+        playerStatus->flags &= ~PS_FLAG_AIRBORNE;
         playerStatus->landPos.x = playerStatus->position.x;
         playerStatus->landPos.z = playerStatus->position.z;
 

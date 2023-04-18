@@ -6,7 +6,9 @@
 
 #define HUD_ELEMENT_BATTLE_ID_MASK 0x800
 
-typedef s32 HudScript[0];
+typedef s32 HudScript[];
+
+typedef s32 HudElemID;
 
 enum {
     HUD_ELEMENT_OP_End,
@@ -68,38 +70,38 @@ enum {
 };
 
 enum HudElementFlags {
-    HUD_ELEMENT_FLAGS_INITIALIZED        = 0x00000001,
-    HUD_ELEMENT_FLAGS_DISABLED           = 0x00000002,
-    HUD_ELEMENT_FLAGS_ANIMATION_FINISHED = 0x00000004,
-    HUD_ELEMENT_FLAGS_8                  = 0x00000008,
-    HUD_ELEMENT_FLAGS_SCALED             = 0x00000010,
-    HUD_ELEMENT_FLAGS_TRANSPARENT        = 0x00000020,
-    HUD_ELEMENT_FLAGS_FRONTUI            = 0x00000040,
-    HUD_ELEMENT_FLAGS_80                 = 0x00000080,
-    HUD_ELEMENT_FLAGS_FIXEDSCALE         = 0x00000100,
-    HUD_ELEMENT_FLAGS_200                = 0x00000200,
-    HUD_ELEMENT_FLAGS_BATTLE             = 0x00000400,
-    HUD_ELEMENT_FLAGS_REPEATED           = 0x00000800,
-    HUD_ELEMENT_FLAGS_FLIPX              = 0x00001000,
-    HUD_ELEMENT_FLAGS_FLIPY              = 0x00002000,
-    HUD_ELEMENT_FLAGS_FMT_CI4            = 0x00004000,
-    HUD_ELEMENT_FLAGS_FILTER_TEX         = 0x00008000,
-    HUD_ELEMENT_FLAGS_TRANSFORM          = 0x00010000,
-    HUD_ELEMENT_FLAGS_NO_FOLD            = 0x00020000,
-    HUD_ELEMENT_FLAGS_DELETE             = 0x00040000,
-    HUD_ELEMENT_FLAGS_FMT_IA8            = 0x00080000,
-    HUD_ELEMENT_FLAGS_CUSTOM_SIZE        = 0x00100000,
-    HUD_ELEMENT_FLAGS_200000             = 0x00200000,
-    HUD_ELEMENT_FLAGS_MEMOFFSET          = 0x00400000,
-    HUD_ELEMENT_FLAGS_ANTIALIASING       = 0x00800000,
-    HUD_ELEMENT_FLAGS_1000000            = 0x01000000,
-    HUD_ELEMENT_FLAGS_2000000            = 0x02000000,
-    HUD_ELEMENT_FLAGS_4000000            = 0x04000000,
-    HUD_ELEMENT_FLAGS_8000000            = 0x08000000,
-    HUD_ELEMENT_FLAGS_10000000           = 0x10000000,
-    HUD_ELEMENT_FLAGS_DROP_SHADOW        = 0x20000000,
-    HUD_ELEMENT_FLAGS_40000000           = 0x40000000,
-    HUD_ELEMENT_FLAGS_80000000           = 0x80000000,
+    HUD_ELEMENT_FLAG_INITIALIZED        = 0x00000001,
+    HUD_ELEMENT_FLAG_DISABLED           = 0x00000002,
+    HUD_ELEMENT_FLAG_ANIMATION_FINISHED = 0x00000004,
+    HUD_ELEMENT_FLAG_8                  = 0x00000008,
+    HUD_ELEMENT_FLAG_SCALED             = 0x00000010,
+    HUD_ELEMENT_FLAG_TRANSPARENT        = 0x00000020,
+    HUD_ELEMENT_FLAG_FRONTUI            = 0x00000040,
+    HUD_ELEMENT_FLAG_80                 = 0x00000080,
+    HUD_ELEMENT_FLAG_FIXEDSCALE         = 0x00000100,
+    HUD_ELEMENT_FLAG_200                = 0x00000200,
+    HUD_ELEMENT_FLAG_BATTLE             = 0x00000400,
+    HUD_ELEMENT_FLAG_REPEATED           = 0x00000800,
+    HUD_ELEMENT_FLAG_FLIPX              = 0x00001000,
+    HUD_ELEMENT_FLAG_FLIPY              = 0x00002000,
+    HUD_ELEMENT_FLAG_FMT_CI4            = 0x00004000,
+    HUD_ELEMENT_FLAG_FILTER_TEX         = 0x00008000,
+    HUD_ELEMENT_FLAG_TRANSFORM          = 0x00010000,
+    HUD_ELEMENT_FLAG_NO_FOLD            = 0x00020000,
+    HUD_ELEMENT_FLAG_DELETE             = 0x00040000,
+    HUD_ELEMENT_FLAG_FMT_IA8            = 0x00080000,
+    HUD_ELEMENT_FLAG_CUSTOM_SIZE        = 0x00100000,
+    HUD_ELEMENT_FLAG_200000             = 0x00200000,
+    HUD_ELEMENT_FLAG_MEMOFFSET          = 0x00400000,
+    HUD_ELEMENT_FLAG_ANTIALIASING       = 0x00800000,
+    HUD_ELEMENT_FLAG_1000000            = 0x01000000,
+    HUD_ELEMENT_FLAG_2000000            = 0x02000000,
+    HUD_ELEMENT_FLAG_4000000            = 0x04000000,
+    HUD_ELEMENT_FLAG_8000000            = 0x08000000,
+    HUD_ELEMENT_FLAG_10000000           = 0x10000000,
+    HUD_ELEMENT_FLAG_DROP_SHADOW        = 0x20000000,
+    HUD_ELEMENT_FLAG_40000000           = 0x40000000,
+    HUD_ELEMENT_FLAG_80000000           = 0x80000000,
 };
 
 enum {
@@ -126,13 +128,16 @@ typedef struct PopupMenu {
     /* 0x290 */ char unk_290[0x4];
     /* 0x294 */ s32 descMsg[32];
     /* 0x314 */ char unk_314[0x4];
-    /* 0x318 */ s32 popupType; // C = keys
-    /* 0x31C */ s32 unk_31C;
-    /* 0x320 */ s32 unk_320;
+    /* 0x318 */ s32 popupType;
+    /* 0x31C */ s32 dipMode;
+    /* 0x320 */ s32 titleNumber; // used to display 2/3 with double/triple dip
     /* 0x324 */ s32 numEntries;
     /* 0x328 */ s32 initialPos;
     /* 0x32C */ s16 result;
     /* 0x32E */ char unk_32E[0x2];
+#if VERSION_PAL
+    /* 0x330 */ char unk_330[0x14];
+#endif
 } PopupMenu; // size = 0x330
 
 typedef struct Shop {
@@ -205,9 +210,21 @@ typedef HudElement* HudElementList[320];
 extern HudScript HES_AnimatedHandPointer;
 extern HudScript HES_StatusCoin;
 extern HudScript HES_Refund;
+#if VERSION_PAL
+extern HudScript HES_Refund_de;
+extern HudScript HES_Refund_fr;
+extern HudScript HES_Refund_es;
+#endif
 extern HudScript HES_MenuTimes;
 
-extern s32 gPartnerPopupProperties[13][4];
+typedef struct PartnerPopupProperties {
+    /* 0x00 */ s32 nameMsg;
+    /* 0x04 */ s32 unk_04;
+    /* 0x08 */ s32 worldDescMsg;
+    /* 0x0C */ s32 battleDescMsg;
+} PartnerPopupProperties; // size = 0x10
+
+extern PartnerPopupProperties gPartnerPopupProperties[13];
 extern HudScript* wDisabledPartnerHudScripts[];
 extern HudScript* wPartnerHudScripts[];
 
@@ -239,7 +256,7 @@ extern HudScript* wPartnerHudScripts[];
 #define hs_RandomRestart(max, cutoff) HUD_ELEMENT_OP_RandomRestart, max, cutoff,
 
 #define hs_op_15(arg0) HUD_ELEMENT_OP_op_15, arg0,
-#define hs_RandomBranch(...) HUD_ELEMENT_OP_RandomBranch, (sizeof((s32[]){__VA_ARGS__})/sizeof(s32)), __VA_ARGS__,
+#define hs_RandomBranch(args...) HUD_ELEMENT_OP_RandomBranch, (sizeof((s32[]){args})/sizeof(s32)), args,
 #define hs_SetFlags(arg0) HUD_ELEMENT_OP_SetFlags, arg0,
 #define hs_ClearFlags(arg0) HUD_ELEMENT_OP_ClearFlags, arg0,
 #define hs_PlaySound(arg0) HUD_ELEMENT_OP_PlaySound, arg0,
@@ -248,23 +265,23 @@ extern HudScript* wPartnerHudScripts[];
 /// Basic HudScript used for static CI images, setting size with hs_SetTileSize
 #define HES_TEMPLATE_CI_ENUM_SIZE(name, sizeX, sizeY) \
     { \
-		hs_SetVisible \
-		hs_SetTileSize(HUD_ELEMENT_SIZE_##sizeX##x##sizeY) \
-		hs_Loop \
-			hs_SetCI(60, name) \
-		hs_Restart \
-		hs_End \
+        hs_SetVisible \
+        hs_SetTileSize(HUD_ELEMENT_SIZE_##sizeX##x##sizeY) \
+        hs_Loop \
+            hs_SetCI(60, name) \
+        hs_Restart \
+        hs_End \
     }
 
 /// Basic HudScript used for static CI images, setting size with hs_SetCustomSize
 #define HES_TEMPLATE_CI_CUSTOM_SIZE(name, sizeX, sizeY) \
     { \
-		hs_SetVisible \
-		hs_SetCustomSize(sizeX, sizeY) \
-		hs_Loop \
-			hs_SetCI(60, name) \
-		hs_Restart \
-		hs_End \
+        hs_SetVisible \
+        hs_SetCustomSize(sizeX, sizeY) \
+        hs_Loop \
+            hs_SetCI(60, name) \
+        hs_Restart \
+        hs_End \
     }
 
 void hud_element_load_script(HudElement* hudElement, HudScript* anim);
@@ -360,6 +377,6 @@ void copy_world_hud_element_ref_to_battle(s32 worldID, s32 battleID);
 
 void hud_element_set_aux_cache(void* base, s32 size);
 
-void create_popup_menu(PopupMenu*);
+void create_standard_popup_menu(PopupMenu*);
 
 #endif

@@ -6,20 +6,22 @@ void blast_update(EffectInstance* effect);
 void blast_render(EffectInstance* effect);
 void blast_appendGfx(void* effect);
 
-extern Gfx D_09001300[];
-extern Gfx D_09001378[];
-extern Gfx D_090013F0[];
-extern Gfx D_09001468[];
-extern Gfx D_090014E0[];
-extern Gfx D_09001558[];
-extern Gfx D_090015D0[];
-extern Gfx D_09001648[];
-extern Gfx D_090016C0[];
-extern Gfx D_09001738[];
-extern Gfx D_090017B0[];
+extern Gfx D_09001300_37ECD0[];
+extern Gfx D_09001378_37ED48[];
+extern Gfx D_090013F0_37EDC0[];
+extern Gfx D_09001468_37EE38[];
+extern Gfx D_090014E0_37EEB0[];
+extern Gfx D_09001558_37EF28[];
+extern Gfx D_090015D0_37EFA0[];
+extern Gfx D_09001648_37F018[];
+extern Gfx D_090016C0_37F090[];
+extern Gfx D_09001738_37F108[];
+extern Gfx D_090017B0_37F180[];
 
 Gfx* D_E007C510[] = {
-    D_09001378, D_090013F0, D_09001468, D_090014E0, D_09001558, D_090015D0, D_09001648, D_090016C0, D_09001738
+    D_09001378_37ED48, D_090013F0_37EDC0, D_09001468_37EE38,
+    D_090014E0_37EEB0, D_09001558_37EF28, D_090015D0_37EFA0,
+    D_09001648_37F018, D_090016C0_37F090, D_09001738_37F108
 };
 
 void blast_main(s32 arg0, f32 arg1, f32 arg2, f32 arg3, f32 arg4, s32 arg5) {
@@ -87,30 +89,23 @@ void blast_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_28;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
-#ifdef NON_MATCHING
-void blast_appendGfx(void* effect) {
-    Matrix4f sp18, sp58, sp98;
-    Gfx* dlist;
-    Gfx* dlist2;
-    BlastFXData* data = ((EffectInstance*)effect)->data;
-    f32 temp_f2;
-    s32 temp_f4;
-    s32 alpha;
+void blast_appendGfx(void *effect) {
+    Matrix4f sp18;
+    Matrix4f sp58;
+    Matrix4f sp98;
+    Gfx* dlist = D_090017B0_37F180;
+    BlastFXData* data = ((EffectInstance*) effect)->data.blast;
+    s32 unk_20 = data->unk_20;
+    f32 t = 256.0f;
+    s32 envAlpha = (data->unk_20 - unk_20) * t;
 
-    dlist = D_090017B0;
-    dlist2 = D_09001300;
-
-    temp_f4 = data->unk_20;
-    temp_f2 = temp_f4;
-    alpha = (temp_f2 - temp_f4) * 256.0f;
-
-    gDPPipeSync(gMasterGfxPos++);
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
-    gSPDisplayList(gMasterGfxPos++, dlist2);
-    gSPDisplayList(gMasterGfxPos++, D_E007C510[temp_f4]);
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
+    gSPDisplayList(gMainGfxPos++, D_09001300_37ECD0);
+    gSPDisplayList(gMainGfxPos++, D_E007C510[unk_20]);
 
     shim_guTranslateF(sp18, data->pos.x, data->pos.y, data->pos.z);
     shim_guRotateF(sp58, -gCameras[gCurrentCameraID].currentYaw, 0.0f, 1.0f, 0.0f);
@@ -121,19 +116,20 @@ void blast_appendGfx(void* effect) {
     shim_guMtxCatF(sp18, sp98, sp98);
     shim_guMtxF2L(sp98, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
               G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+
     if (data->unk_20 > 4.0f) {
-        gDPSetPrimColor(gMasterGfxPos++, 0, 0, 255, 255, 255, 127);
+        gDPSetPrimColor(gMainGfxPos++, 0, 0, 255, 255, 255, 127);
     } else {
-        gDPSetPrimColor(gMasterGfxPos++, 0, 0, 255, 255, 128, 127);
+        gDPSetPrimColor(gMainGfxPos++, 0, 0, 255, 255, 128, 127);
     }
+    t = !(s32)t; // required to match
+    gDPSetEnvColor(gMainGfxPos++, 255, 255, 139, envAlpha);
 
-    gDPSetEnvColor(gMasterGfxPos++, 255, 255, 139, alpha);
-
-    gSPDisplayList(gMasterGfxPos++, dlist);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, dlist);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
-#else
-INCLUDE_ASM(s32, "effects/blast", blast_appendGfx);
-#endif
+// #else
+// INCLUDE_ASM(s32, "effects/blast", blast_appendGfx);
+// #endif

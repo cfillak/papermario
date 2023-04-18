@@ -3,9 +3,14 @@
 #include "hud_element.h"
 #include "ld_addrs.h"
 #include "sprite.h"
+#include "battle/battle.h"
+#include "model.h"
 
-s32 D_800778A0[] = {
-    &D_8038F800, &D_803B5000, &heap_battleHead,
+extern u16 gFrameBuf0[];
+extern u16 gFrameBuf1[];
+extern u16 gFrameBuf2[];
+u16* bFrameBuffers[] = {
+    gFrameBuf0, gFrameBuf1, gFrameBuf2
 };
 
 s32 D_800778AC[] = {
@@ -16,13 +21,19 @@ s32 D_800778AC[] = {
 extern s32 D_800A0904;
 extern s32 D_800A0908;
 
+#ifdef SHIFT
+#define shim_battle_heap_create_obfuscated battle_heap_create
+#endif
+
+extern ShapeFile gMapShapeData;
+
 void state_init_battle(void) {
     D_800A0900 = 5;
 }
 
 void state_step_battle(void) {
     u32 currentBattleSelection;
-    u32 temp;
+    u32 currentBattleIndex;
 
     if (D_800A0900 == 5) {
         if (nuGfxCfb[1] != nuGfxCfb_ptr) {
@@ -39,24 +50,31 @@ void state_step_battle(void) {
             return;
         } else {
             D_800A0900 = -1;
-            nuGfxSetCfb(&D_800778A0, 2);
+            nuGfxSetCfb(bFrameBuffers, 2);
             nuContRmbForceStopEnd();
             sfx_stop_env_sounds();
             func_8003B1A8();
             gGameStatusPtr->isBattle = TRUE;
             backup_map_collision_data();
-            func_8002D160();
-            func_802B20B4();
+
+#if VERSION_IQUE
+            battle_heap_create();
+#else
+            load_obfuscation_shims();
+            shim_battle_heap_create_obfuscated();
+#endif
+
             sfx_clear_env_sounds(0);
 
-            currentBattleSelection = gCurrentBattleSection;
-            temp = D_800DC4EB;
+            currentBattleSelection = UNPACK_BTL_AREA(gCurrentBattleID);
+            currentBattleIndex = UNPACK_BTL_INDEX(gCurrentBattleID);
 
-            if (gGameStatusPtr->peachFlags & 1 || (currentBattleSelection == 0x26 && temp == 0)) {
-                gGameStatusPtr->peachFlags |= 1;
-                spr_init_sprites(6);
+            if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH ||
+                (currentBattleSelection == BTL_AREA_KKJ && currentBattleIndex == 0)) {
+                gGameStatusPtr->peachFlags |= PEACH_STATUS_FLAG_IS_PEACH;
+                spr_init_sprites(PLAYER_SPRITES_PEACH_BATTLE);
             } else {
-                spr_init_sprites(5);
+                spr_init_sprites(PLAYER_SPRITES_MARIO_BATTLE);
             }
 
             clear_model_data();
@@ -64,7 +82,7 @@ void state_step_battle(void) {
             reset_background_settings();
             clear_entity_models();
             clear_animator_list();
-            clear_generic_entity_list();
+            clear_worker_list();
             hud_element_set_aux_cache(NULL, 0);
             hud_element_clear_cache();
             reset_status_menu();
@@ -73,12 +91,12 @@ void state_step_battle(void) {
             clear_npcs();
             clear_entity_data(1);
             clear_trigger_data();
-            dma_copy(&_16C8E0_ROM_START, &_16C8E0_ROM_END, &_16C8E0_VRAM);
+            dma_copy(battle_code_ROM_START, battle_code_ROM_END, battle_code_VRAM);
             initialize_battle();
             btl_save_world_cameras();
             load_battle_section();
             D_800A0904 = gPlayerStatusPtr->animFlags;
-            gPlayerStatusPtr->animFlags &= ~PA_FLAGS_40;
+            gPlayerStatusPtr->animFlags &= ~PA_FLAG_PULSE_STONE_VISIBLE;
             D_800A0908 = get_time_freeze_mode();
             set_time_freeze_mode(TIME_FREEZE_NORMAL);
             gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
@@ -94,7 +112,7 @@ void state_step_battle(void) {
     update_npcs();
     update_item_entities();
     update_effects();
-    func_80116674();
+    iterate_models();
     update_cameras();
 }
 
@@ -122,25 +140,25 @@ void state_step_end_battle(void) {
             MapConfig* mapConfig;
 
             D_800A0900 = -1;
-            nuGfxSetCfb(D_800778A0, 3);
+            nuGfxSetCfb(bFrameBuffers, 3);
             gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
             nuContRmbForceStopEnd();
             sfx_stop_env_sounds();
             mapSettings = get_current_map_settings();
             mapConfig = &gAreas[gGameStatusPtr->areaID].maps[gGameStatusPtr->mapID];
-            btl_restore_world_cameras(gGameStatusPtr);
+            btl_restore_world_cameras();
             gGameStatusPtr->isBattle = FALSE;
             func_8005AF84();
             func_8002ACDC();
             sfx_clear_env_sounds(1);
-            gGameStatusPtr->peachFlags &= ~0x1;
+            gGameStatusPtr->peachFlags &= ~PEACH_STATUS_FLAG_IS_PEACH;
             battle_heap_create();
             spr_init_sprites(gGameStatusPtr->playerSpriteSet);
             init_model_data();
             init_sprite_shading_data();
             init_entity_models();
             reset_animator_list();
-            init_generic_entity_list();
+            init_worker_list();
             hud_element_set_aux_cache(0, 0);
             init_hud_element_list();
             init_item_entity_list();
@@ -159,8 +177,8 @@ void state_step_end_battle(void) {
 
                 partner_init_after_battle(playerData->currentPartner);
                 load_map_script_lib();
-                mapShape = load_asset_by_name(&wMapShapeName, &sizeTemp);
-                decode_yay0(mapShape, &D_80210000);
+                mapShape = load_asset_by_name(wMapShapeName, &sizeTemp);
+                decode_yay0(mapShape, &gMapShapeData);
                 general_heap_free(mapShape);
                 initialize_collision();
                 restore_map_collision_data();
@@ -176,7 +194,7 @@ void state_step_end_battle(void) {
                     set_background_size(296, 200, 12, 20);
                 }
 
-                load_model_textures(mapSettings->modelTreeRoot, get_asset_offset(&wMapTexName, &sizeTemp), sizeTemp);
+                load_model_textures(mapSettings->modelTreeRoot, get_asset_offset(wMapTexName, &sizeTemp), sizeTemp);
                 calculate_model_sizes();
                 npc_reload_all();
 

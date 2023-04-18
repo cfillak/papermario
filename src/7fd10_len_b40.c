@@ -2,6 +2,11 @@
 #include "hud_element.h"
 #include "world/partners.h"
 #include "macros.h"
+#include "common.h"
+#include "sprite.h"
+#include "pause/pause_common.h"
+#include "world/partners.h"
+#include "world/partner/lakilester.h"
 
 BSS s16 D_8010C9C0;
 BSS char D_8010C9C4[0x4];
@@ -18,50 +23,43 @@ BSS char D_8010CD14[0xA];
 BSS s32 D_8010CD20;
 BSS char D_8010CD24[0xC];
 
-#include "common.h"
-#include "sprite.h"
-#include "pause/pause_common.h"
-#include "world/partners.h"
-
-extern s32 D_8008EEC0[12];
 extern s32 D_8008EEF0[];
-
 
 void func_800E6860(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    if (gPartnerActionStatus.partnerActionState != PARTNER_ACTION_NONE && gPartnerActionStatus.actingPartner == PARTNER_BOW) {
+    if (gPartnerStatus.partnerActionState != PARTNER_ACTION_NONE && gPartnerStatus.actingPartner == PARTNER_BOW) {
         Npc* partner = get_npc_unsafe(NPC_PARTNER);
 
-        func_802DDEE4(0, -1, 7, 0, 0, 0, playerStatus->alpha1, 0);
-        func_8003D624(partner, 7, playerStatus->alpha1, 0, 0, 0, 0);
+        func_802DDEE4(PLAYER_SPRITE_MAIN, -1, FOLD_UPD_SET_ALPHA, 0, 0, 0, playerStatus->alpha1, 0);
+        npc_set_fold_params(partner, FOLD_UPD_SET_ALPHA, playerStatus->alpha1, 0, 0, 0, 0);
         playerStatus->alpha2 = 0;
     }
 }
 
 s32 func_800E6904(void) {
-    PartnerActionStatus* partnerActionStatus = &gPartnerActionStatus;
+    PartnerStatus* partnerStatus = &gPartnerStatus;
     PlayerStatus* playerStatus = &gPlayerStatus;
     s32 actionState = playerStatus->actionState;
 
-    if (playerStatus->animFlags & PA_FLAGS_100000) {
+    if (playerStatus->animFlags & PA_FLAG_CHANGING_MAP) {
         return FALSE;
     }
 
-    if (partnerActionStatus->partnerActionState == PARTNER_ACTION_NONE) {
-        if (!(playerStatus->flags & PS_FLAGS_1000) &&
+    if (partnerStatus->partnerActionState == PARTNER_ACTION_NONE) {
+        if (!(playerStatus->flags & PS_FLAG_NO_STATIC_COLLISION) &&
             (actionState == ACTION_STATE_IDLE || actionState == ACTION_STATE_WALK || actionState == ACTION_STATE_RUN))
         {
             return TRUE;
         }
     } else if (partner_player_can_pause()) {
-        if (partnerActionStatus->actingPartner == PARTNER_WATT) {
+        if (partnerStatus->actingPartner == PARTNER_WATT) {
             return TRUE;
-        } else if (partnerActionStatus->actingPartner == PARTNER_BOW) {
+        } else if (partnerStatus->actingPartner == PARTNER_BOW) {
             if (actionState == ACTION_STATE_RIDE) {
                 return TRUE;
             }
-        } else if (partnerActionStatus->actingPartner == PARTNER_LAKILESTER) {
+        } else if (partnerStatus->actingPartner == PARTNER_LAKILESTER) {
             if (actionState == ACTION_STATE_RIDE) {
                 return TRUE;
             }
@@ -72,20 +70,20 @@ s32 func_800E6904(void) {
 }
 
 s32 can_pause(s32 currentButtons, s32 pressedButtons) {
-    PartnerActionStatus* partnerActionStatus = &gPartnerActionStatus;
+    PartnerStatus* partnerStatus = &gPartnerStatus;
     s32 actionState = gPlayerStatus.actionState;
 
-    if (!(gPlayerStatus.animFlags & PA_FLAGS_100000) &&
-        !(gPlayerStatus.flags & PS_FLAGS_100) &&
-        !(currentButtons & (BUTTON_Z | BUTTON_R)) &&
-        (pressedButtons & (BUTTON_START | BUTTON_C_LEFT | BUTTON_C_RIGHT)) &&
-        ((gGameStatusPtr->mapShop == NULL) || !(gGameStatusPtr->mapShop->flags & 1)) &&
-        !(gOverrideFlags & GLOBAL_OVERRIDES_DISABLE_MENUS) &&
-        !is_picking_up_item())
-    {
-        if (!(gPlayerStatus.animFlags & PA_FLAGS_8BIT_MARIO)) {
-            if (partnerActionStatus->partnerActionState == PARTNER_ACTION_NONE) {
-                if (!(gPlayerStatus.flags & PS_FLAGS_1000)) {
+    if (!(gPlayerStatus.animFlags & PA_FLAG_CHANGING_MAP)
+        && !(gPlayerStatus.flags & PS_FLAG_PAUSE_DISABLED)
+        && !(currentButtons & (BUTTON_Z | BUTTON_R))
+        && (pressedButtons & (BUTTON_START | BUTTON_C_LEFT | BUTTON_C_RIGHT))
+        && ((gGameStatusPtr->mapShop == NULL) || !(gGameStatusPtr->mapShop->flags & SHOP_FLAG_1))
+        && !(gOverrideFlags & GLOBAL_OVERRIDES_DISABLE_MENUS)
+        && !is_picking_up_item()
+    ) {
+        if (!(gPlayerStatus.animFlags & PA_FLAG_8BIT_MARIO)) {
+            if (partnerStatus->partnerActionState == PARTNER_ACTION_NONE) {
+                if (!(gPlayerStatus.flags & PS_FLAG_NO_STATIC_COLLISION)) {
                     if (actionState == ACTION_STATE_IDLE ||
                         actionState == ACTION_STATE_WALK ||
                         actionState == ACTION_STATE_RUN)
@@ -94,23 +92,23 @@ s32 can_pause(s32 currentButtons, s32 pressedButtons) {
                     }
                 }
             } else if (partner_player_can_pause()) {
-                if (partnerActionStatus->actingPartner == PARTNER_WATT) {
+                if (partnerStatus->actingPartner == PARTNER_WATT) {
                     return actionState == ACTION_STATE_IDLE ||
                            actionState == ACTION_STATE_WALK ||
                            actionState == ACTION_STATE_RUN;
-                } else if (partnerActionStatus->actingPartner == PARTNER_BOW) {
+                } else if (partnerStatus->actingPartner == PARTNER_BOW) {
                     if (actionState == ACTION_STATE_RIDE) {
                         gPlayerStatus.alpha2 = 0;
                         return TRUE;
                     }
-                } else if (partnerActionStatus->actingPartner == PARTNER_LAKILESTER) {
+                } else if (partnerStatus->actingPartner == PARTNER_LAKILESTER) {
                     if (actionState == ACTION_STATE_RIDE) {
-                        if (func_802BD7DC()) {
+                        if (world_lakilester_can_dismount()) {
                             return TRUE;
                         }
                         sfx_play_sound(SOUND_MENU_ERROR);
                     }
-                } else if (partnerActionStatus->actingPartner == PARTNER_SUSHIE) {
+                } else if (partnerStatus->actingPartner == PARTNER_SUSHIE) {
                     sfx_play_sound(SOUND_MENU_ERROR);
                 }
             }
@@ -132,14 +130,15 @@ s32 setup_partner_popup(PopupMenu* menu) {
 
     for (i = 1; i < ARRAY_COUNT(D_8008EEC0); i++) {
         s32 partnerID = D_8008EEC0[i];
+
         if (playerData->partners[partnerID].enabled && partnerID != PARTNER_GOOMPA) {
-            s32* properties = gPartnerPopupProperties[partnerID];
+            PartnerPopupProperties* properties = &gPartnerPopupProperties[partnerID];
 
             menu->ptrIcon[optionCount] = wPartnerHudScripts[partnerID];
             menu->userIndex[optionCount] = partnerID;
             menu->enabled[optionCount] = TRUE;
-            menu->nameMsg[optionCount] = properties[0];
-            menu->descMsg[optionCount] = properties[2];
+            menu->nameMsg[optionCount] = properties->nameMsg;
+            menu->descMsg[optionCount] = properties->worldDescMsg;
             menu->value[optionCount] = playerData->partners[partnerID].level;
             if (playerData->currentPartner == partnerID) {
                 menu->enabled[optionCount] = FALSE;
@@ -163,7 +162,7 @@ s32 setup_item_popup(PopupMenu* menu) {
             ItemData* item = &gItemTable[itemIdx];
             IconHudScriptPair* itemScripts = &gItemHudScripts[item->hudElemID];
 
-            if (item->typeFlags & 1) {
+            if (item->typeFlags & ITEM_TYPE_FLAG_WORLD_USABLE) {
                 menu->ptrIcon[optionCount] = itemScripts->enabled;
                 menu->userIndex[optionCount] = i;
                 menu->enabled[optionCount] = 1;
@@ -180,38 +179,43 @@ s32 setup_item_popup(PopupMenu* menu) {
     return optionCount;
 }
 
-// stack issues, yucky goto
-#ifdef NON_MATCHING
 void check_input_open_menus(void) {
     static s16 D_8010C9C0;
 
-    PartnerActionStatus* partnerActionStatus = &gPartnerActionStatus;
-    PlayerStatus* playerStatus = &gPlayerStatus;
-    PlayerData* playerData = &gPlayerData;
-    PopupMenu* popup = &D_8010C9C8;
+    PartnerStatus* partnerStatus;
+    PlayerStatus* playerStatus;
+    PlayerData* playerData;
+    PopupMenu* popup;
     s32 flags;
     s32 numEntries;
     s32 pressedButtons;
     s32 currentButtons;
+    s8* partnerActionState;
+
+    partnerStatus = &gPartnerStatus;
+    playerStatus = &gPlayerStatus;
+    playerData = &gPlayerData;
+    popup = &D_8010C9C8;
 
     if (gGameStatusPtr->disableScripts ||
-        (gGameStatusPtr->peachFlags & 1) ||
+        (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH) ||
         evt_get_variable(NULL, GB_StoryProgress) == STORY_INTRO)
     {
         return;
     }
 
-    if (partnerActionStatus->partnerActionState != 0 &&
-        (partnerActionStatus->actingPartner == PARTNER_SUSHIE ||
-         partnerActionStatus->actingPartner == PARTNER_LAKILESTER ||
-         partnerActionStatus->actingPartner == PARTNER_BOW))
+    if (partnerStatus->partnerActionState != 0 &&
+        (partnerStatus->actingPartner == PARTNER_SUSHIE ||
+         partnerStatus->actingPartner == PARTNER_LAKILESTER ||
+         partnerStatus->actingPartner == PARTNER_BOW))
     {
-        currentButtons = partnerActionStatus->currentButtons;
-        pressedButtons = partnerActionStatus->pressedButtons;
+        currentButtons = partnerStatus->currentButtons;
+        pressedButtons = partnerStatus->pressedButtons;
     } else {
         currentButtons = playerStatus->currentButtons;
         pressedButtons = playerStatus->pressedButtons;
     }
+    partnerActionState = &partnerStatus->partnerActionState;
 
     if (evt_get_variable(NULL, GB_StoryProgress) >= STORY_EPILOGUE) {
         currentButtons &= ~(BUTTON_C_LEFT | BUTTON_C_RIGHT);
@@ -232,11 +236,11 @@ void check_input_open_menus(void) {
 block_17:
                 switch (D_8010CCF8) {
                     case 0:
-                        if (playerStatus->flags & PS_FLAGS_40) {
+                        if (playerStatus->flags & PS_FLAG_NO_CHANGE_PARTNER) {
                             sfx_play_sound(SOUND_MENU_ERROR);
                             if (D_8010C9C0) {
                                 func_800E6860();
-                                playerStatus->flags &= ~PS_FLAGS_20;
+                                playerStatus->flags &= ~PS_FLAG_PAUSED;
                                 gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
                                 set_time_freeze_mode(TIME_FREEZE_NORMAL);
                             }
@@ -246,7 +250,7 @@ block_17:
                                 return;
                             }
                             popup->numEntries = numEntries;
-                            popup->popupType = 1;
+                            popup->popupType = POPUP_MENU_SWITCH_PARTNER;
                             popup->initialPos = D_8008EEF0[playerData->currentPartner] - 1;
                             break;
                         }
@@ -256,29 +260,29 @@ block_17:
                         if (numEntries == 0) {
                             return;
                         }
-                        popup->popupType = 0;
+                        popup->popupType = POPUP_MENU_USE_ITEM;
                         popup->numEntries = numEntries;
                         popup->initialPos = 0;
                         break;
                 }
-                playerStatus->flags |= PS_FLAGS_20;
+                playerStatus->flags |= PS_FLAG_PAUSED;
                 disable_player_input();
                 partner_disable_input();
                 D_8010CCFA = 3;
                 D_8010CD00 = 1;
-                D_8010CCFE = playerStatus->inputEnabledCounter;
+                D_8010CCFE = playerStatus->inputDisabledCount;
             }
             break;
         case 1:
-            flags = ~PS_FLAGS_20;
-            if ((func_800E6904() == 0) || is_picking_up_item() || D_8010CCFE < playerStatus->inputEnabledCounter) {
+            flags = ~PS_FLAG_PAUSED;
+            if ((func_800E6904() == 0) || is_picking_up_item() || D_8010CCFE < playerStatus->inputDisabledCount != 0) {
                 playerStatus->flags &= flags;
                 enable_player_input();
                 partner_enable_input();
                 D_8010CD00 = 0;
                 if (D_8010C9C0) {
                     func_800E6860();
-                    playerStatus->flags &= ~PS_FLAGS_20;
+                    playerStatus->flags &= ~PS_FLAG_PAUSED;
                     gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
                     set_time_freeze_mode(TIME_FREEZE_NORMAL);
                 }
@@ -298,17 +302,17 @@ block_17:
                 D_8010CD00 = 10;
                 return;
             }
-            create_popup_menu(popup);
-            set_time_freeze_mode(TIME_FREEZE_PARTNER_MENU);
-            if (partnerActionStatus->partnerActionState == 0) {
+            create_standard_popup_menu(popup);
+            set_time_freeze_mode(TIME_FREEZE_POPUP_MENU);
+            if (*partnerActionState == PARTNER_ACTION_NONE) {
                 set_action_state(ACTION_STATE_IDLE);
             }
             D_8010CD00++;
             break;
         case 3:
-            if (popup->result != -1) {
+            if (popup->result != POPUP_RESULT_MINUS_1) {
                 D_8010CCFC = popup->result;
-                if (D_8010CCFC != 0) {
+                if (D_8010CCFC != POPUP_RESULT_CHOOSING) {
                     hide_popup_menu();
                     D_8010CCFA = 15;
                     D_8010CD00++;
@@ -322,9 +326,9 @@ block_17:
                 D_8010CD00 = 0;
                 enable_player_input();
                 partner_enable_input();
-                if (D_8010CCFC == -2) {
+                if (D_8010CCFC == POPUP_RESULT_MINUS_2) {
                     if ((setup_partner_popup(popup) == 0) || (setup_item_popup(popup) == 0)) {
-                        D_8010CCFC = 0xFF;
+                        D_8010CCFC = POPUP_RESULT_CANCEL;
                     } else {
                         switch (D_8010CCF8) {
                             case 0:
@@ -335,23 +339,25 @@ block_17:
                                 break;
                         }
                         D_8010C9C0 = TRUE;
-                        goto block_17;
+                        goto block_17; // TODO required to match
                     }
                 }
 
-                if (D_8010CCFC != 0xFF) {
+                if (D_8010CCFC != POPUP_RESULT_CANCEL) {
                     switch (D_8010CCF8) {
                         case 0:
                             switch_to_partner(popup->userIndex[D_8010CCFC - 1]);
                             break;
                         case 1:
-                            use_consumable(popup->userIndex[D_8010CCFC - 1]);
+                            do {
+                                use_consumable(popup->userIndex[D_8010CCFC - 1]);
+                            } while (0); // todo required to match
                             gOverrideFlags |= GLOBAL_OVERRIDES_CANT_PICK_UP_ITEMS;
                             break;
                     }
                 }
                 func_800E6860();
-                playerStatus->flags &= ~PS_FLAGS_20;
+                playerStatus->flags &= ~PS_FLAG_PAUSED;
                 gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
                 set_time_freeze_mode(TIME_FREEZE_NORMAL);
             }
@@ -361,7 +367,7 @@ block_17:
             if (D_8010CCFA == 0) {
                 func_800E6860();
                 D_8010CD00 = 0;
-                playerStatus->flags &= ~PS_FLAGS_20;
+                playerStatus->flags &= ~PS_FLAG_PAUSED;
                 gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
                 enable_player_input();
                 partner_enable_input();
@@ -369,9 +375,6 @@ block_17:
             break;
     }
 }
-#else
-INCLUDE_ASM(s32, "7fd10_len_b40", check_input_open_menus);
-#endif
 
 void check_input_status_menu(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;

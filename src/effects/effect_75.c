@@ -1,28 +1,28 @@
 #include "common.h"
 #include "effects_internal.h"
 
-extern Gfx D_09001910[];
-extern Gfx D_09001A00[];
-extern Gfx D_09001A20[];
+extern Gfx D_09001910_3E4270[];
+extern Gfx D_09001A00_3E4360[];
+extern Gfx D_09001A20_3E4380[];
 
-Gfx* D_E00EAA50[2] = { D_09001A00, D_09001A20 };
-Gfx* D_E00EAA58[2] = { D_09001910, NULL };
+Gfx* D_E00EAA50[2] = { D_09001A00_3E4360, D_09001A20_3E4380 };
+Gfx* D_E00EAA58[2] = { D_09001910_3E4270, NULL };
 
-void fx_75_init(EffectInstance* effect);
-void fx_75_update(EffectInstance* effect);
-void fx_75_render(EffectInstance* effect);
-void fx_75_appendGfx(void* effect);
+void effect_75_init(EffectInstance* effect);
+void effect_75_update(EffectInstance* effect);
+void effect_75_render(EffectInstance* effect);
+void effect_75_appendGfx(void* effect);
 
-EffectInstance* fx_75_main(s32 arg0, f32 arg1, f32 arg2, f32 arg3, f32 arg4, s32 arg5) {
+EffectInstance* effect_75_main(s32 arg0, f32 posX, f32 posY, f32 posZ, f32 scale, s32 arg5) {
     EffectBlueprint bp;
     EffectInstance* effect;
     Effect75FXData* data;
     s32 numParts = 1;
     s32 i;
 
-    bp.init = fx_75_init;
-    bp.update = fx_75_update;
-    bp.renderWorld = fx_75_render;
+    bp.init = effect_75_init;
+    bp.update = effect_75_update;
+    bp.renderWorld = effect_75_render;
     bp.unk_00 = 0;
     bp.unk_14 = NULL;
     bp.effectID = EFFECT_75;
@@ -32,7 +32,7 @@ EffectInstance* fx_75_main(s32 arg0, f32 arg1, f32 arg2, f32 arg3, f32 arg4, s32
     data = effect->data.unk_75 = shim_general_heap_malloc(numParts * sizeof(*data));
     ASSERT(effect->data.unk_75 != NULL);
 
-    data->unk_00 = arg0;
+    data->type = arg0;
     data->unk_14 = 0;
     if (arg5 <= 0) {
         data->unk_10 = 1000;
@@ -40,18 +40,18 @@ EffectInstance* fx_75_main(s32 arg0, f32 arg1, f32 arg2, f32 arg3, f32 arg4, s32
         data->unk_10 = arg5;
     }
     data->unk_24 = 0;
-    data->unk_04 = arg1;
-    data->unk_08 = arg2;
-    data->unk_0C = arg3;
-    data->unk_3C = arg4;
-    data->unk_18 = 0;
-    data->unk_1C = 180;
-    data->unk_20 = 220;
-    data->unk_28 = 0;
-    data->unk_2C = 0;
-    data->unk_30 = 0;
+    data->pos.x = posX;
+    data->pos.y = posY;
+    data->pos.z = posZ;
+    data->scale = scale;
+    data->primCol.r = 0;
+    data->primCol.g = 180;
+    data->primCol.b = 220;
+    data->envCol.r = 0;
+    data->envCol.g = 0;
+    data->envCol.b = 0;
     data->unk_34 = 0;
-    data->unk_38 = 0;
+    data->masterAlpha = 0;
     data->unk_40 = 0;
     data->unk_44 = 0;
     data->unk_50 = 0;
@@ -72,10 +72,10 @@ EffectInstance* fx_75_main(s32 arg0, f32 arg1, f32 arg2, f32 arg3, f32 arg4, s32
     return effect;
 }
 
-void fx_75_init(EffectInstance* effect) {
+void effect_75_init(EffectInstance* effect) {
 }
 
-void fx_75_update(EffectInstance* effect) {
+void effect_75_update(EffectInstance* effect) {
     Effect75FXData* data = effect->data.unk_75;
     s32 unk_14;
 
@@ -146,10 +146,12 @@ void fx_75_update(EffectInstance* effect) {
         data->unk_54 -= 256.0f;
     }
 
-    data->unk_34 = data->unk_60 + (shim_sin_deg(unk_14 * 20) * (data->unk_64 - data->unk_60) + (data->unk_64 - data->unk_60)) * 0.5;
+    data->unk_34 = data->unk_60
+        + (shim_sin_deg(unk_14 * 20) * (data->unk_64 - data->unk_60)
+        + (data->unk_64 - data->unk_60)) * 0.5;
 }
 
-void fx_75_render(EffectInstance* effect) {
+void effect_75_render(EffectInstance* effect) {
     Effect75FXData* data = effect->data.unk_75;
     RenderTask renderTask;
     RenderTask* renderTaskPtr = &renderTask;
@@ -160,7 +162,9 @@ void fx_75_render(EffectInstance* effect) {
     f32 outZ;
     f32 outS;
 
-    shim_transform_point(&gCameras[gCurrentCameraID].perspectiveMatrix[0], data->unk_04, data->unk_08, data->unk_0C, 1.0f, &outX, &outY, &outZ, &outS);
+    shim_transform_point(&gCameras[gCurrentCameraID].perspectiveMatrix[0],
+        data->pos.x, data->pos.y, data->pos.z, 1.0f,
+        &outX, &outY, &outZ, &outS);
 
     outDist = outZ + 5000;
     if (outDist < 0) {
@@ -173,48 +177,48 @@ void fx_75_render(EffectInstance* effect) {
         outDist = 0;
     }
 
-    renderTaskPtr->appendGfx = fx_75_appendGfx;
+    renderTaskPtr->appendGfx = effect_75_appendGfx;
     renderTaskPtr->distance = -outDist;
     renderTaskPtr->appendGfxArg = effect;
     renderTaskPtr->renderMode = RENDER_MODE_SURFACE_XLU_LAYER1;
 
     retTask = shim_queue_render_task(renderTaskPtr);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void func_E00EA664(void) {
 }
 
-void fx_75_appendGfx(void* effect) {
+void effect_75_appendGfx(void* effect) {
     Effect75FXData* data = ((EffectInstance*)effect)->data.unk_75;
     Camera* camera = &gCameras[gCurrentCameraID];
-    s32 unk_00 = data->unk_00;
-    s32 temp_40 = data->unk_40 * 4.0f;
-    s32 temp_44 = data->unk_44 * 4.0f;
-    s32 temp_50 = data->unk_50 * 4.0f;
-    s32 temp_54 = data->unk_54 * 4.0f;
-    Matrix4f sp18;
-    Matrix4f sp58;
+    s32 type = data->type;
+    s32 uls0 = data->unk_40 * 4.0f;
+    s32 ult0 = data->unk_44 * 4.0f;
+    s32 uls1 = data->unk_50 * 4.0f;
+    s32 ult1 = data->unk_54 * 4.0f;
+    Matrix4f mtxTransfrom;
+    Matrix4f mtxTemp;
 
-    gDPPipeSync(gMasterGfxPos++);
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
 
-    shim_guTranslateF(sp18, data->unk_04, data->unk_08, data->unk_0C);
-    shim_guScaleF(sp58, data->unk_3C, data->unk_3C, data->unk_3C);
-    shim_guMtxCatF(sp58, sp18, sp18);
-    if (unk_00 == 1) {
-        shim_guRotateF(sp58, 180.0f, 0.0f, 0.0f, 1.0f);
-        shim_guMtxCatF(sp58, sp18, sp18);
+    shim_guTranslateF(mtxTransfrom, data->pos.x, data->pos.y, data->pos.z);
+    shim_guScaleF(mtxTemp, data->scale, data->scale, data->scale);
+    shim_guMtxCatF(mtxTemp, mtxTransfrom, mtxTransfrom);
+    if (type == 1) {
+        shim_guRotateF(mtxTemp, 180.0f, 0.0f, 0.0f, 1.0f);
+        shim_guMtxCatF(mtxTemp, mtxTransfrom, mtxTransfrom);
     }
-    shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos]);
+    shim_guMtxF2L(mtxTransfrom, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-    gSPMatrix(gMasterGfxPos++, camera->unkMatrix, G_MTX_NOPUSH | G_MTX_MUL | G_MTX_MODELVIEW);
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, data->unk_18, data->unk_1C, data->unk_20, data->unk_34);
-    gDPSetEnvColor(gMasterGfxPos++, data->unk_28, data->unk_2C, data->unk_30, data->unk_24 * data->unk_38 / 255);
-    gSPDisplayList(gMasterGfxPos++, D_E00EAA58[0]);
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, temp_40, temp_44, temp_40 + 252, temp_44 + 252);
-    gDPSetTileSize(gMasterGfxPos++, 1, temp_50, temp_54, temp_50 + 252, temp_54 + 252);
-    gSPDisplayList(gMasterGfxPos++, D_E00EAA50[unk_00]);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, camera->unkMatrix, G_MTX_NOPUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, data->primCol.r, data->primCol.g, data->primCol.b, data->unk_34);
+    gDPSetEnvColor(gMainGfxPos++, data->envCol.r, data->envCol.g, data->envCol.b, data->unk_24 * data->masterAlpha / 255);
+    gSPDisplayList(gMainGfxPos++, D_E00EAA58[0]);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, uls0, ult0, uls0 + 252, ult0 + 252);
+    gDPSetTileSize(gMainGfxPos++, 1, uls1, ult1, uls1 + 252, ult1 + 252);
+    gSPDisplayList(gMainGfxPos++, D_E00EAA50[type]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }

@@ -34,7 +34,7 @@ void peach_star_beam_update(EffectInstance* effect);
 void peach_star_beam_render(EffectInstance* effect);
 void peach_star_beam_appendGfx(void* effect);
 
-EffectInstance* peach_star_beam_main(s32 type, f32 x, f32 y, f32 z, f32 arg4, s32 arg5) {
+EffectInstance* peach_star_beam_main(s32 type, f32 x, f32 y, f32 z, f32 arg4, s32 duration) {
     EffectBlueprint bp;
     EffectInstance* effect;
     PeachStarBeamFXData* data;
@@ -55,19 +55,19 @@ EffectInstance* peach_star_beam_main(s32 type, f32 x, f32 y, f32 z, f32 arg4, s3
 
     data->type = type;
     data->lifetime = 0;
-    if (arg5 <= 0) {
+    if (duration <= 0) {
         data->timeLeft = 1000;
     } else {
-        data->timeLeft = arg5;
+        data->timeLeft = duration;
     }
-    data->alpha = 224;
+    data->beamAlpha = 224;
     data->pos.x = x;
     data->pos.y = y;
     data->pos.z = z;
     data->unk_3C = 255;
-    data->unk_38 = arg4;
-    data->unk_48 = 80.0f;
-    data->unk_58 = 50.0f;
+    data->beamScale = arg4;
+    data->circleRadius = 80.0f;
+    data->twinkYOffset = 50.0f;
     data->primR = 255;
     data->primG = 255;
     data->primB = 120;
@@ -75,14 +75,14 @@ EffectInstance* peach_star_beam_main(s32 type, f32 x, f32 y, f32 z, f32 arg4, s3
     data->envG = 255;
     data->envB = 255;
     data->envA = 255;
-    data->unk_40 = 5.0f;
-    data->unk_44 = 0;
-    data->unk_4C = x;
-    data->unk_50 = y + 50.0f;
-    data->unk_54 = z;
+    data->rotationSpeed = 5.0f;
+    data->rotationAngle = 0;
+    data->circleCenter.x = x;
+    data->circleCenter.y = y + 50.0f;
+    data->circleCenter.z = z;
 
-    for (i = 0; i < ARRAY_COUNT(data->parts); i++) {
-        PeachStarBeamInner* part = &data->parts[i];
+    for (i = 0; i < ARRAY_COUNT(data->spirits); i++) {
+        PeachStarBeamSpirit* part = &data->spirits[i];
 
         if (type == 0 && i == 0) {
             part->flags = 0;
@@ -98,12 +98,12 @@ void peach_star_beam_init(EffectInstance* effect) {
 
 void peach_star_beam_update(EffectInstance* effect) {
     PeachStarBeamFXData* data = effect->data.peachStarBeam;
-    f32 unk_44;
-    f32 unk_48;
-    f32 unk_4C;
-    f32 unk_50;
-    f32 unk_54;
-    f32 angle;
+    f32 rotationAngle;
+    f32 radius;
+    f32 centerX;
+    f32 centerY;
+    f32 centerZ;
+    f32 spiritAngle;
     s32 i;
 
     if (effect->flags & 0x10) {
@@ -121,30 +121,30 @@ void peach_star_beam_update(EffectInstance* effect) {
         return;
     }
 
-    data->unk_44 += data->unk_40;
-    unk_44 = data->unk_44;
-    unk_48 = data->unk_48;
-    unk_4C = data->unk_4C;
-    unk_50 = data->unk_50;
-    unk_54 = data->unk_54;
+    data->rotationAngle += data->rotationSpeed;
+    rotationAngle = data->rotationAngle;
+    radius = data->circleRadius;
+    centerX = data->circleCenter.x;
+    centerY = data->circleCenter.y;
+    centerZ = data->circleCenter.z;
 
-    for (i = 0; i < ARRAY_COUNT(data->parts); i++) {
-        PeachStarBeamInner* part = &data->parts[i];
+    for (i = 0; i < ARRAY_COUNT(data->spirits); i++) {
+        PeachStarBeamSpirit* part = &data->spirits[i];
 
         if (i == 0) {
-            part->unk_04.x = unk_4C;
-            part->unk_04.y = unk_50 + data->unk_58;
-            part->unk_04.z = unk_54;
+            part->pos.x = centerX;
+            part->pos.y = centerY + data->twinkYOffset;
+            part->pos.z = centerZ;
         } else {
-            angle = unk_44 + ((-360 + (360 * i)) / 7);
-            part->unk_04.x = unk_4C + (unk_48 * shim_sin_deg(angle));
-            part->unk_04.y = unk_50;
-            part->unk_04.z = unk_54 + (unk_48 * shim_cos_deg(angle));
+            spiritAngle = rotationAngle + ((-360 + (360 * i)) / 7);
+            part->pos.x = centerX + radius * shim_sin_deg(spiritAngle);
+            part->pos.y = centerY;
+            part->pos.z = centerZ + radius * shim_cos_deg(spiritAngle);
         }
         if (!(part->flags & 2)) {
-            part->unk_10.x = part->unk_04.x;
-            part->unk_10.y = part->unk_04.y;
-            part->unk_10.z = part->unk_04.z;
+            part->lockedPos.x = part->pos.x;
+            part->lockedPos.y = part->pos.y;
+            part->lockedPos.z = part->pos.z;
         }
     }
 }
@@ -159,90 +159,90 @@ void peach_star_beam_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void peach_star_beam_appendGfx(void* effect) {
     Matrix4f sp20, sp60;
     Camera* camera = &gCameras[gCurrentCameraID];
     PeachStarBeamFXData* data = ((EffectInstance*)effect)->data.peachStarBeam;
-    PeachStarBeamInner* part;
-    s32 alpha = data->alpha;
+    PeachStarBeamSpirit* part;
+    s32 alpha = data->beamAlpha;
     f32 partX, partY, partZ;
     s32 i;
 
-    gDPPipeSync(gMasterGfxPos++);
-    gSPSegment(gMasterGfxPos++, 0x9, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
-    gSPDisplayList(gMasterGfxPos++, D_09005090_3EAFC0);
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x9, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
+    gSPDisplayList(gMainGfxPos++, D_09005090_3EAFC0);
 
-    for (i = 0; i < ARRAY_COUNT(data->parts); i++) {
-        part = &data->parts[i];
+    for (i = 0; i < ARRAY_COUNT(data->spirits); i++) {
+        part = &data->spirits[i];
         if (part->flags & 1) {
             if (part->flags & 2) {
-                partX = part->unk_10.x;
-                partY = part->unk_10.y;
-                partZ = part->unk_10.z;
+                partX = part->lockedPos.x;
+                partY = part->lockedPos.y;
+                partZ = part->lockedPos.z;
             } else {
-                partX = part->unk_04.x;
-                partY = part->unk_04.y;
-                partZ = part->unk_04.z;
+                partX = part->pos.x;
+                partY = part->pos.y;
+                partZ = part->pos.z;
             }
 
             if (!(data->pos.z < partZ)) {
                 shim_guPositionF(sp20, 0.0f, 0.0f, 0.0f, SPRITE_WORLD_SCALE_F, partX, partY, partZ);
                 shim_guMtxF2L(sp20, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-                gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+                gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
                           G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 128, 128, 128, 255);
-                gDPSetEnvColor(gMasterGfxPos++, 128, 128, 128, 127);
-                gSPDisplayList(gMasterGfxPos++, D_E010CA38[i]);
-                gSPDisplayList(gMasterGfxPos++, D_E010CA18[i]);
-                gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, 128, 128, 128, 255);
+                gDPSetEnvColor(gMainGfxPos++, 128, 128, 128, 127);
+                gSPDisplayList(gMainGfxPos++, D_E010CA38[i]);
+                gSPDisplayList(gMainGfxPos++, D_E010CA18[i]);
+                gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
             }
         }
     }
 
     shim_guTranslateF(sp20, data->pos.x, data->pos.y - (((f32) (255 - data->unk_3C) * 400.0) / 255.0), data->pos.z);
-    shim_guScaleF(sp60, data->unk_38 * 0.4, data->unk_38 * 0.4, data->unk_38 * 0.4);
+    shim_guScaleF(sp60, data->beamScale * 0.4, data->beamScale * 0.4, data->beamScale * 0.4);
     shim_guMtxCatF(sp60, sp20, sp20);
     shim_guMtxF2L(sp20, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
               G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-    gSPMatrix(gMasterGfxPos++, camera->unkMatrix, G_MTX_NOPUSH | G_MTX_MUL | G_MTX_MODELVIEW);
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, data->primR, data->primG, data->primB, alpha);
-    gDPSetEnvColor(gMasterGfxPos++, data->envR, data->envG, data->envB, data->envA);
-    gSPDisplayList(gMasterGfxPos++, D_E010CA14[0]);
-    gSPDisplayList(gMasterGfxPos++, D_E010CA10[0]);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
-    gSPDisplayList(gMasterGfxPos++, D_09005090_3EAFC0);
+    gSPMatrix(gMainGfxPos++, camera->unkMatrix, G_MTX_NOPUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, data->primR, data->primG, data->primB, alpha);
+    gDPSetEnvColor(gMainGfxPos++, data->envR, data->envG, data->envB, data->envA);
+    gSPDisplayList(gMainGfxPos++, D_E010CA14[0]);
+    gSPDisplayList(gMainGfxPos++, D_E010CA10[0]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, D_09005090_3EAFC0);
 
-    for (i = 0; i < ARRAY_COUNT(data->parts); i++) {
-        part = &data->parts[i];
+    for (i = 0; i < ARRAY_COUNT(data->spirits); i++) {
+        part = &data->spirits[i];
 
         if (part->flags & 1) {
             if (part->flags & 2) {
-                partX = part->unk_10.x;
-                partY = part->unk_10.y;
-                partZ = part->unk_10.z;
+                partX = part->lockedPos.x;
+                partY = part->lockedPos.y;
+                partZ = part->lockedPos.z;
             } else {
-                partX = part->unk_04.x;
-                partY = part->unk_04.y;
-                partZ = part->unk_04.z;
+                partX = part->pos.x;
+                partY = part->pos.y;
+                partZ = part->pos.z;
             }
 
             if (!(partZ <= data->pos.z)) {
                 shim_guPositionF(sp20, 0.0f, 0.0f, 0.0f, 0.67f, partX, partY, partZ);
                 shim_guMtxF2L(sp20, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-                gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+                gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
                           G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 128, 128, 128, 255);
-                gDPSetEnvColor(gMasterGfxPos++, 128, 128, 128, 127);
-                gSPDisplayList(gMasterGfxPos++, D_E010CA38[i]);
-                gSPDisplayList(gMasterGfxPos++, D_E010CA18[i]);
-                gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, 128, 128, 128, 255);
+                gDPSetEnvColor(gMainGfxPos++, 128, 128, 128, 127);
+                gSPDisplayList(gMainGfxPos++, D_E010CA38[i]);
+                gSPDisplayList(gMainGfxPos++, D_E010CA18[i]);
+                gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
             }
         }
     }

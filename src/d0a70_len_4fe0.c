@@ -2,31 +2,68 @@
 #include "ld_addrs.h"
 #include "sprite.h"
 
+#if VERSION_IQUE
+// TODO: remove if section is split in iQue release
+extern Addr fold_gfx_data_ROM_START;
+#endif
+
+typedef union FoldIntVars {
+    s32 raw[2][4];
+    Color4i color[2];
+    s32 savedArgs[2][4];
+    struct {
+        s32 type;
+    } anim;
+    struct {
+        Vec3i mag;
+    } wavy;
+    struct {
+        char unk_00[0x10];
+        s32 mode;
+        s32 noiseAmt;
+        char unk_18[4];
+        s32 alphaAmt;
+    } hologram;
+} FoldIntVars;
+
+typedef union FoldFloatVars {
+    f32 raw[2][4];
+    struct {
+        f32 curFrame;
+        f32 curIdx;
+    } anim;
+    struct {
+        f32 phase1;
+        f32 phase2;
+        f32 phase3;
+    } wavy;
+} FoldFloatVars;
+
 typedef struct {
     /* 0x00 */ u8 arrayIdx;
     /* 0x01 */ u8 meshType;
     /* 0x02 */ u8 renderType;
     /* 0x03 */ u8 subdivX;
     /* 0x04 */ u8 subdivY;
-    /* 0x05 */ s8 unk_05;
-    /* 0x06 */ s8 unk_06;
+    /* 0x05 */ s8 savedType1;
+    /* 0x06 */ s8 savedType2;
     /* 0x07 */ char unk_07[0x1];
     /* 0x08 */ u16 firstVtxIdx;
     /* 0x0A */ u16 lastVtxIdx;
-    /* 0x0C */ s16 unk_0C;
+    /* 0x0C */ u16 unk_0C;
     /* 0x0E */ s16 unk_0E;
     /* 0x10 */ s16 unk_10;
     /* 0x14 */ s32 flags;
     /* 0x18 */ char unk_18[0x4];
-    /* 0x1C */ s32 unk_1C[2][4];
-    /* 0x3C */ f32 unk_3C[2][4];
-    /* 0x5C */ u8* buf;
-    /* 0x60 */ u16 bufSize;
+    /* 0x1C */ FoldIntVars ints;
+    /* 0x3C */ FoldFloatVars floats;
+    /* 0x5C */ Color_RGBA8* colorBuf;
+    /* 0x60 */ u16 colorBufCount;
     /* 0x62 */ char unk_62[0x2];
-    /* 0x64 */ s32* unk_64;
+    /* 0x64 */ u8* curAnimOffset;
     /* 0x68 */ Vtx* vtxBufs[2];
     /* 0x70 */ Gfx* gfxBufs[2];
-    /* 0x78 */ s32 unk_78;
+    /* 0x78 */ s32 otherModeL;
 } FoldState; // size = 0x7C
 
 typedef struct FoldDataCache {
@@ -36,16 +73,18 @@ typedef struct FoldDataCache {
     /* 0x06 */ char unk_06[0x2];
 } FoldDataCache; // size = 0x8
 
-typedef struct FoldGfxDescriptor {
-    /* 0x00 */ Vtx* vtx;
-    /* 0x04 */ Gfx* gfx;
-    /* 0x08 */ u16 vtxCount;
+typedef struct FoldAnimHeader {
+    /* 0x00 */ s32 keyframesOffset;
+    /* 0x04 */ Gfx* gfxOffset; // Gfx for creating mesh from vertices
+    /* 0x08 */ u16 vtxCount; // conserved across keyframes
     /* 0x0A */ u16 gfxCount;
-    /* 0x0C */ s8 unk_0C;
-    /* 0x0D */ s8 unk_0D;
-    /* 0x0E */ s8 unk_0E;
-    /* 0x0F */ s8 unk_0F;
-} FoldGfxDescriptor; // size = 0x10
+    /* 0x0C */ u16 keyframesCount;
+    /* 0x0E */ u16 flags;
+} FoldAnimHeader; // size = 0x10
+
+enum FoldAnimFlags {
+    FOLD_ANIM_FLAG_ABSOLUTE_COORDS  = 1, // image-relative (in percent) when unset
+};
 
 typedef struct FoldRenderMode {
     /* 0x0 */ s32 mode1;
@@ -53,7 +92,27 @@ typedef struct FoldRenderMode {
     /* 0x8 */ u8 flags; // only checks TRUE so far. some kind of switch?
 } FoldRenderMode; // size = 0xC
 
-typedef FoldState FoldStateList[90];
+typedef struct UnkFoldStruct {
+    /* 0x00 */ s32 raster;
+    /* 0x04 */ s32 palette;
+    /* 0x08 */ u16 width;
+    /* 0x0A */ u16 height;
+    /* 0x0C */ s32 unk_0C;
+    /* 0x10 */ s32 unk_10;
+    /* 0x14 */ Gfx* unk_14;
+} UnkFoldStruct; // size = 0x18
+
+// 'compressed' vertex data for animated fold keyframes
+typedef struct FoldVtx {
+    /* 0x00 */ s16 ob[3];
+    /* 0x06 */ u8 tc[2];
+    /* 0x08 */ s8 cn[3];
+    /* 0x0B */ char unk_0B;
+} FoldVtx; // size = 0x0C
+
+typedef FoldState FoldStateList[MAX_FOLD_STATES];
+
+extern HeapNode heap_spriteHead;
 
 // BSS
 extern FoldImageRec D_80156920;
@@ -64,14 +123,14 @@ extern s8 D_80156958[2];
 extern s32 D_80156960[2];
 extern s32 D_80156968[2];
 extern s8 D_80156970;
-extern FoldGfxDescriptor fold_groupDescriptors[4];
+extern FoldAnimHeader FoldAnimHeaders[4];
 
 // Data
 FoldImageRec* fold_currentImage = &D_80156920;
 
 u16 fold_vtxCount = 0;
 
-Lights2 D_8014EE18 = gdSPDefLights2(144, 144, 144, 255, 255, 255, 0, 0, 120, 255, 255, 255, 0, 0, 136);
+Lights2 FoldLights = gdSPDefLights2(144, 144, 144, 255, 255, 255, 0, 0, 120, 255, 255, 255, 0, 0, 136);
 
 Vp D_8014EE40 = {
     .vp = {
@@ -87,9 +146,9 @@ Vp D_8014EE50 = {
     }
 };
 
-u16 D_8014EE60 = 300;
+u16 FoldVtxBufferCapacity = 300;
 
-Gfx D_8014EE68[] = {
+Gfx DefaultFoldSetupGfx[] = {
     gsSPClearGeometryMode(G_CULL_BOTH | G_LIGHTING),
     gsSPSetGeometryMode(G_ZBUFFER | G_SHADE | G_SHADING_SMOOTH),
     gsSPTexture(-1, -1, 0, G_TX_RENDERTILE, G_ON),
@@ -99,30 +158,49 @@ Gfx D_8014EE68[] = {
     gsSPEndDisplayList(),
 };
 
+//TODO figure out bits
 FoldRenderMode D_8014EE98[17] = {
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00441208, 0x00111208, FALSE },
-    { 0x00404B40, 0x00104B40, TRUE },
-    { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_0]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_1]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_2]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_3]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_4]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_5]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_6]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_7]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_8]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_9]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_A]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_B]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_HOLOGRAM]   { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_D]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_E]     { 0x00441208, 0x00111208, FALSE },
+    [FOLD_RENDER_TYPE_F]     { 0x00404B40, 0x00104B40, TRUE },
+    [FOLD_RENDER_TYPE_10]    { 0x00441208, 0x00111208, FALSE },
 };
 
-s32 fold_groupOffsets[] = {
-    0x00014358, 0x00018200, 0x0001A858, 0x0001E830, 0x00029458, 0x000314E0, 0x00033498, 0x00038988, 0x00039228,
-    0x0005B7A8, 0x0007CF10, 0x00086490, 0x00096258, 0x000A1820, 0x000ACDE8, 0x000BBF68, 0x000C0490, 0x000C49B8,
-    0x000C6150, 0x000CA380
+// all relative to fold_gfx_data_ROM_START
+s32 FoldAnimOffsets[] = {
+    [FOLD_ANIM_SHOCK]                 0x14358,
+    [FOLD_ANIM_SHIVER]                0x18200,
+    [FOLD_ANIM_VERTICAL_PIPE_CURL]    0x1A858,
+    [FOLD_ANIM_HORIZONTAL_PIPE_CURL]  0x1E830,
+    [FOLD_ANIM_STARTLE]               0x29458,
+    [FOLD_ANIM_FLUTTER_DOWN]          0x314E0,
+    [FOLD_ANIM_UNFURL]                0x33498,
+    [FOLD_ANIM_GET_IN_BED]            0x38988,
+    [FOLD_ANIM_SPIRIT_CAPTURE]        0x39228,
+    [FOLD_ANIM_UNUSED_1]              0x5B7A8,
+    [FOLD_ANIM_UNUSED_2]              0x7CF10,
+    [FOLD_ANIM_UNUSED_3]              0x86490,
+    [FOLD_ANIM_TUTANKOOPA_GATHER]     0x96258,
+    [FOLD_ANIM_TUTANKOOPA_SWIRL_2]    0xA1820,
+    [FOLD_ANIM_TUTANKOOPA_SWIRL_1]    0xACDE8,
+    [FOLD_ANIM_SHUFFLE_CARDS]         0xBBF68,
+    [FOLD_ANIM_FLIP_CARD_1]           0xC0490,
+    [FOLD_ANIM_FLIP_CARD_2]           0xC49B8,
+    [FOLD_ANIM_FLIP_CARD_3]           0xC6150,
+    [FOLD_ANIM_CYMBAL_CRUSH]          0xCA380,
 };
 
 extern FoldDataCache fold_gfxDataCache[8];
@@ -132,30 +210,30 @@ void fold_clear_state_data(FoldState* state);
 void fold_init_state(FoldState* state);
 void func_8013B0EC(FoldState* state);
 void func_8013B1B0(FoldState* state, Matrix4f mtx);
-void func_8013BC88(FoldState* state);
-void func_8013C048(FoldState* state);
-//FoldGfxDescriptor* fold_load_gfx(FoldState* state);
-void func_8013C3F0(FoldState* state);
+void fold_mesh_make_strip(FoldState* state);
+void fold_mesh_make_grid(FoldState* state);
+//FoldAnimHeader* fold_load_anim(FoldState* state);
+void fold_mesh_anim_update(FoldState* state);
 void func_8013CFA8(FoldState*, Matrix4f mtx);
 void func_8013DAB4(FoldState*, Matrix4f mtx);
 void func_8013E2F0(FoldState*, Matrix4f mtx);
 void func_8013E904(FoldState*, Matrix4f mtx);
-void func_8013EE48(FoldState* state);
-void func_8013EE68(FoldState* state);
-void func_8013F1F8(FoldState* state);
+void fold_wavy_init(FoldState* state);
+void fold_mesh_wavy_update(FoldState* state);
+void fold_mesh_load_colors(FoldState* state);
 
-void func_8013A370(s16 arg0) {
-    D_8014EE60 = arg0;
+void fold_set_vtx_buf_capacity(s16 arg0) {
+    FoldVtxBufferCapacity = arg0;
 }
 
 void fold_init(void) {
     s32 i;
 
     for (i = 0; i < ARRAY_COUNT(D_80156948); i++) {
-        D_80156948[i] = _heap_malloc(&gSpriteHeapPtr, D_8014EE60 * sizeof(*(D_80156948[0])));
+        D_80156948[i] = _heap_malloc(&heap_spriteHead, FoldVtxBufferCapacity * sizeof(Vtx));
     }
 
-    D_80156954 = (FoldStateList*)_heap_malloc(&gSpriteHeapPtr, ARRAY_COUNT(*D_80156954) * sizeof((*D_80156954)[0]));
+    D_80156954 = (FoldStateList*)_heap_malloc(&heap_spriteHead, ARRAY_COUNT(*D_80156954) * sizeof((*D_80156954)[0]));
 
     for (i = 0; i < ARRAY_COUNT(*D_80156954); i++) {
         fold_init_state(&(*D_80156954)[i]);
@@ -189,22 +267,22 @@ void func_8013A4D0(void) {
     (*D_80156954)[0].flags |= FOLD_STATE_FLAG_ENABLED;
 
     for (i = 1; i < ARRAY_COUNT(*D_80156954); i++) {
-        if (((*D_80156954)[i].flags & FOLD_STATE_FLAG_ENABLED) && (*D_80156954)[i].unk_05 != 5) {
+        if (((*D_80156954)[i].flags & FOLD_STATE_FLAG_ENABLED) && (*D_80156954)[i].savedType1 != FOLD_UPD_SET_ANIM) {
             fold_clear_state_gfx(&(*D_80156954)[i]);
         }
     }
 
     for (i = 1; i < ARRAY_COUNT(*D_80156954); i++) {
-        if ((*D_80156954)[i].flags & FOLD_STATE_FLAG_ENABLED && (*D_80156954)[i].buf != NULL) {
-            s32 temp = (*D_80156954)[i].unk_06; // TODO find a better way to match
-
-            if (temp == 11 || (*D_80156954)[i].unk_06 == 12) {
+        if ((*D_80156954)[i].flags & FOLD_STATE_FLAG_ENABLED && (*D_80156954)[i].colorBuf != NULL) {
+            if ((*D_80156954)[i].savedType2 == FOLD_UPD_COLOR_BUF_SET_B) {
                 continue;
             }
-
-            general_heap_free((*D_80156954)[i].buf);
-            (*D_80156954)[i].buf = NULL;
-            (*D_80156954)[i].bufSize = 0;
+            if ((*D_80156954)[i].savedType2 == FOLD_UPD_COLOR_BUF_SET_C) {
+                continue;
+            }
+            general_heap_free((*D_80156954)[i].colorBuf);
+            (*D_80156954)[i].colorBuf = NULL;
+            (*D_80156954)[i].colorBufCount = 0;
         }
     }
 }
@@ -296,14 +374,14 @@ s32 func_8013A704(s32 arg0) {
 }
 
 void func_8013A854(u32 idx) {
-    if (idx < 90) {
+    if (idx < MAX_FOLD_STATES) {
         (*D_80156954)[idx].flags = 0;
         (*D_80156954)[idx].unk_10 = -1;
     }
 }
 
 void func_8013A888(u32 idx) {
-    if (idx < 90) {
+    if (idx < MAX_FOLD_STATES) {
         s32 temp_s0;
 
         do {
@@ -315,12 +393,11 @@ void func_8013A888(u32 idx) {
 }
 
 s16 func_8013A8E0(s32 idx) {
-    // TODO find better match
-    if ((u32)idx >= 90) {
+    if (idx < 0 || idx >= MAX_FOLD_STATES) {
         return -1;
     }
 
-    if (idx >= 90) {
+    if (idx >= MAX_FOLD_STATES) {
         return 0xFF;
     } else {
         return (*D_80156954)[idx].unk_10;
@@ -332,8 +409,8 @@ FoldState* fold_get_state(s32 idx) {
 }
 
 void fold_clear_state_gfx(FoldState* state) {
-    if (state->unk_64 != NULL) {
-        state->unk_64 = NULL;
+    if (state->curAnimOffset != NULL) {
+        state->curAnimOffset = NULL;
     }
     if (state->vtxBufs[0] != NULL) {
         fold_add_to_gfx_cache(state->vtxBufs[0], TRUE);
@@ -354,13 +431,13 @@ void fold_clear_state_gfx(FoldState* state) {
 }
 
 void fold_clear_state_data(FoldState* state) {
-    state->unk_64 = NULL;
+    state->curAnimOffset = NULL;
     state->vtxBufs[0] = NULL;
     state->vtxBufs[1] = NULL;
     state->gfxBufs[0] = NULL;
     state->gfxBufs[1] = NULL;
-    state->buf = NULL;
-    state->bufSize = 0;
+    state->colorBuf = NULL;
+    state->colorBufCount = 0;
 }
 
 void fold_init_state(FoldState* state) {
@@ -368,221 +445,230 @@ void fold_init_state(FoldState* state) {
     s32 j;
 
     state->unk_10 = -1;
-    state->unk_05 = 0;
-    state->unk_06 = 0;
+    state->savedType1 = FOLD_UPD_CLEAR;
+    state->savedType2 = FOLD_UPD_CLEAR;
     state->flags = 0;
-    state->meshType = 0;
-    state->renderType = 0;
+    state->meshType = FOLD_MESH_TYPE_0;
+    state->renderType = FOLD_RENDER_TYPE_0;
     state->firstVtxIdx = 0;
     state->lastVtxIdx = 0;
     state->unk_0C = 0;
     state->unk_0E = 0;
-    state->unk_1C[0][3] = 255;
-    state->unk_1C[1][3] = 255;
+    state->ints.raw[0][3] = 255;
+    state->ints.raw[1][3] = 255;
     state->subdivX = 0;
     state->subdivY = 0;
     state->firstVtxIdx = 0;
     state->lastVtxIdx = 0;
 
-    for (i = 0; i < ARRAY_COUNT(state->unk_1C); i++) {
-        for (j = 0; j < ARRAY_COUNT(state->unk_1C[0]); j++) {
-            state->unk_1C[i][j] = 0;
+    for (i = 0; i < ARRAY_COUNT(state->ints.raw); i++) {
+        for (j = 0; j < ARRAY_COUNT(state->ints.raw[0]); j++) {
+            state->ints.raw[i][j] = 0;
         }
     }
 
-    for (i = 0; i < ARRAY_COUNT(state->unk_3C); i++) {
-        for (j = 0; j < ARRAY_COUNT(state->unk_3C[0]); j++) {
-            state->unk_3C[i][j] = 0;
+    for (i = 0; i < ARRAY_COUNT(state->floats.raw); i++) {
+        for (j = 0; j < ARRAY_COUNT(state->floats.raw[0]); j++) {
+            state->floats.raw[i][j] = 0;
         }
     }
 }
 
-void fold_update(u32 idx, FoldType type, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6) {
+void fold_update(u32 idx, FoldType type, s32 foldArg1, s32 foldArg2, s32 foldArg3, s32 foldArg4, s32 flags) {
     FoldState* state = &(*D_80156954)[idx];
     s32 oldFlags;
     s32 t1;
+    u8 r, g, b, a;
 
-    if (!(state->flags & FOLD_STATE_FLAG_ENABLED) || (idx >= 90)) {
+    if (!(state->flags & FOLD_STATE_FLAG_ENABLED) || (idx >= MAX_FOLD_STATES)) {
         return;
     }
 
     switch (type) {
-        case FOLD_TYPE_NONE:
+        case FOLD_UPD_CLEAR:
         case FOLD_TYPE_3:
             oldFlags = state->flags;
             fold_clear_state_gfx(state);
             fold_init_state(state);
             state->flags = oldFlags;
-            state->unk_05 = 0;
-            state->unk_06 = 0;
-            state->meshType = 0;
-            state->renderType = 0;
-            state->unk_1C[0][0] = -1;
-            state->unk_1C[1][0] = -1;
-            state->flags &= FOLD_STATE_FLAG_ENABLED;
+            state->savedType1 = FOLD_UPD_CLEAR;
+            state->savedType2 = FOLD_UPD_CLEAR;
+            state->meshType = FOLD_MESH_TYPE_0;
+            state->renderType = FOLD_RENDER_TYPE_0;
+            state->ints.raw[0][0] = -1;
+            state->ints.raw[1][0] = -1;
 
-            if (arg6 != 0) {
-                state->flags |= arg6;
+            state->flags &= FOLD_STATE_FLAG_ENABLED;
+            if (flags != 0) {
+                state->flags |= flags;
             } else {
-                state->flags |= arg6; // required to match
+                state->flags |= flags; // required to match
             }
             return;
         case FOLD_TYPE_1:
-            state->unk_05 = 0;
-            state->renderType = 0;
-            state->unk_1C[0][0] = -1;
+            state->savedType1 = FOLD_UPD_CLEAR;
+            state->renderType = FOLD_RENDER_TYPE_0;
+            state->ints.raw[0][0] = -1;
             return;
         case FOLD_TYPE_2:
-            state->unk_06 = 0;
-            state->meshType = 0;
-            state->unk_1C[1][0] = -1;
+            state->savedType2 = FOLD_UPD_CLEAR;
+            state->meshType = FOLD_MESH_TYPE_0;
+            state->ints.raw[1][0] = -1;
             return;
-        case FOLD_TYPE_11:
-            if (state->buf != NULL) {
-                heap_free(state->buf);
+        case FOLD_UPD_ALLOC_COLOR_BUF:
+            if (state->colorBuf != NULL) {
+                heap_free(state->colorBuf);
             }
-            state->bufSize = arg2 * 4;
-            state->buf = heap_malloc(state->bufSize);
+            state->colorBufCount = foldArg1 * 4;
+            state->colorBuf = heap_malloc(state->colorBufCount);
             return;
         case FOLD_TYPE_F:
         case FOLD_TYPE_10:
-            if (type == state->unk_06 && arg2 == state->unk_1C[1][0] && arg3 == state->unk_1C[1][1]) {
+            if (type == state->savedType2 && foldArg1 == state->ints.raw[1][0] && foldArg2 == state->ints.raw[1][1]) {
                 return;
             }
             break;
-        case FOLD_TYPE_5:
-            if (state->unk_05 == type && state->unk_1C[0][0] == arg2 && state->unk_1C[0][1] == arg3 &&
-                state->unk_1C[0][2] == arg4)
+        case FOLD_UPD_SET_ANIM:
+            if (state->savedType1 == type && state->ints.raw[0][0] == foldArg1 && state->ints.raw[0][1] == foldArg2 &&
+                state->ints.raw[0][2] == foldArg3)
             {
                 return;
             }
             break;
         default:
-            if (type != FOLD_TYPE_D && state->unk_06 == 0xD) {
-                state->meshType = 0;
+            if (type != FOLD_UPD_HOLOGRAM && state->savedType2 == FOLD_UPD_HOLOGRAM) {
+                state->meshType = FOLD_MESH_TYPE_0;
                 state->subdivX = 1;
                 state->subdivY = 1;
             }
             break;
     }
 
-    if (type != FOLD_TYPE_5 && state->unk_05 == 5) {
-        state->unk_05 = 0;
+    if (type != FOLD_UPD_SET_ANIM && state->savedType1 == FOLD_UPD_SET_ANIM) {
+        state->savedType1 = FOLD_UPD_CLEAR;
     }
 
-    if (type == FOLD_TYPE_4 || type == FOLD_TYPE_5) {
-        state->unk_05 = type;
-        state->unk_1C[0][0] = arg2;
-        state->unk_1C[0][1] = arg3;
-        state->unk_1C[0][2] = arg4;
-        state->unk_1C[0][3] = arg5;
-    } else if (type >= FOLD_TYPE_6 && type <= FOLD_TYPE_10) {
-        state->unk_06 = type;
-        state->unk_1C[1][0] = arg2;
-        state->unk_1C[1][1] = arg3;
-        state->unk_1C[1][2] = arg4;
-        state->unk_1C[1][3] = arg5;
+    if (type == FOLD_UPD_WAVY || type == FOLD_UPD_SET_ANIM) {
+        state->savedType1 = type;
+        state->ints.savedArgs[0][0] = foldArg1;
+        state->ints.savedArgs[0][1] = foldArg2;
+        state->ints.savedArgs[0][2] = foldArg3;
+        state->ints.savedArgs[0][3] = foldArg4;
+    } else if (type >= FOLD_UPD_SET_COLOR && type <= FOLD_TYPE_10) {
+        state->savedType2 = type;
+        state->ints.savedArgs[1][0] = foldArg1;
+        state->ints.savedArgs[1][1] = foldArg2;
+        state->ints.savedArgs[1][2] = foldArg3;
+        state->ints.savedArgs[1][3] = foldArg4;
     }
 
     state->flags &= FOLD_STATE_FLAG_ENABLED;
-    if (arg6 != 0) {
-        state->flags |= arg6;
+    if (flags != 0) {
+        state->flags |= flags;
     }
-    state->meshType = 0;
+    state->meshType = FOLD_MESH_TYPE_0;
 
     switch (type) {
         case FOLD_TYPE_3:
-            state->meshType = 0;
-            state->renderType = 0;
+            state->meshType = FOLD_MESH_TYPE_0;
+            state->renderType = FOLD_RENDER_TYPE_0;
             break;
-        case FOLD_TYPE_4:
+        case FOLD_UPD_WAVY:
             state->subdivX = 4;
             state->subdivY = 4;
-            state->meshType = 1;
-            func_8013EE48(state);
+            state->meshType = FOLD_MESH_TYPE_1;
+            fold_wavy_init(state);
             break;
-        case FOLD_TYPE_5:
-            state->meshType = 2;
-            state->renderType = 0xB;
-            state->unk_3C[0][0] = 0.0f;
-            state->unk_3C[0][1] = 0.0f;
+        case FOLD_UPD_SET_ANIM:
+            state->meshType = FOLD_MESH_ANIMATED;
+            state->renderType = FOLD_RENDER_TYPE_B;
+            state->floats.anim.curFrame = 0.0f;
+            state->floats.anim.curIdx = 0.0f;
             state->flags |= FOLD_STATE_FLAG_200;
             break;
-        case FOLD_TYPE_6:
-        case FOLD_TYPE_7:
-        case FOLD_TYPE_8:
-            if (arg2 >= 0xFF && arg3 >= 0xFF && arg4 >= 0xFF && arg5 >= 0xFF) {
-                state->renderType = 0;
-            } else if (arg5 >= 0xFF) {
-                state->renderType = 1;
-            } else if (arg2 >= 0xFF && arg3 >= 0xFF && arg4 >= 0xFF) {
-                state->renderType = 2;
+        case FOLD_UPD_SET_COLOR:
+        case FOLD_UPD_SET_ALPHA:
+        case FOLD_UPD_SET_TINT:
+            if (foldArg1 >= 255 && foldArg2 >= 255 && foldArg3 >= 255 && foldArg4 >= 255) {
+                // no color + no transparency
+                state->renderType = FOLD_RENDER_TYPE_0;
+            } else if (foldArg4 >= 255) {
+                // some color + no transparency
+                state->renderType = FOLD_RENDER_TYPE_1;
+            } else if (foldArg1 >= 255 && foldArg2 >= 255 && foldArg3 >= 255) {
+                // no color + transparency
+                state->renderType = FOLD_RENDER_TYPE_2;
             } else {
-                state->renderType = 3;
+                // some color + transparency
+                state->renderType = FOLD_RENDER_TYPE_3;
             }
             break;
         case FOLD_TYPE_9:
         case FOLD_TYPE_A:
-            if (arg5 == 255.0) {
-                state->renderType = 4;
+            if (foldArg4 == 255.0) {
+                state->renderType = FOLD_RENDER_TYPE_4;
             } else {
-                state->renderType = 5;
+                state->renderType = FOLD_RENDER_TYPE_5;
             }
             break;
-        case FOLD_TYPE_B:
-            if (arg2 < state->bufSize) {
-                t1 = (u32) arg3 >> 0x18; // required to match
-                state->buf[arg2 * 4 + 0] = (u32) arg3 >> 0x18;
-                state->buf[arg2 * 4 + 1] = (u32) arg3 >> 0x10;
-                state->buf[arg2 * 4 + 2] = (u32) arg3 >> 0x08;
-                do {
-                    state->buf[arg2 * 4 + 3] = arg3;
-                } while (0); // required to match
+        case FOLD_UPD_COLOR_BUF_SET_B:
+            if (foldArg1 < state->colorBufCount) {
+                // unpack and store color
+                r = (foldArg2 & 0xFF000000) >> 24;
+                g = (foldArg2 & 0xFF0000) >> 16;
+                b = (foldArg2 & 0xFF00) >> 8;
+                a = (foldArg2 & 0xFF);
+                state->colorBuf[foldArg1].r = r;
+                state->colorBuf[foldArg1].g = g;
+                state->colorBuf[foldArg1].b = b;
+                state->colorBuf[foldArg1].a = a;
 
-                state->meshType = 0;
+                state->meshType = FOLD_MESH_TYPE_0;
 
-                if ((arg3 & 0xFF) == 0xFF) {
-                    state->renderType = 6;
+                if (a == 255) {
+                    state->renderType = FOLD_RENDER_TYPE_6;
                 } else {
-                    state->renderType = 8;
+                    state->renderType = FOLD_RENDER_TYPE_8;
                 }
             }
             break;
-        case FOLD_TYPE_C:
-            if (arg2 < state->bufSize) {
-                t1 = (u32) arg3 >> 0x18; // required to match
-                state->buf[arg2 * 4 + 0] = t1;
-                state->buf[arg2 * 4 + 1] = (u32) arg3 >> 0x10;
-                state->buf[arg2 * 4 + 2] = (u32) arg3 >> 0x08;
-                do {
-                    state->buf[arg2 * 4 + 3] = arg3;
-                } while (0); // required to match
+        case FOLD_UPD_COLOR_BUF_SET_C:
+            if (foldArg1 < state->colorBufCount) {
+                // unpack and store color
+                r = (foldArg2 & 0xFF000000) >> 24;
+                g = (foldArg2 & 0xFF0000) >> 16;
+                b = (foldArg2 & 0xFF00) >> 8;
+                a = (foldArg2 & 0xFF);
+                state->colorBuf[foldArg1].r = r;
+                state->colorBuf[foldArg1].g = g;
+                state->colorBuf[foldArg1].b = b;
+                state->colorBuf[foldArg1].a = a;
 
-                state->meshType = 0;
+                state->meshType = FOLD_MESH_TYPE_0;
 
-                if ((arg3 & 0xFF) == 0xFF) {
-                    state->renderType = 9;
+                if (a == 255) {
+                    state->renderType = FOLD_RENDER_TYPE_9;
                 } else {
-                    state->renderType = 0xA;
+                    state->renderType = FOLD_RENDER_TYPE_A;
                 }
             }
             break;
-        case FOLD_TYPE_D:
-            state->renderType = 0xC;
+        case FOLD_UPD_HOLOGRAM:
+            state->renderType = FOLD_RENDER_HOLOGRAM;
             break;
         case FOLD_TYPE_E:
-            state->renderType = 0xD;
+            state->renderType = FOLD_RENDER_TYPE_D;
             break;
         case FOLD_TYPE_F:
         case FOLD_TYPE_10:
-            state->meshType = 4;
-            if (arg3 >= 0xFF) {
-                state->renderType = 0xE;
+            state->meshType = FOLD_MESH_TYPE_4;
+            if (foldArg2 >= 255) {
+                state->renderType = FOLD_RENDER_TYPE_E;
             } else {
-                state->renderType = 0xF;
+                state->renderType = FOLD_RENDER_TYPE_F;
             }
-            state->unk_3C[1][0] = 0.0f;
-            state->unk_3C[1][1] = 0.0f;
+            state->floats.raw[1][0] = 0.0f;
+            state->floats.raw[1][1] = 0.0f;
             break;
     }
 }
@@ -617,35 +703,35 @@ s32 fold_appendGfx_component(s32 idx, FoldImageRecPart* image, u32 flagBits, Mat
     fold_currentImage->unk_1E = 0;
     fold_currentImage->alphaMultiplier = image->opacity;
 
-    if ((u32)idx >= 90) {
+    if ((u32)idx >= MAX_FOLD_STATES) {
         return 0;
     }
 
-    if (idx >= 90 || state == NULL) {
+    if (idx >= MAX_FOLD_STATES || state == NULL) {
         return 0;
     }
 
     func_8013B0EC(state);
     func_8013B1B0(state, mtx);
 
-    if (state->flags & FOLD_STATE_FLAG_1000) {
-        state->unk_1C[0][0] = -1;
-        state->unk_1C[1][0] = -1;
-        state->unk_05 = 0;
+    if (state->flags & FOLD_STATE_FLAG_ANIM_DONE) {
+        state->ints.raw[0][0] = -1;
+        state->ints.raw[1][0] = -1;
+        state->savedType1 = FOLD_UPD_CLEAR;
         state->meshType = 0;
-        state->renderType = 0;
-        state->flags &= ~(FOLD_STATE_FLAG_1000 | FOLD_STATE_FLAG_800 | FOLD_STATE_FLAG_100 | FOLD_STATE_FLAG_80);
+        state->renderType = FOLD_RENDER_TYPE_0;
+        state->flags &= ~(FOLD_STATE_FLAG_ANIM_DONE | FOLD_STATE_FLAG_800 | FOLD_STATE_FLAG_REVERSE_ANIM | FOLD_STATE_FLAG_LOOP_ANIM);
         fold_clear_state_gfx(state);
         ret = 1;
     } else if (state->flags & FOLD_STATE_FLAG_4000) {
         ret = 2;
     } else if (state->flags & FOLD_STATE_FLAG_20000) {
-        state->unk_05 = 0;
-        state->unk_06 = 0;
-        state->meshType = 0;
-        state->renderType = 0;
-        state->unk_1C[0][0] = -1;
-        state->unk_1C[1][0] = -1;
+        state->savedType1 = FOLD_UPD_CLEAR;
+        state->savedType2 = FOLD_UPD_CLEAR;
+        state->meshType = FOLD_MESH_TYPE_0;
+        state->renderType = FOLD_RENDER_TYPE_0;
+        state->ints.raw[0][0] = -1;
+        state->ints.raw[1][0] = -1;
         state->flags &= FOLD_STATE_FLAG_ENABLED;
         ret = 1;
     }
@@ -654,277 +740,283 @@ s32 fold_appendGfx_component(s32 idx, FoldImageRecPart* image, u32 flagBits, Mat
 
 void func_8013B0EC(FoldState* state) {
     switch (state->meshType) {
-        case 3:
-            if (state->unk_1C[1][2] == 0) {
+        case FOLD_MESH_TYPE_3:
+            if (state->ints.raw[1][2] == 0) {
                 state->subdivX = 1;
                 state->subdivY = 16;
             } else {
                 state->subdivX = 1;
                 state->subdivY = 1;
             }
-        case 1:
-            func_8013C048(state);
+        case FOLD_MESH_TYPE_1:
+            fold_mesh_make_grid(state);
             break;
-        case 2:
-            func_8013C3F0(state);
+        case FOLD_MESH_ANIMATED:
+            fold_mesh_anim_update(state);
             break;
-        case 0:
-        case 4:
-            func_8013BC88(state);
+        case FOLD_MESH_TYPE_0:
+        case FOLD_MESH_TYPE_4:
+            fold_mesh_make_strip(state);
             break;
         default:
             return;
     }
 
-    if (state->unk_05 == 4) {
-        func_8013EE68(state);
+    if (state->savedType1 == FOLD_UPD_WAVY) {
+        fold_mesh_wavy_update(state);
     }
 
-    switch (state->unk_06) {
-        case 11:
-        case 12:
-            func_8013F1F8(state);
+    switch (state->savedType2) {
+        case FOLD_UPD_COLOR_BUF_SET_B:
+        case FOLD_UPD_COLOR_BUF_SET_C:
+            fold_mesh_load_colors(state);
             break;
     }
 }
 
 void func_8013B1B0(FoldState* state, Matrix4f mtx) {
     s16 cond = FALSE;
-    s32 primColor = state->unk_1C[1][3];
+    s32 primAlpha = state->ints.color[1].a;
     s32 renderType = state->renderType;
     s8 angle1;
     s8 angle2;
-    f32 alphaComp;
-    s32 blendColor;
-    FoldRenderMode* foldC;
+    f32 foldImgAlpha;
+    FoldRenderMode* fold;
     s32 mode1;
     s32 mode2;
-    s32 t1;
-    s32 t2;
+    s32 dirX1;
+    s32 dirZ2;
 
-    gDPPipeSync(gMasterGfxPos++);
+    gDPPipeSync(gMainGfxPos++);
 
-    if (!(state->flags & FOLD_STATE_FLAG_10)) {
-        gSPDisplayList(gMasterGfxPos++, D_8014EE68);
-        if (state->flags & FOLD_STATE_FLAG_10000) {
-            gDPSetTextureFilter(gMasterGfxPos++, G_TF_POINT);
+    if (!(state->flags & FOLD_STATE_FLAG_SKIP_GFX_SETUP)) {
+        gSPDisplayList(gMainGfxPos++, DefaultFoldSetupGfx);
+        if (state->flags & FOLD_STATE_FLAG_NO_FILTERING) {
+            gDPSetTextureFilter(gMainGfxPos++, G_TF_POINT);
         }
         if (state->flags & FOLD_STATE_FLAG_G_CULL_BACK) {
-            gSPSetGeometryMode(gMasterGfxPos++, G_CULL_BACK);
+            gSPSetGeometryMode(gMainGfxPos++, G_CULL_BACK);
         }
         if (state->flags & FOLD_STATE_FLAG_G_CULL_FRONT) {
-            gSPSetGeometryMode(gMasterGfxPos++, G_CULL_FRONT);
+            gSPSetGeometryMode(gMainGfxPos++, G_CULL_FRONT);
         }
 
-        foldC = &D_8014EE98[state->renderType];
+        fold = &D_8014EE98[state->renderType];
 
-        mode1 = foldC->mode1;
-        mode2 = foldC->mode2;
-        if (foldC->flags & FOLD_STATE_FLAG_ENABLED) {
+        mode1 = fold->mode1;
+        mode2 = fold->mode2;
+        if (fold->flags & FOLD_STATE_FLAG_ENABLED) {
             cond = TRUE;
         }
 
-        alphaComp = (f32) fold_currentImage->alphaMultiplier / 255.0;
+        foldImgAlpha = (f32) fold_currentImage->alphaMultiplier / 255.0;
 
-        if (!cond && (fold_currentImage->alphaMultiplier < 0xFF)) {
-            state->unk_1C[1][3] = 0xFF;
+        if (!cond && (fold_currentImage->alphaMultiplier < 255)) {
+            state->ints.color[1].a = 255;
             switch (state->renderType) {
-                case 0:
-                case 11:
-                    renderType = 2;
+                case FOLD_RENDER_TYPE_0:
+                case FOLD_RENDER_TYPE_B:
+                    renderType = FOLD_RENDER_TYPE_2;
                     break;
-                case 1:
-                case 4:
-                    renderType = 3;
+                case FOLD_RENDER_TYPE_1:
+                case FOLD_RENDER_TYPE_4:
+                    renderType = FOLD_RENDER_TYPE_3;
                     break;
-                case 9:
-                    renderType = 10;
+                case FOLD_RENDER_TYPE_9:
+                    renderType = FOLD_RENDER_TYPE_A;
                     break;
             }
-            primColor = state->unk_1C[1][3] * alphaComp;
+            primAlpha = state->ints.color[1].a * foldImgAlpha;
+            //TODO figure out bits
             mode1 = 0x404B40;
             mode2 = 0x104B40;
             cond = TRUE;
         }
 
         if ((state->flags & FOLD_STATE_FLAG_400) && !cond) {
-            mode1 &= ~0x200;
-            mode2 &= ~0x200;
-            mode1 |= 0x2040;
-            mode2 |= 0x2040;
+            mode1 &= ~CVG_DST_FULL;
+            mode2 &= ~CVG_DST_FULL;
+            mode1 |= (ALPHA_CVG_SEL | IM_RD);
+            mode2 |= (ALPHA_CVG_SEL | IM_RD);
         }
 
         if (state->flags & FOLD_STATE_FLAG_40) {
-            gSPClearGeometryMode(gMasterGfxPos++, G_ZBUFFER);
+            gSPClearGeometryMode(gMainGfxPos++, G_ZBUFFER);
         } else {
-            gSPSetGeometryMode(gMasterGfxPos++, G_ZBUFFER);
+            gSPSetGeometryMode(gMainGfxPos++, G_ZBUFFER);
             if (cond) {
-                mode1 |= 0x10;
-                mode2 |= 0x10;
+                mode1 |= Z_CMP;
+                mode2 |= Z_CMP;
             } else {
-                mode1 |= 0x30;
-                mode2 |= 0x30;
+                mode1 |= (Z_CMP | Z_UPD);
+                mode2 |= (Z_CMP | Z_UPD);
             }
         }
-        state->unk_78 = mode2;
-        gDPSetRenderMode(gMasterGfxPos++, mode1, mode2);
+        state->otherModeL = mode2;
+        gDPSetRenderMode(gMainGfxPos++, mode1, mode2);
 
         switch (renderType) {
-            case 1:
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIDECALA_PRIM, G_CC_MODULATEIDECALA_PRIM);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][0], state->unk_1C[1][1], state->unk_1C[1][2], 0);
+            case FOLD_RENDER_TYPE_1:
+                gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIDECALA_PRIM, G_CC_MODULATEIDECALA_PRIM);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, state->ints.color[1].r, state->ints.color[1].g,
+                                state->ints.color[1].b, 0);
                 break;
-            case 2:
-                if (primColor <= 0) {
+            case FOLD_RENDER_TYPE_2:
+                if (primAlpha <= 0) {
                     return;
                 }
-                gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
+                gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
                                   TEXEL0, 0, PRIMITIVE, 0);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, primColor);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, primAlpha);
                 break;
-            case 3:
-                if (primColor <= 0) {
+            case FOLD_RENDER_TYPE_3:
+                if (primAlpha <= 0) {
                     return;
                 }
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][0], state->unk_1C[1][1],
-                                state->unk_1C[1][2], primColor);
+                gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, state->ints.color[1].r, state->ints.color[1].g,
+                                state->ints.color[1].b, primAlpha);
                 break;
-            case 4:
-                gDPSetCombineLERP(gMasterGfxPos++, 1, PRIMITIVE, TEXEL0, PRIMITIVE, 0, 0, 0, TEXEL0, 1, PRIMITIVE,
+            case FOLD_RENDER_TYPE_4:
+                gDPSetCombineLERP(gMainGfxPos++, 1, PRIMITIVE, TEXEL0, PRIMITIVE, 0, 0, 0, TEXEL0, 1, PRIMITIVE,
                                   TEXEL0, PRIMITIVE, 0, 0, 0, TEXEL0);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][0], state->unk_1C[1][1], state->unk_1C[1][2], 0);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, state->ints.color[1].r, state->ints.color[1].g,
+                                state->ints.color[1].b, 0);
                 break;
-            case 5:
-                if (primColor <= 0) {
+            case FOLD_RENDER_TYPE_5:
+                if (primAlpha <= 0) {
                     return;
                 }
-                gDPSetCombineLERP(gMasterGfxPos++, 1, 0, TEXEL0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 1, 0, TEXEL0,
+                gDPSetCombineLERP(gMainGfxPos++, 1, 0, TEXEL0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 1, 0, TEXEL0,
                                   PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][0], state->unk_1C[1][1],
-                                state->unk_1C[1][2], primColor);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, state->ints.color[1].r, state->ints.color[1].g,
+                                state->ints.color[1].b, primAlpha);
                 break;
-            case 6:
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIDECALA, G_CC_MODULATEIDECALA);
-                gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_SHADING_SMOOTH);
-                gSPClearGeometryMode(gMasterGfxPos++, G_LIGHTING);
+            case FOLD_RENDER_TYPE_6:
+                gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIDECALA, G_CC_MODULATEIDECALA);
+                gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+                gSPClearGeometryMode(gMainGfxPos++, G_LIGHTING);
                 break;
-            case 9:
-                gDPSetCombineLERP(gMasterGfxPos++, 1, SHADE, TEXEL0, SHADE, 0, 0, 0, TEXEL0, 1, SHADE, TEXEL0, SHADE,
+            case FOLD_RENDER_TYPE_9:
+                gDPSetCombineLERP(gMainGfxPos++, 1, SHADE, TEXEL0, SHADE, 0, 0, 0, TEXEL0, 1, SHADE, TEXEL0, SHADE,
                                   0, 0, 0, TEXEL0);
-                gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_SHADING_SMOOTH);
-                gSPClearGeometryMode(gMasterGfxPos++, G_LIGHTING);
+                gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+                gSPClearGeometryMode(gMainGfxPos++, G_LIGHTING);
                 break;
-            case 7:
-                gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, SHADE, 0, 0, 0, 0, TEXEL0, TEXEL0, 0,
+            case FOLD_RENDER_TYPE_7:
+                gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, SHADE, 0, 0, 0, 0, TEXEL0, TEXEL0, 0,
                                   SHADE, 0);
-                gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_SHADING_SMOOTH);
-                gSPClearGeometryMode(gMasterGfxPos++, G_LIGHTING);
+                gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+                gSPClearGeometryMode(gMainGfxPos++, G_LIGHTING);
                 break;
-            case 8:
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIA, G_CC_MODULATEIA);
-                gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_SHADING_SMOOTH);
-                gSPClearGeometryMode(gMasterGfxPos++, G_LIGHTING);
+            case FOLD_RENDER_TYPE_8:
+                gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+                gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+                gSPClearGeometryMode(gMainGfxPos++, G_LIGHTING);
                 break;
-            case 10:
-                gDPSetCombineLERP(gMasterGfxPos++, 1, SHADE, TEXEL0, SHADE, TEXEL0, 0, SHADE, 0, 1, SHADE, TEXEL0,
+            case FOLD_RENDER_TYPE_A:
+                gDPSetCombineLERP(gMainGfxPos++, 1, SHADE, TEXEL0, SHADE, TEXEL0, 0, SHADE, 0, 1, SHADE, TEXEL0,
                                   SHADE, TEXEL0, 0, SHADE, 0);
-                gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_SHADING_SMOOTH);
-                gSPClearGeometryMode(gMasterGfxPos++, G_LIGHTING);
+                gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+                gSPClearGeometryMode(gMainGfxPos++, G_LIGHTING);
                 break;
-            case 11:
+            case FOLD_RENDER_TYPE_B:
                 if (state->flags & (FOLD_STATE_FLAG_2000 | FOLD_STATE_FLAG_8000)) {
                     Camera* currentCam = &gCameras[gCurrentCameraID];
 
-                    gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIDECALA, G_CC_MODULATEIDECALA);
-                    gSPSetGeometryMode(gMasterGfxPos++, G_SHADE | G_LIGHTING | G_SHADING_SMOOTH);
+                    gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIDECALA, G_CC_MODULATEIDECALA);
+                    gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_LIGHTING | G_SHADING_SMOOTH);
 
                     angle1 = cosine(currentCam->currentYaw) * 120.0f;
                     angle2 = cosine(currentCam->currentYaw + 90.0f) * 120.0f;
-                    t1 = -angle1;
-                    t2 = -angle2;
-                    D_8014EE18.l[0].l.dir[0] = t1;
-                    D_8014EE18.l[1].l.dir[0] = angle1;
-                    D_8014EE18.l[0].l.dir[2] = angle2;
-                    D_8014EE18.l[1].l.dir[2] = t2;
-                    gSPSetLights2(gMasterGfxPos++, D_8014EE18);
+                    dirX1 = -angle1;
+                    dirZ2 = -angle2;
+                    FoldLights.l[0].l.dir[0] = dirX1;
+                    FoldLights.l[1].l.dir[0] = angle1;
+                    FoldLights.l[0].l.dir[2] = angle2;
+                    FoldLights.l[1].l.dir[2] = dirZ2;
+                    gSPSetLights2(gMainGfxPos++, FoldLights);
                     break;
                 }
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+                gDPSetCombineMode(gMainGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
                 break;
-            case 12:
-                if (state->unk_1C[1][0] == 0) {
-                    primColor = state->unk_1C[1][3] * alphaComp;
-                    gDPSetCombineLERP(gMasterGfxPos++, NOISE, PRIMITIVE, PRIMITIVE, TEXEL0, TEXEL0, 0, PRIMITIVE, 0,
+            case FOLD_RENDER_HOLOGRAM:
+                if (state->ints.hologram.mode == 0) {
+                    primAlpha = state->ints.hologram.alphaAmt * foldImgAlpha;
+                    gDPSetCombineLERP(gMainGfxPos++, NOISE, PRIMITIVE, PRIMITIVE, TEXEL0, TEXEL0, 0, PRIMITIVE, 0,
                                       NOISE, PRIMITIVE, PRIMITIVE, TEXEL0, TEXEL0, 0, PRIMITIVE, 0);
-                    gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][1], state->unk_1C[1][1],
-                                    state->unk_1C[1][1],primColor);
-                } else if (state->unk_1C[1][0] == 1) {
-                    primColor = state->unk_1C[1][3] * alphaComp;
-                    gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
+                    gDPSetPrimColor(gMainGfxPos++, 0, 0,
+                                    state->ints.hologram.noiseAmt,
+                                    state->ints.hologram.noiseAmt,
+                                    state->ints.hologram.noiseAmt,
+                                    primAlpha);
+                } else if (state->ints.hologram.mode == 1) {
+                    primAlpha = state->ints.hologram.alphaAmt * foldImgAlpha;
+                    gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
                                       TEXEL0, 0, PRIMITIVE, 0);
-                    gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, primColor);
-                    gDPSetAlphaCompare(gMasterGfxPos++, G_AC_DITHER);
-                } else if (state->unk_1C[1][0] == 2) {
-                    blendColor = state->unk_1C[1][3] + state->unk_1C[1][1];
-                    if (blendColor > 255) {
-                        blendColor = 255;
+                    gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, primAlpha);
+                    gDPSetAlphaCompare(gMainGfxPos++, G_AC_DITHER);
+                } else if (state->ints.hologram.mode == 2) {
+                    s32 blendAlpha = state->ints.hologram.alphaAmt + state->ints.hologram.noiseAmt;
+                    if (blendAlpha > 255) {
+                        blendAlpha = 255;
                     }
 
-                    primColor = state->unk_1C[1][3] * alphaComp;
-                    gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
+                    primAlpha = state->ints.hologram.alphaAmt * foldImgAlpha;
+                    gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0,
                                       TEXEL0, 0, PRIMITIVE, 0);
-                    gDPSetAlphaDither(gMasterGfxPos++, G_AD_NOISE);
-                    gDPSetAlphaCompare(gMasterGfxPos++, G_AC_THRESHOLD);
-                    gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, primColor);
-                    gDPSetBlendColor(gMasterGfxPos++, 0, 0, 0, blendColor);
+                    gDPSetAlphaDither(gMainGfxPos++, G_AD_NOISE);
+                    gDPSetAlphaCompare(gMainGfxPos++, G_AC_THRESHOLD);
+                    gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, primAlpha);
+                    gDPSetBlendColor(gMainGfxPos++, 0, 0, 0, blendAlpha);
                 }
                 break;
-            case 13:
-                gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, PRIMITIVE, 0, 0, 0, TEXEL0, 0, 0, 0, PRIMITIVE, 0, 0, 0,
+            case FOLD_RENDER_TYPE_D:
+                gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, PRIMITIVE, 0, 0, 0, TEXEL0, 0, 0, 0, PRIMITIVE, 0, 0, 0,
                                   TEXEL0);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, state->unk_1C[1][0], state->unk_1C[1][1], state->unk_1C[1][2], 0);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, state->ints.color[1].r, state->ints.color[1].g,
+                                state->ints.color[1].b, 0);
                 break;
-            case 0:
-            case 14:
-            case 16:
-                gDPSetCombineMode(gMasterGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+            case FOLD_RENDER_TYPE_0:
+            case FOLD_RENDER_TYPE_E:
+            case FOLD_RENDER_TYPE_10:
+                gDPSetCombineMode(gMainGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
                 break;
-            case 15:
-                gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0, TEXEL0, 0,
+            case FOLD_RENDER_TYPE_F:
+                gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0, TEXEL0, 0,
                                   PRIMITIVE, 0);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, state->unk_1C[1][1]);
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, state->ints.raw[1][1]);
                 break;
         }
     }
 
     switch (state->meshType) {
-        case 0:
+        case FOLD_MESH_TYPE_0:
             func_8013CFA8(state, mtx);
             break;
-        case 1:
-        case 3:
+        case FOLD_MESH_TYPE_1:
+        case FOLD_MESH_TYPE_3:
             func_8013DAB4(state, mtx);
             break;
-        case 2:
+        case FOLD_MESH_ANIMATED:
             func_8013E2F0(state, mtx);
             break;
-        case 4:
+        case FOLD_MESH_TYPE_4:
             func_8013CFA8(state, mtx);
-            gDPPipeSync(gMasterGfxPos++);
+            gDPPipeSync(gMainGfxPos++);
             func_8013E904(state, mtx);
             break;
     }
 
-    gDPPipeSync(gMasterGfxPos++);
+    gDPPipeSync(gMainGfxPos++);
 
-    if (state->renderType == 0xC) {
-        gDPSetAlphaCompare(gMasterGfxPos++, G_AC_NONE);
-        gDPSetAlphaDither(gMasterGfxPos++, G_AD_DISABLE);
+    if (state->renderType == FOLD_RENDER_HOLOGRAM) {
+        gDPSetAlphaCompare(gMainGfxPos++, G_AC_NONE);
+        gDPSetAlphaDither(gMainGfxPos++, G_AD_DISABLE);
     }
 }
 
-void func_8013BC88(FoldState* state) {
+void fold_mesh_make_strip(FoldState* state) {
     s32 yOffset;
     s32 xOffset;
     s32 widthIncrement;
@@ -996,7 +1088,7 @@ void func_8013BC88(FoldState* state) {
     state->subdivY = ((state->lastVtxIdx - state->firstVtxIdx) - 1) / 2;
 }
 
-void func_8013C048(FoldState* state) {
+void fold_mesh_make_grid(FoldState* state) {
     f32 divSizeX;
     f32 divSizeY;
     f32 posX;
@@ -1043,17 +1135,17 @@ void func_8013C048(FoldState* state) {
     state->lastVtxIdx = fold_vtxCount - 1;
 }
 
-FoldGfxDescriptor* fold_load_gfx(FoldState* state) {
-    Gfx* romStart = fold_groupOffsets[state->unk_1C[0][0]] + _24B7F0_ROM_START;
-    FoldGfxDescriptor* descriptor = &fold_groupDescriptors[state->arrayIdx];
+FoldAnimHeader* fold_load_anim(FoldState* state) {
+    u8* romStart = FoldAnimOffsets[state->ints.anim.type] + fold_gfx_data_ROM_START;
+    FoldAnimHeader* anim = &FoldAnimHeaders[state->arrayIdx];
 
-    if (state->unk_64 != romStart) {
-        Gfx* romEnd;
+    if (state->curAnimOffset != romStart) {
+        u8* romEnd;
         s32 i;
 
-        state->unk_64 = romStart;
+        state->curAnimOffset = romStart;
 
-        dma_copy(state->unk_64, (s32)state->unk_64 + 0x10, descriptor);
+        dma_copy(state->curAnimOffset, state->curAnimOffset + sizeof(*anim), anim);
 
         if (state->vtxBufs[0] != NULL) {
             fold_add_to_gfx_cache(state->vtxBufs[0], 1);
@@ -1069,17 +1161,17 @@ FoldGfxDescriptor* fold_load_gfx(FoldState* state) {
         }
         if (state->gfxBufs[1] != NULL) {
             // fold_add_to_gfx_cache(state->gfxBufs[1], 1);
-            romEnd = state->gfxBufs[1]; // required to match
-            fold_add_to_gfx_cache(romEnd, 1);
+            romEnd = (u8*) state->gfxBufs[1]; // required to match
+            fold_add_to_gfx_cache(state->gfxBufs[1], 1);
             state->gfxBufs[1] = NULL;
         }
-        state->vtxBufs[0] = heap_malloc(descriptor->vtxCount * 0x10);
-        state->vtxBufs[1] = heap_malloc(descriptor->vtxCount * 0x10);
-        state->gfxBufs[0] = heap_malloc(descriptor->gfxCount * 8);
-        state->gfxBufs[1] = heap_malloc(descriptor->gfxCount * 8);
+        state->vtxBufs[0] = heap_malloc(anim->vtxCount * sizeof(Vtx));
+        state->vtxBufs[1] = heap_malloc(anim->vtxCount * sizeof(Vtx));
+        state->gfxBufs[0] = heap_malloc(anim->gfxCount * sizeof(Gfx));
+        state->gfxBufs[1] = heap_malloc(anim->gfxCount * sizeof(Gfx));
 
-        romStart = (s32)descriptor->gfx + _24B7F0_ROM_START;
-        romEnd = &romStart[descriptor->gfxCount];
+        romStart = fold_gfx_data_ROM_START + (s32)anim->gfxOffset;
+        romEnd = romStart + anim->gfxCount * sizeof(Gfx);
         dma_copy(romStart, romEnd, state->gfxBufs[0]);
         dma_copy(romStart, romEnd, state->gfxBufs[1]);
 
@@ -1097,29 +1189,226 @@ FoldGfxDescriptor* fold_load_gfx(FoldState* state) {
 
                 // If this command is a vertex command, adjust the vertex buffer address
                 if (cmd == G_VTX) {
-                    gfxBuffer[j-1].words.w1 = ((((s32) gfxBuffer[j-1].words.w1 - (s32) descriptor->vtx) / 3) * 4) +
+                    gfxBuffer[j-1].words.w1 = ((((s32) gfxBuffer[j-1].words.w1 - anim->keyframesOffset) / 3) * 4) +
                                               (s32) state->vtxBufs[i];
                 }
             } while (cmd != G_ENDDL);
         }
     }
 
-    return descriptor;
+    return anim;
 }
 
-INCLUDE_ASM(s32, "d0a70_len_4fe0", func_8013C3F0);
+void fold_mesh_anim_update(FoldState* state) {
+    s32 absKeyframeInterval;
+    s32 nextKeyIdx;
+    s32 curKeyIdx;
+    FoldVtx* curKeyframe = NULL;
+    FoldVtx* nextKeyframe = NULL;
+    s32 keyframeInterval = state->ints.raw[0][1];
+    s32 animStep = state->ints.raw[0][2];
+    s32 curSubframe = state->floats.anim.curFrame;
+    FoldAnimHeader* header = fold_load_anim(state);
+    u8* romStart;
+    f32 lerpAlpha;
+    s32 i;
+
+    if (header == NULL) {
+        return;
+    }
+
+    if (state->flags & FOLD_STATE_FLAG_200) {
+        state->flags &= ~FOLD_STATE_FLAG_200;
+        if (state->flags & FOLD_STATE_FLAG_REVERSE_ANIM) {
+            state->floats.anim.curIdx = header->keyframesCount - 1;
+        }
+    }
+    curKeyIdx = state->floats.anim.curIdx;
+    absKeyframeInterval = abs(keyframeInterval);
+    if (state->flags & FOLD_STATE_FLAG_4000) {
+        nextKeyIdx = curKeyIdx;
+    } else {
+        if (state->flags & FOLD_STATE_FLAG_REVERSE_ANIM) {
+            nextKeyIdx = curKeyIdx - 1;
+            if (nextKeyIdx < 0) {
+                nextKeyIdx = curKeyIdx;
+                if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                    nextKeyIdx = header->keyframesCount - 1;
+                }
+            }
+        } else {
+            nextKeyIdx = curKeyIdx + 1;
+            if (nextKeyIdx == header->keyframesCount) {
+                nextKeyIdx = curKeyIdx;
+                if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                    nextKeyIdx = 0;
+                }
+            }
+        }
+    }
+
+    // find the current + next keyframe vertex data
+    curKeyframe = heap_malloc(header->vtxCount * sizeof(FoldVtx));
+    romStart = (u8*)((s32)fold_gfx_data_ROM_START + header->keyframesOffset + curKeyIdx * header->vtxCount * sizeof(FoldVtx));
+    dma_copy(romStart, romStart + header->vtxCount * sizeof(FoldVtx), curKeyframe);
+    if (keyframeInterval > 1) {
+        nextKeyframe = heap_malloc(header->vtxCount * sizeof(*nextKeyframe));
+        romStart = (u8*)((s32)fold_gfx_data_ROM_START + header->keyframesOffset + nextKeyIdx * header->vtxCount * sizeof(FoldVtx));
+        dma_copy(romStart, romStart + header->vtxCount * sizeof(FoldVtx), nextKeyframe);
+    }
+
+    lerpAlpha = (f32) curSubframe / (f32) keyframeInterval;
+    for (i = 0; i < header->vtxCount; i++) {
+        if (state->meshType != FOLD_MESH_ANIMATED) {
+            return;
+        }
+
+        if (keyframeInterval > 1) {
+            // get vertex position
+            if (header->flags & FOLD_ANIM_FLAG_ABSOLUTE_COORDS) {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[0] = (s16)(curKeyframe[i].ob[0] + (nextKeyframe[i].ob[0] - curKeyframe[i].ob[0]) * lerpAlpha);
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[1] = (s16)(curKeyframe[i].ob[1] + (nextKeyframe[i].ob[1] - curKeyframe[i].ob[1]) * lerpAlpha);
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[2] = (s16)(curKeyframe[i].ob[2] + (nextKeyframe[i].ob[2] - curKeyframe[i].ob[2]) * lerpAlpha);
+            } else {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[0] = (s16)(curKeyframe[i].ob[0] + (nextKeyframe[i].ob[0] - curKeyframe[i].ob[0]) * lerpAlpha) * 0.01 * fold_currentImage->width;
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[1] = (s16)(curKeyframe[i].ob[1] + (nextKeyframe[i].ob[1] - curKeyframe[i].ob[1]) * lerpAlpha) * 0.01 * fold_currentImage->height;
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[2] = (s16)(curKeyframe[i].ob[2] + (nextKeyframe[i].ob[2] - curKeyframe[i].ob[2]) * lerpAlpha) * 0.01 * ((fold_currentImage->width + fold_currentImage->height) / 2);
+            }
+            // get vertex color
+            if (state->flags & (FOLD_STATE_FLAG_8000 | FOLD_STATE_FLAG_2000)) {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[0] = (s16)(curKeyframe[i].cn[0] + (nextKeyframe[i].cn[0] - curKeyframe[i].cn[0]) * lerpAlpha);
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[1] = (s16)(curKeyframe[i].cn[1] + (nextKeyframe[i].cn[1] - curKeyframe[i].cn[1]) * lerpAlpha);
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[2] = (s16)(curKeyframe[i].cn[2] + (nextKeyframe[i].cn[2] - curKeyframe[i].cn[2]) * lerpAlpha);
+            } else {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[0] =
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[1] =
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[2] = 240.0 - (curKeyframe[i].tc[0] + curKeyframe[i].tc[1]) * 1.2;
+            }
+        } else {
+            // get vertex position
+            if (header->flags & FOLD_ANIM_FLAG_ABSOLUTE_COORDS) {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[0] = curKeyframe[i].ob[0];
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[1] = curKeyframe[i].ob[1];
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[2] = curKeyframe[i].ob[2];
+            } else {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[0] = curKeyframe[i].ob[0] * 0.01 * fold_currentImage->width;
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[1] = curKeyframe[i].ob[1] * 0.01 * fold_currentImage->height;
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.ob[2] = curKeyframe[i].ob[2] * 0.01 * ((fold_currentImage->width + fold_currentImage->height) / 2);
+            }
+            // get vertex color
+            if (state->flags & (FOLD_STATE_FLAG_8000 | FOLD_STATE_FLAG_2000)) {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[0] = curKeyframe[i].cn[0];
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[1] = curKeyframe[i].cn[1];
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[2] = curKeyframe[i].cn[2];
+            } else {
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[0] =
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[1] =
+                state->vtxBufs[gCurrentDisplayContextIndex][i].v.cn[2] = 240.0 - (curKeyframe[i].tc[0] + curKeyframe[i].tc[1]) * 1.2;
+            }
+        }
+        // get vertex tex coords
+        if (header->flags & FOLD_ANIM_FLAG_ABSOLUTE_COORDS) {
+            state->vtxBufs[gCurrentDisplayContextIndex][i].v.tc[0] = (curKeyframe[i].tc[0] + 256) * 32;
+            state->vtxBufs[gCurrentDisplayContextIndex][i].v.tc[1] = (curKeyframe[i].tc[1] + 256) * 32;
+        } else {
+            state->vtxBufs[gCurrentDisplayContextIndex][i].v.tc[0] = ((s32)(curKeyframe[i].tc[0] * 0.01 * fold_currentImage->width) + 256) * 32;
+            state->vtxBufs[gCurrentDisplayContextIndex][i].v.tc[1] = ((s32)(curKeyframe[i].tc[1] * 0.01 * fold_currentImage->height) + 256) * 32;
+        }
+    }
+
+    state->firstVtxIdx = 0;
+    state->lastVtxIdx = header->vtxCount - 1;
+
+    heap_free(curKeyframe);
+    if (nextKeyframe != NULL) {
+        heap_free(nextKeyframe);
+    }
+
+    if (animStep == 0 || gGameStatusPtr->frameCounter % animStep != 0) {
+        return;
+    }
+
+    if (keyframeInterval > 0) {
+        curSubframe++;
+        if (curSubframe >= keyframeInterval) {
+            if (state->flags & FOLD_STATE_FLAG_REVERSE_ANIM) {
+                curKeyIdx--;
+                if (curKeyIdx < 0) {
+                    if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                        curKeyIdx = header->keyframesCount - 1;
+                    } else {
+                        if (state->flags & FOLD_STATE_FLAG_800) {
+                            curKeyIdx = 0;
+                            state->flags |= FOLD_STATE_FLAG_4000;
+                        } else {
+                            state->flags |= FOLD_STATE_FLAG_ANIM_DONE;
+                        }
+                    }
+                }
+            } else {
+                curKeyIdx++;
+                if (curKeyIdx >= header->keyframesCount) {
+                    if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                        curKeyIdx = 0;
+                    } else {
+                        if (state->flags & FOLD_STATE_FLAG_800) {
+                            curKeyIdx--;
+                            state->flags |= FOLD_STATE_FLAG_4000;
+                        } else {
+                            state->flags |= FOLD_STATE_FLAG_ANIM_DONE;
+                        }
+                    }
+                }
+            }
+            curSubframe = 0;
+        }
+    } else if (keyframeInterval < 0) {
+        if (state->flags & FOLD_STATE_FLAG_REVERSE_ANIM) {
+            curKeyIdx -= absKeyframeInterval;
+            if (curKeyIdx < 0) {
+                if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                    curKeyIdx += header->keyframesCount;
+                } else {
+                    if (state->flags & FOLD_STATE_FLAG_800) {
+                        curKeyIdx = 0;
+                        state->flags |= FOLD_STATE_FLAG_4000;
+                    } else {
+                        state->flags |= FOLD_STATE_FLAG_ANIM_DONE;
+                    }
+                }
+            }
+        } else {
+            curKeyIdx += absKeyframeInterval;
+            if (curKeyIdx >= header->keyframesCount) {
+                if (state->flags & FOLD_STATE_FLAG_LOOP_ANIM) {
+                    curKeyIdx %= header->keyframesCount;
+                } else {
+                    if (state->flags & FOLD_STATE_FLAG_800) {
+                        curKeyIdx = header->keyframesCount - 1;
+                        state->flags |= FOLD_STATE_FLAG_4000;
+                    } else {
+                        state->flags |= FOLD_STATE_FLAG_ANIM_DONE;
+                    }
+                }
+            }
+        }
+    }
+
+    state->floats.anim.curFrame = curSubframe;
+    state->floats.anim.curIdx = curKeyIdx;
+}
 
 void func_8013CFA8(FoldState* state, Matrix4f mtx) {
     s32 i;
 
-    if (!(state->flags & FOLD_STATE_FLAG_20)) {
-        gDPSetTextureLUT(gMasterGfxPos++, G_TT_RGBA16);
-        gDPLoadTLUT_pal16(gMasterGfxPos++, 0, fold_currentImage->palette);
+    if (!(state->flags & FOLD_STATE_FLAG_SKIP_TEX_SETUP)) {
+        gDPSetTextureLUT(gMainGfxPos++, G_TT_RGBA16);
+        gDPLoadTLUT_pal16(gMainGfxPos++, 0, fold_currentImage->palette);
     }
 
     i = state->firstVtxIdx;
 
-    while (1) {
+    while (TRUE) {
         Camera* cam;
         s32 uls = (fold_vtxBuf[i + 0].v.tc[0] >> 0x5) - 0x100;
         s32 ult = (fold_vtxBuf[i + 0].v.tc[1] >> 0x5) - 0x100;
@@ -1129,13 +1418,16 @@ void func_8013CFA8(FoldState* state, Matrix4f mtx) {
         s32 alpha;
         s32 alpha2;
 
-        if (!(state->flags & 0x20)) {
-            if ((D_80151328->flags & 1) &&
-                (state->arrayIdx != 0) &&
-                (state->flags & someFlags) &&
-                (state->renderType == 0 || state->renderType == 2 || state->renderType == 15 || state->renderType == 7))
-            {
-                gDPScrollMultiTile2_4b(gMasterGfxPos++,
+        if (!(state->flags & FOLD_STATE_FLAG_SKIP_TEX_SETUP)) {
+            if ((gSpriteShadingProfile->flags & 1)
+                && (state->arrayIdx != 0)
+                && (state->flags & someFlags)
+                && (   state->renderType == FOLD_RENDER_TYPE_0
+                    || state->renderType == FOLD_RENDER_TYPE_2
+                    || state->renderType == FOLD_RENDER_TYPE_F
+                    || state->renderType == FOLD_RENDER_TYPE_7)
+            ) {
+                gDPScrollMultiTile2_4b(gMainGfxPos++,
                     fold_currentImage->raster, G_IM_FMT_CI,
                     fold_currentImage->width, fold_currentImage->height, // img size
                     uls, ult, // top left
@@ -1145,51 +1437,51 @@ void func_8013CFA8(FoldState* state, Matrix4f mtx) {
                     8, 8, // mask
                     G_TX_NOLOD, G_TX_NOLOD, // shift,
                     0x100, 0x100); // scroll
-                gDPSetTile(gMasterGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0x0100, 2, 0,
+                gDPSetTile(gMainGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0x0100, 2, 0,
                             G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP,
                             G_TX_NOMASK, G_TX_NOLOD);
-                gDPSetTileSize(gMasterGfxPos++, 2, 0, 0, 252, 0);
+                gDPSetTileSize(gMainGfxPos++, 2, 0, 0, 252, 0);
 
                 alpha = 255;
                 switch (state->renderType) {
-                    case 0:
+                    case FOLD_RENDER_TYPE_0:
                         break;
-                    case 2:
-                    case 15:
-                        alpha = state->unk_1C[1][3];
+                    case FOLD_RENDER_TYPE_2:
+                    case FOLD_RENDER_TYPE_F:
+                        alpha = state->ints.color[1].a;
                         break;
-                    case 7:
+                    case FOLD_RENDER_TYPE_7:
                         alpha = -1;
                         break;
                 }
 
-                if ((D_80151328->flags & 2) && (D_80156954[0][0].arrayIdx != 0) && (state->flags & someFlags)) {
+                if ((gSpriteShadingProfile->flags & 2) && (D_80156954[0][0].arrayIdx != 0) && (state->flags & someFlags)) {
                     cam = &gCameras[gCurrentCamID];
 
                     if (gGameStatusPtr->isBattle == 2) {
-                        gSPViewport(gMasterGfxPos++, &D_8014EE50);
+                        gSPViewport(gMainGfxPos++, &D_8014EE50);
                     } else {
-                        gSPViewport(gMasterGfxPos++, &cam->vpAlt);
+                        gSPViewport(gMainGfxPos++, &cam->vpAlt);
                     }
 
-                    gDPSetRenderMode(gMasterGfxPos++, G_RM_PASS, state->unk_78);
+                    gDPSetRenderMode(gMainGfxPos++, G_RM_PASS, state->otherModeL);
 
                     if (alpha == -1) {
-                        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, 0, SHADE, 0, TEXEL1, 0, 0, 0, 0, 0, 0,
+                        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, SHADE, 0, TEXEL1, 0, 0, 0, 0, 0, 0,
                                             0, 0, COMBINED);
                     } else {
-                        gDPSetEnvColor(gMasterGfxPos++, 0, 0, 0, alpha);
-                        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL1, 0, 0, 0, 0,
+                        gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, alpha);
+                        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL1, 0, 0, 0, 0,
                                             0, 0, 0, 0, COMBINED);
                     }
 
-                    gSPVertex(gMasterGfxPos++, &fold_vtxBuf[i], 4, 0);
-                    gSP2Triangles(gMasterGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
-                    gDPPipeSync(gMasterGfxPos++);
+                    gSPVertex(gMainGfxPos++, &fold_vtxBuf[i], 4, 0);
+                    gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
+                    gDPPipeSync(gMainGfxPos++);
                 }
-                create_shading_palette(mtx, uls, ult, lrs, lrt, alpha, state->unk_78);
+                create_shading_palette(mtx, uls, ult, lrs, lrt, alpha, state->otherModeL);
             } else {
-                gDPScrollTextureTile_4b(gMasterGfxPos++,
+                gDPScrollTextureTile_4b(gMainGfxPos++,
                     fold_currentImage->raster, G_IM_FMT_CI,
                     fold_currentImage->width, fold_currentImage->height, // img size
                     uls, ult, // top left
@@ -1200,75 +1492,75 @@ void func_8013CFA8(FoldState* state, Matrix4f mtx) {
                     G_TX_NOLOD, G_TX_NOLOD, // shift,
                     0x100, 0x100); // scroll
 
-                if ((D_80151328->flags & 2) && state->arrayIdx != 0 && (state->flags & someFlags)) {
+                if ((gSpriteShadingProfile->flags & 2) && state->arrayIdx != 0 && (state->flags & someFlags)) {
                     alpha2 = 255;
                     cam = &gCameras[gCurrentCamID];
 
                     if (gGameStatusPtr->isBattle == 2) {
-                        gSPViewport(gMasterGfxPos++, &D_8014EE50);
+                        gSPViewport(gMainGfxPos++, &D_8014EE50);
                     } else {
-                        gSPViewport(gMasterGfxPos++, &cam->vpAlt);
+                        gSPViewport(gMainGfxPos++, &cam->vpAlt);
                     }
 
                     if (alpha2 == 255) {
-                        gDPSetRenderMode(gMasterGfxPos++, G_RM_AA_ZB_TEX_EDGE, G_RM_AA_ZB_TEX_EDGE2);
+                        gDPSetRenderMode(gMainGfxPos++, G_RM_AA_ZB_TEX_EDGE, G_RM_AA_ZB_TEX_EDGE2);
                     } else {
-                        gDPSetRenderMode(gMasterGfxPos++, G_RM_ZB_XLU_SURF, G_RM_ZB_XLU_SURF2);
+                        gDPSetRenderMode(gMainGfxPos++, G_RM_ZB_XLU_SURF, G_RM_ZB_XLU_SURF2);
                     }
 
                     switch (state->renderType) {
-                        case 0:
+                        case FOLD_RENDER_TYPE_0:
                             alpha2 = 255;
                             break;
-                        case 2:
-                        case 15:
-                            alpha2 = state->unk_1C[1][3];
+                        case FOLD_RENDER_TYPE_2:
+                        case FOLD_RENDER_TYPE_F:
+                            alpha2 = state->ints.color[1].a;
                             break;
-                        case 7:
+                        case FOLD_RENDER_TYPE_7:
                             alpha2 = -1;
                             break;
                     }
 
                     if (alpha2 == -1) {
-                        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, 0, SHADE, 0, TEXEL0, 0, 0, 0, 0, 0, SHADE, 0, TEXEL0, 0);
+                        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, SHADE, 0, TEXEL0, 0, 0, 0, 0, 0, SHADE, 0, TEXEL0, 0);
                     } else {
-                        gDPSetEnvColor(gMasterGfxPos++, 0, 0, 0, alpha2);
-                        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL0, 0, 0, 0, 0, 0,
+                        gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, alpha2);
+                        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL0, 0, 0, 0, 0, 0,
                                         ENVIRONMENT, 0, TEXEL0, 0);
                     }
 
-                    gSPVertex(gMasterGfxPos++, &fold_vtxBuf[i], 4, 0);
-                    gSP2Triangles(gMasterGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
-                    gDPPipeSync(gMasterGfxPos++);
+                    gSPVertex(gMainGfxPos++, &fold_vtxBuf[i], 4, 0);
+                    gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
+                    gDPPipeSync(gMainGfxPos++);
 
                     if (alpha2 == 255) {
-                        gDPSetRenderMode(gMasterGfxPos++, G_RM_AA_ZB_TEX_EDGE, G_RM_AA_ZB_TEX_EDGE2);
+                        gDPSetRenderMode(gMainGfxPos++, G_RM_AA_ZB_TEX_EDGE, G_RM_AA_ZB_TEX_EDGE2);
                     } else {
-                        gDPSetRenderMode(gMasterGfxPos++, G_RM_ZB_XLU_SURF, G_RM_ZB_XLU_SURF2);
+                        gDPSetRenderMode(gMainGfxPos++, G_RM_ZB_XLU_SURF, G_RM_ZB_XLU_SURF2);
                     }
 
-                    gDPSetEnvColor(gMasterGfxPos++, 100, 100, 100, 255);
-                    gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, alpha2);
-                    gDPSetCombineLERP(gMasterGfxPos++, SHADE, ENVIRONMENT, TEXEL0, TEXEL0, 0, 0, 0, TEXEL0, SHADE,
+                    gDPSetEnvColor(gMainGfxPos++, 100, 100, 100, 255);
+                    gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, alpha2);
+                    gDPSetCombineLERP(gMainGfxPos++, SHADE, ENVIRONMENT, TEXEL0, TEXEL0, 0, 0, 0, TEXEL0, SHADE,
                                     ENVIRONMENT, TEXEL0, TEXEL0, 0, 0, 0, TEXEL0);
-                    gDPSetColorDither(gMasterGfxPos++, G_CD_MAGICSQ);
+                    gDPSetColorDither(gMainGfxPos++, G_CD_MAGICSQ);
                 }
             }
         }
 
-        if ((D_80151328->flags & 2) && D_80156954[0][0].arrayIdx != 0 && (state->flags & someFlags)) {
+        if ((gSpriteShadingProfile->flags & 2) && D_80156954[0][0].arrayIdx != 0 && (state->flags & someFlags)) {
             cam = &gCameras[gCurrentCamID];
             if (gGameStatusPtr->isBattle == 2) {
-                gSPViewport(gMasterGfxPos++, &D_8014EE40);
+                gSPViewport(gMainGfxPos++, &D_8014EE40);
                 D_8014EE50.vp.vtrans[0] = D_8014EE40.vp.vtrans[0] + gGameStatusPtr->unk_82;
                 D_8014EE50.vp.vtrans[1] = D_8014EE40.vp.vtrans[1] + gGameStatusPtr->unk_83;
             } else {
-                gSPViewport(gMasterGfxPos++, &cam->vp);
+                gSPViewport(gMainGfxPos++, &cam->vp);
             }
         }
 
-        gSPVertex(gMasterGfxPos++, &fold_vtxBuf[i], 4, 0);
-        gSP2Triangles(gMasterGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
+        gSPVertex(gMainGfxPos++, &fold_vtxBuf[i], 4, 0);
+        gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
 
         if (i + 3 >= state->lastVtxIdx) {
             break;
@@ -1278,67 +1570,225 @@ void func_8013CFA8(FoldState* state, Matrix4f mtx) {
     }
 }
 
-INCLUDE_ASM(s32, "d0a70_len_4fe0", func_8013DAB4);
+void func_8013DAB4(FoldState* state, Matrix4f mtx) {
+    s32 i, j;
+    s32 firstVtxIdx;
 
-INCLUDE_ASM(s32, "d0a70_len_4fe0", func_8013E2F0);
+    if (!(state->flags & FOLD_STATE_FLAG_SKIP_TEX_SETUP)) {
+        gDPSetTextureLUT(gMainGfxPos++, G_TT_RGBA16);
+        gDPLoadTLUT_pal16(gMainGfxPos++, 0, fold_currentImage->palette);
+    }
 
-INCLUDE_ASM(s32, "d0a70_len_4fe0", func_8013E904);
+    firstVtxIdx = state->firstVtxIdx;
+    for (i = 0; i < state->subdivY; i++) {
+        for (j = 0; j < state->subdivX; j++) {
+            s32 ulIdx = firstVtxIdx + i * (state->subdivX + 1) + j;
+            s32 urIdx = firstVtxIdx + i * (state->subdivX + 1) + j + 1;
+            s32 llIdx = firstVtxIdx + (i + 1) * (state->subdivX + 1) + j;
+            s32 lrIdx = firstVtxIdx + (i + 1) * (state->subdivX + 1) + j + 1;
+            if (!(state->flags & FOLD_STATE_FLAG_SKIP_TEX_SETUP)) {
+                if ((gSpriteShadingProfile->flags & 1) &&
+                    (*D_80156954)[0].arrayIdx != 0 &&
+                    (state->flags & (FOLD_STATE_FLAG_100000 | FOLD_STATE_FLAG_80000)) &&
+                    (state->renderType == FOLD_RENDER_TYPE_0
+                    || state->renderType == FOLD_RENDER_TYPE_2
+                    || state->renderType == FOLD_RENDER_TYPE_7)) {
+                    s32 alpha = 255;
+                    gDPScrollMultiTile2_4b(gMainGfxPos++,
+                        fold_currentImage->raster, G_IM_FMT_CI,
+                        fold_currentImage->width, fold_currentImage->height, // img size
+                        (fold_vtxBuf[ulIdx].v.tc[0] >> 5) - 0x100, (fold_vtxBuf[ulIdx].v.tc[1] >> 5) - 0x100, // top left
+                        (fold_vtxBuf[lrIdx].v.tc[0] >> 5) - 0x100 - 1, (fold_vtxBuf[lrIdx].v.tc[1] >> 5) - 0x100 - 1, // bottom right
+                        0, // palette
+                        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, // clamp wrap mirror
+                        8, 8, // mask
+                        G_TX_NOLOD, G_TX_NOLOD, // shift,
+                        0x100, 0x100); // scroll
+                    gDPSetTile(gMainGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0x0100, 2, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD);
+                    gDPSetTileSize(gMainGfxPos++, 2, 0, 0, 63 << 2, 0);
+                    switch (state->renderType) {
+                        case FOLD_RENDER_TYPE_0:
+                            alpha = 255;
+                            break;
+                        case FOLD_RENDER_TYPE_2:
+                            alpha = state->ints.color[1].a;
+                            break;
+                        case FOLD_RENDER_TYPE_7:
+                            alpha = -1;
+                            break;
 
-void func_8013EE48(FoldState* state) {
-    state->unk_3C[0][0] = 0.0f;
-    state->unk_3C[0][1] = 50.0f;
-    state->unk_3C[0][2] = 30.0f;
+                    }
+                    create_shading_palette(mtx,
+                                           (fold_vtxBuf[ulIdx].v.tc[0] >> 5) - 0x100, (fold_vtxBuf[ulIdx].v.tc[1] >> 5) - 0x100,
+                                           (fold_vtxBuf[lrIdx].v.tc[0] >> 5) - 0x100, (fold_vtxBuf[lrIdx].v.tc[1] >> 5) - 0x100,
+                                           alpha, state->otherModeL);
+                } else {
+                    gDPScrollTextureTile_4b(gMainGfxPos++,
+                        fold_currentImage->raster, G_IM_FMT_CI,
+                        fold_currentImage->width, fold_currentImage->height, // img size
+                        (fold_vtxBuf[ulIdx].v.tc[0] >> 5) - 0x100, (fold_vtxBuf[ulIdx].v.tc[1] >> 5) - 0x100, // top left
+                        (fold_vtxBuf[lrIdx].v.tc[0] >> 5) - 0x100 - 1, (fold_vtxBuf[lrIdx].v.tc[1] >> 5) - 0x100 - 1, // bottom right
+                        0, // palette
+                        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, // clamp wrap mirror
+                        8, 8, // mask
+                        G_TX_NOLOD, G_TX_NOLOD, // shift,
+                        0x100, 0x100); // scroll
+                }
+            }
+
+            gSPVertex(gMainGfxPos++, &fold_vtxBuf[ulIdx], 1, 0);
+            gSPVertex(gMainGfxPos++, &fold_vtxBuf[urIdx], 1, 1);
+            gSPVertex(gMainGfxPos++, &fold_vtxBuf[llIdx], 1, 2);
+            gSPVertex(gMainGfxPos++, &fold_vtxBuf[lrIdx], 1, 3);
+            gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 1, 2, 3, 0);
+        }
+    }
 }
 
-// Reg swaps in the loop
-#ifdef NON_MATCHING
-void func_8013EE68(FoldState* state) {
+void func_8013E2F0(FoldState* state, Matrix4f mtx) {
+    if (state->vtxBufs[gCurrentDisplayContextIndex] == NULL || state->gfxBufs[gCurrentDisplayContextIndex] == NULL) {
+        return;
+    }
+
+    guScale(&gDisplayContext->matrixStack[gMatrixListPos], 0.1f, 0.1f, 0.1f);
+    gSPMatrix(gMainGfxPos++, VIRTUAL_TO_PHYSICAL(&gDisplayContext->matrixStack[gMatrixListPos++]), G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+
+    if (!(state->flags & FOLD_STATE_FLAG_SKIP_TEX_SETUP)) {
+        gDPSetTextureLUT(gMainGfxPos++, G_TT_RGBA16);
+        gDPLoadTLUT_pal16(gMainGfxPos++, 0, fold_currentImage->palette);
+        if ((gSpriteShadingProfile->flags & 1)
+            && (state->flags & (FOLD_STATE_FLAG_100000 | FOLD_STATE_FLAG_80000))
+            && (state->renderType == FOLD_RENDER_TYPE_0
+                || state->renderType == FOLD_RENDER_TYPE_2
+                || state->renderType == FOLD_RENDER_TYPE_7
+                || state->renderType == FOLD_RENDER_TYPE_B)
+        ) {
+            s32 alpha = 255;
+            gDPScrollMultiTile2_4b(gMainGfxPos++, fold_currentImage->raster, G_IM_FMT_CI,
+                                    fold_currentImage->width, fold_currentImage->height,
+                                    0, 0, fold_currentImage->width - 1, fold_currentImage->height - 1, 0,
+                                    G_TX_CLAMP, G_TX_CLAMP, 8, 8, G_TX_NOLOD, G_TX_NOLOD,
+                                    256, 256);
+            gDPSetTile(gMainGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0x0100, 2, 0,
+                            G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD, G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD);
+            gDPSetTileSize(gMainGfxPos++, 2, 0, 0, 252, 0);
+
+            switch (state->renderType) {
+                case FOLD_RENDER_TYPE_0:
+                case FOLD_RENDER_TYPE_B:
+                    alpha = 255;
+                    break;
+                case FOLD_RENDER_TYPE_2:
+                    alpha = state->ints.color[1].a;
+                    break;
+                case FOLD_RENDER_TYPE_7:
+                    alpha = -1;
+                    break;
+
+            }
+            create_shading_palette(mtx, 0, 0, fold_currentImage->width, fold_currentImage->height, alpha, state->otherModeL);
+        } else {
+            gDPScrollTextureTile_4b(gMainGfxPos++, fold_currentImage->raster, G_IM_FMT_CI,
+                                    fold_currentImage->width, fold_currentImage->height,
+                                    0, 0, fold_currentImage->width - 1, fold_currentImage->height - 1, 0,
+                                    G_TX_CLAMP, G_TX_CLAMP, 8, 8, G_TX_NOLOD, G_TX_NOLOD,
+                                    256, 256);
+        }
+    }
+    gSPDisplayList(gMainGfxPos++, state->gfxBufs[gCurrentDisplayContextIndex]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+}
+
+void func_8013E904(FoldState* state, Matrix4f mtx) {
+    UnkFoldStruct* ufs = (UnkFoldStruct*)state->ints.raw[1][0];
+    s32 shifts = integer_log(ufs->width, 2);
+    s32 shiftt = integer_log(ufs->height, 2);
+    s32 uls, ult;
+    s32 lrs, lrt;
+
+    guScale(&gDisplayContext->matrixStack[gMatrixListPos], (f32)fold_currentImage->width / 100.0, (f32)fold_currentImage->height / 100.0, 1.0f);
+    gSPMatrix(gMainGfxPos++, VIRTUAL_TO_PHYSICAL(&gDisplayContext->matrixStack[gMatrixListPos++]), G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gDPSetRenderMode(gMainGfxPos++, G_RM_ZB_XLU_DECAL, G_RM_ZB_XLU_DECAL2);
+
+    if (state->renderType == FOLD_RENDER_TYPE_F) {
+        s32 temp = state->ints.raw[1][1];
+        gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, temp);
+        gDPSetCombineLERP(gMainGfxPos++, TEXEL0, 0, SHADE, 0, TEXEL0, 0, PRIMITIVE, 0, TEXEL0, 0, SHADE, 0, TEXEL0, 0, PRIMITIVE, 0);
+    } else {
+        gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    }
+    gDPSetTextureLUT(gMainGfxPos++, G_TT_RGBA16);
+    gDPLoadTLUT_pal16(gMainGfxPos++, 0, ufs->palette);
+    gDPScrollTextureTile_4b(gMainGfxPos++, ufs->raster, G_IM_FMT_CI, ufs->width, ufs->height,
+                          0, 0, ufs->width - 1, ufs->height - 1, 0,
+                          G_TX_WRAP, G_TX_WRAP, shifts, shiftt, G_TX_NOLOD, G_TX_NOLOD,
+                          256, 256);
+
+    uls = state->floats.raw[1][0];
+    ult = state->floats.raw[1][1];
+    lrs = ufs->width * 4 + state->floats.raw[1][0];
+    lrt = ufs->height * 4 + state->floats.raw[1][1];
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, uls, ult, lrs, lrt);
+
+    state->floats.raw[1][0] = (s32)(state->floats.raw[1][0] + ufs->unk_0C) % (ufs->width * 4);
+    state->floats.raw[1][1] = (s32)(state->floats.raw[1][1] + ufs->unk_10) % (ufs->height * 4);
+    gSPDisplayList(gMainGfxPos++, ufs->unk_14);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+}
+
+void fold_wavy_init(FoldState* state) {
+    state->floats.wavy.phase1 = 0.0f;
+    state->floats.wavy.phase2 = 50.0f;
+    state->floats.wavy.phase3 = 30.0f;
+}
+
+void fold_mesh_wavy_update(FoldState* state) {
     Vtx* v1;
     Vtx* v2;
     Vtx* v3;
-    f32 temp_f20;
-    f32 temp_f20_2;
-    f32 temp_f20_3;
+    f32 vx;
+    f32 vy;
+    f32 vz;
+    f32 angle1;
     f32 angle2;
     f32 angle3;
-    f32 angle1;
-    s32 amt;
-    f32 phi_f8;
-    f32 phi_f6;
-    f32 phi_f4;
+    f32 phase1;
+    f32 phase2;
+    f32 phase3;
     s32 angleInc;
+    s32 amt;
     s32 sign;
     s32 i;
 
-    phi_f8 = (f32) gGameStatusPtr->frameCounter / 10.3;
-    while (phi_f8 > 360.0) {
-        phi_f8 -= 360.0;
+    phase1 = (f32) gGameStatusPtr->frameCounter / 10.3;
+    while (phase1 > 360.0) {
+        phase1 -= 360.0;
     }
 
-    phi_f6 = (f32) (gGameStatusPtr->frameCounter + 40) / 11.2;
-    while (phi_f6 > 360.0) {
-        phi_f6 -= 360.0;
+    phase2 = (f32) (gGameStatusPtr->frameCounter + 40) / 11.2;
+    while (phase2 > 360.0) {
+        phase2 -= 360.0;
     }
 
-    phi_f4 = (f32) (gGameStatusPtr->frameCounter + 25) / 10.8;
-    while (phi_f4 > 360.0) {
-        phi_f4 -= 360.0;
+    phase3 = (f32) (gGameStatusPtr->frameCounter + 25) / 10.8;
+    while (phase3 > 360.0) {
+        phase3 -= 360.0;
     }
 
-    state->unk_3C[0][0] = phi_f8;
-    state->unk_3C[0][1] = phi_f6;
-    state->unk_3C[0][2] = phi_f4;
+    state->floats.wavy.phase1 = phase1;
+    state->floats.wavy.phase2 = phase2;
+    state->floats.wavy.phase3 = phase3;
 
-    if (state->unk_3C[0][0] >= 360.0) {
-        state->unk_3C[0][0] -= 360.0;
+    if (state->floats.wavy.phase1 >= 360.0) {
+        state->floats.wavy.phase1-= 360.0;
     }
 
-    if (state->unk_3C[0][1] >= 360.0) {
-        state->unk_3C[0][1] -= 360.0;
+    if (state->floats.wavy.phase2 >= 360.0) {
+        state->floats.wavy.phase2 -= 360.0;
     }
 
-    if (state->unk_3C[0][2] >= 360.0) {
-        state->unk_3C[0][2] -= 360.0;
+    if (state->floats.wavy.phase3 >= 360.0) {
+        state->floats.wavy.phase3 -= 360.0;
     }
 
     sign = 0;
@@ -1346,42 +1796,40 @@ void func_8013EE68(FoldState* state) {
     amt = (state->lastVtxIdx - state->firstVtxIdx) - state->subdivX;
 
     for (i = 0; i < amt; i++) {
-        angle1 = state->unk_3C[0][0] + (angleInc * 45) + (sign * 180);
-        angle2 = state->unk_3C[0][1] + (angleInc * 45) + (sign * 180);
-        angle3 = state->unk_3C[0][2] + (angleInc * 45) + (sign * 180);
+        angle1 = state->floats.wavy.phase1 + (angleInc * 45) + (sign * 180);
+        angle2 = state->floats.wavy.phase2 + (angleInc * 45) + (sign * 180);
+        angle3 = state->floats.wavy.phase3 + (angleInc * 45) + (sign * 180);
 
-        v1 = &fold_vtxBuf[state->firstVtxIdx + i];
-        temp_f20 = v1->v.ob[0];
-        v1->v.ob[0] = (temp_f20 + (sin_rad(angle1) * state->unk_1C[0][0]));
+        //TODO find better match
+        v1 = (Vtx*)((state->firstVtxIdx + i) * sizeof(Vtx) + (s32)fold_vtxBuf);
+        vx = v1->v.ob[0];
+        v1->v.ob[0] = (vx + (sin_rad(angle1) * state->ints.wavy.mag.x)); // @bug? should be sin_deg?
 
-        v2 = &fold_vtxBuf[state->firstVtxIdx + i];
-        temp_f20_2 = v2->v.ob[1];
-        v2->v.ob[1] = (temp_f20_2 + (sin_rad(angle2) * state->unk_1C[0][1]));
+        v2 = (Vtx*)((state->firstVtxIdx + i) * sizeof(Vtx) + (s32)fold_vtxBuf);
+        vy = v2->v.ob[1];
+        v2->v.ob[1] = (vy + (sin_rad(angle2) * state->ints.wavy.mag.y));
 
-        v3 = &fold_vtxBuf[state->firstVtxIdx + i];
-        temp_f20_3 = v3->v.ob[2];
-        v3->v.ob[2] = (temp_f20_3 + (sin_rad(angle3) * state->unk_1C[0][2]));
+        v3 = (Vtx*)((state->firstVtxIdx + i) * sizeof(Vtx) + (s32)fold_vtxBuf);
+        vz = v3->v.ob[2];
+        v3->v.ob[2] = (vz + (sin_rad(angle3) * state->ints.wavy.mag.z));
 
         angleInc++;
-        if ((i % (s32) (state->subdivX + 1)) == 0) {
+        if (i % (state->subdivX + 1) == 0) {
             angleInc = 0;
             sign = !sign;
         }
     }
 }
-#else
-INCLUDE_ASM(s32, "d0a70_len_4fe0", func_8013EE68);
-#endif
 
-void func_8013F1F8(FoldState* state) {
+void fold_mesh_load_colors(FoldState* state) {
     f32 alpha = (f32)fold_currentImage->alphaMultiplier / 255.0;
     s32 vtxCount = state->lastVtxIdx - state->firstVtxIdx;
     s32 i;
 
     for (i = 0; i <= vtxCount; i++) {
-        fold_vtxBuf[state->firstVtxIdx + i].v.cn[0] = state->buf[i * 4 + 0];
-        fold_vtxBuf[state->firstVtxIdx + i].v.cn[1] = state->buf[i * 4 + 1];
-        fold_vtxBuf[state->firstVtxIdx + i].v.cn[2] = state->buf[i * 4 + 2];
-        fold_vtxBuf[state->firstVtxIdx + i].v.cn[3] = state->buf[i * 4 + 3] * alpha;
+        fold_vtxBuf[state->firstVtxIdx + i].v.cn[0] = state->colorBuf[i].r;
+        fold_vtxBuf[state->firstVtxIdx + i].v.cn[1] = state->colorBuf[i].g;
+        fold_vtxBuf[state->firstVtxIdx + i].v.cn[2] = state->colorBuf[i].b;
+        fold_vtxBuf[state->firstVtxIdx + i].v.cn[3] = state->colorBuf[i].a * alpha;
     }
 }

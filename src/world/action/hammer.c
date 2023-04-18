@@ -17,7 +17,9 @@ typedef struct HammerHitData {
     /* 0x1C */ s32 unk_1C;
 } HammerHitData;
 
-extern HammerHitData* HammerHit;
+BSS HammerHitData D_802B6E90;
+
+HammerHitData* HammerHit = &D_802B6E90;
 
 void func_802B6820_E256F0(void);
 
@@ -28,12 +30,12 @@ s32 action_hammer_is_swinging_away(s32 animID) {
 
     // back facing swing anims
     switch (animID) {
-        case ANIM_Mario_60011:
-        case ANIM_Mario_60013:
-        case ANIM_Mario_60015:
-        case ANIM_Mario_60017:
-        case ANIM_Mario_60019:
-        case ANIM_Mario_6001B:
+        case ANIM_MarioW1_Smash1_Miss_Back:
+        case ANIM_MarioW1_Smash1_Hit_Back:
+        case ANIM_MarioW1_Smash2_Miss_Back:
+        case ANIM_MarioW1_Smash2_Hit_Back:
+        case ANIM_MarioW1_Smash3_Miss_Back:
+        case ANIM_MarioW1_Smash3_Hit_Back:
             return TRUE;
     }
     return FALSE;
@@ -107,7 +109,7 @@ void action_hammer_play_hit_fx(s32 hitID) {
             break;
     }
 
-    sfx_play_sound_at_player(soundID, 0);
+    sfx_play_sound_at_player(soundID, SOUND_SPACE_MODE_0);
     start_rumble(256, 50);
 }
 
@@ -188,7 +190,7 @@ s32 func_802B62A4_E25174(void) {
                 if (hammerLevel >= 0) {
                     ret = -1;
                 } else {
-                    playerStatus->animFlags |= PA_FLAGS_SHIVERING;
+                    playerStatus->animFlags |= PA_FLAG_SHIVERING;
                 }
                 break;
             case ENTITY_TYPE_HAMMER2_BLOCK:
@@ -196,7 +198,7 @@ s32 func_802B62A4_E25174(void) {
                 if (hammerLevel >= 1) {
                     ret = -1;
                 } else {
-                    playerStatus->animFlags |= PA_FLAGS_SHIVERING;
+                    playerStatus->animFlags |= PA_FLAG_SHIVERING;
                 }
                 break;
             case ENTITY_TYPE_HAMMER3_BLOCK:
@@ -204,12 +206,12 @@ s32 func_802B62A4_E25174(void) {
                 if (hammerLevel >= 2) {
                     ret = -1;
                 } else {
-                    playerStatus->animFlags |= PA_FLAGS_SHIVERING;
+                    playerStatus->animFlags |= PA_FLAG_SHIVERING;
                 }
                 break;
             case ENTITY_TYPE_WOODEN_CRATE:
             case ENTITY_TYPE_BOMBABLE_ROCK:
-                playerStatus->animFlags |= PA_FLAGS_SHIVERING;
+                playerStatus->animFlags |= PA_FLAG_SHIVERING;
                 break;
             case ENTITY_TYPE_BLUE_SWITCH:
             case ENTITY_TYPE_RED_SWITCH:
@@ -227,12 +229,12 @@ void action_update_hammer(void) {
 
     HammerHit->unk_1C = 0;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
         AnimID anim;
         s32 soundID;
 
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        playerStatus->flags |= PS_FLAGS_200000;
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+        playerStatus->flags |= PS_FLAG_NO_FLIPPING;
         HammerHit->timer = 0;
         playerStatus->actionSubstate = SUBSTATE_HAMMER_0;
         playerStatus->currentSpeed = 0.0f;
@@ -241,36 +243,37 @@ void action_update_hammer(void) {
 
         if (gPlayerData.hammerLevel == 2) {
             soundID = SOUND_2117;
-            anim = ANIM_Mario_6001A;
+            anim = ANIM_MarioW1_Smash3_Hit;
             if (HammerHit->hitID < 0) {
                 soundID = SOUND_2117;
-                anim = ANIM_Mario_60018;
+                anim = ANIM_MarioW1_Smash3_Miss;
             }
         } else if (gPlayerData.hammerLevel == 1) {
             soundID = SOUND_2116;
-            anim = ANIM_Mario_60016;
+            anim = ANIM_MarioW1_Smash2_Hit;
             if (HammerHit->hitID < 0) {
                 soundID = SOUND_2116;
-                anim = ANIM_Mario_60014;
+                anim = ANIM_MarioW1_Smash2_Miss;
             }
         } else {
             soundID = SOUND_2115;
-            anim = ANIM_Mario_60012;
+            anim = ANIM_MarioW1_Smash1_Hit;
             if (HammerHit->hitID < 0) {
                 soundID = SOUND_2115;
-                anim = ANIM_Mario_60010;
+                anim = ANIM_MarioW1_Smash1_Miss;
             }
         }
 
-        suggest_player_anim_clearUnkFlag(anim);
-        sfx_play_sound_at_player(soundID, 0);
+        suggest_player_anim_allow_backward(anim);
+        sfx_play_sound_at_player(soundID, SOUND_SPACE_MODE_0);
         HammerHit->unk_0C = 0;
         HammerHit->unk_14 = 0;
     }
 
-    playerStatus->flags &= ~PS_FLAGS_1000000;
-    if (HammerHit->timer < 3 && (playerStatus->flags & PS_FLAGS_40000)) {
-        playerStatus->flags |= PS_FLAGS_20000000;
+    playerStatus->flags &= ~PS_FLAG_HAMMER_CHECK;
+    if (HammerHit->timer < 3 && (playerStatus->flags & PS_FLAG_ENTERING_BATTLE)) {
+        // This is probably to stop Mario from triggering multiple battles at once by hammering while one is starting.
+        playerStatus->flags |= PS_FLAG_TIME_STOPPED;
     } else if (HammerHit->timer < 2) {
         HammerHit->timer++;
     } else {
@@ -375,15 +378,15 @@ void func_802B6820_E256F0(void) {
         } else {
             soundID = SOUND_2115;
         }
-        sfx_play_sound_at_player(soundID, 0);
+        sfx_play_sound_at_player(soundID, SOUND_SPACE_MODE_0);
 
         action_hammer_play_hit_fx(HammerHit->hitID);
 
         if (collisionStatus->lastWallHammered >= 0 && (collisionStatus->lastWallHammered & COLLISION_WITH_ENTITY_BIT)) {
             get_entity_by_index(collisionStatus->lastWallHammered)->collisionTimer = 0;
-            playerStatus->flags |= PS_FLAGS_1000000;
+            playerStatus->flags |= PS_FLAG_HAMMER_CHECK;
         } else if (HammerHit->hitID < 0) {
-            playerStatus->flags |= PS_FLAGS_1000000;
+            playerStatus->flags |= PS_FLAG_HAMMER_CHECK;
         }
 
         if (HammerHit->hitID < 0 && gPlayerData.hammerLevel >= 2) {
@@ -403,7 +406,7 @@ void func_802B6820_E256F0(void) {
         HammerHit->unk_14 = 1;
     }
     if (HammerHit->timer == 6) {
-        playerStatus->flags &= ~PS_FLAGS_200000;
+        playerStatus->flags &= ~PS_FLAG_NO_FLIPPING;
     }
 
     if (playerStatus->animNotifyValue == 1) {
@@ -414,9 +417,9 @@ void func_802B6820_E256F0(void) {
         HammerHit->unk_14 = 0;
         ten = 10; // required to match
         if (HammerHit->unk_1C != 0 || HammerHit->timer > ten) {
-            playerStatus->flags &= ~PS_FLAGS_1000000;
+            playerStatus->flags &= ~PS_FLAG_HAMMER_CHECK;
             set_action_state(ACTION_STATE_IDLE);
         }
-        playerStatus->flags &= ~PS_FLAGS_200000;
+        playerStatus->flags &= ~PS_FLAG_NO_FLIPPING;
     }
 }

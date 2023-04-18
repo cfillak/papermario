@@ -42,7 +42,7 @@ void entity_BlueWarpPipe_wait_for_player_to_get_off(Entity* entity) {
                 }
                 break;
             case 1:
-                if (gCollisionStatus.currentFloor < 0) {
+                if (gCollisionStatus.currentFloor <= NO_COLLIDER) {
                     pipeData->timer = 2;
                 }
                 break;
@@ -61,7 +61,7 @@ void entity_BlueWarpPipe_idle(Entity* entity) {
     if ((entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_FLOOR) != 0) {
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
 
-        if (!(playerStatus->flags & (PS_FLAGS_1000 | PS_FLAGS_INPUT_DISABLED))) {
+        if (!(playerStatus->flags & (PS_FLAG_NO_STATIC_COLLISION | PS_FLAG_INPUT_DISABLED))) {
             s32 stickAxisX = abs(playerStatus->stickAxis[0]);
             s32 stickAxisZ = playerStatus->stickAxis[1];
 
@@ -115,7 +115,7 @@ void entity_BlueWarpPipe_enter_pipe_init(Entity* bluePipe) {
     pipeData->timer = 25;
     playerStatus->renderMode = RENDER_MODE_ALPHATEST;
 
-    func_802DDFF8(0x10002, 5, 2, 1, 1, 0, 0);
+    func_802DDFF8(ANIM_Mario1_Idle, FOLD_UPD_SET_ANIM, FOLD_ANIM_VERTICAL_PIPE_CURL, 1, 1, 0, 0);
     sfx_play_sound(SOUND_ENTER_PIPE);
     disable_player_shadow();
 }
@@ -130,7 +130,7 @@ void entity_BlueWarpPipe_enter_pipe_update(Entity* entity) {
     if (pipeData->timer == -1) {
         playerStatus->renderMode = RENDER_MODE_ALPHATEST;
         playerStatus->position.y -= 50.0f;
-        func_802DDFF8(0x10002, 0, 0, 0, 0, 0, 0);
+        func_802DDFF8(ANIM_Mario1_Idle, FOLD_UPD_CLEAR, 0, 0, 0, 0, 0);
         exec_entity_commandlist(entity);
     }
 }
@@ -144,7 +144,7 @@ void entity_BlueWarpPipe_start_bound_script(Entity* entity) {
 }
 
 void entity_BlueWarpPipe_setupGfx(s32 entityIndex) {
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     BlueWarpPipeData* data = entity->dataBuf.bluePipe;
     Matrix4f sp10;
@@ -157,7 +157,7 @@ void entity_BlueWarpPipe_setupGfx(s32 entityIndex) {
     gSPMatrix(gfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gSPDisplayList(gfxPos++, Entity_BlueWarpPipe_RenderBase);
     gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_init_BlueWarpPipe(Entity* entity) {

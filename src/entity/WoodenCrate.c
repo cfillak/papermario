@@ -178,7 +178,7 @@ void entity_WoodenCrate_setupGfx(s32 entityIndex) {
     f32 x_inv;
     f32 y_inv;
     f32 z_inv;
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     WoodenCrateData* data = entity->dataBuf.crate;
     Gfx* fragmentDlist;
@@ -212,7 +212,7 @@ void entity_WoodenCrate_setupGfx(s32 entityIndex) {
         gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
     }
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 s32 entity_WoodenCrate_idle(Entity* entity) {
@@ -229,7 +229,7 @@ s32 entity_WoodenCrate_idle(Entity* entity) {
 
     if (shouldBreak) {
         entity_WoodenCrate_reset_fragments(entity);
-        entity_set_render_script(entity, Entity_WoodenCrate_RenderShatteredScript);
+        entity_set_render_script(entity, &Entity_WoodenCrate_RenderShatteredScript);
         entity_start_script(entity);
         exec_entity_commandlist(entity);
         sfx_play_sound(SOUND_20AE);
@@ -251,8 +251,8 @@ void entity_WoodenCrate_shatter(Entity* entity, f32 arg1) {
         }
 
         if (flag) {
-            make_item_entity(data->itemID, entity->position.x, entity->position.y + 33.0, entity->position.z, 0xA, 0,
-                             player_get_camera_facing_angle(), data->globalFlagIndex);
+            make_item_entity(data->itemID, entity->position.x, entity->position.y + 33.0, entity->position.z,
+                ITEM_SPAWN_MODE_ITEM_BLOCK_ITEM, 0, player_get_camera_facing_angle(), data->globalFlagIndex);
         }
     }
 }
@@ -262,16 +262,16 @@ EntityModelScript Entity_WoodenCrate_RenderShatteredScript = STANDARD_ENTITY_MOD
 
 EntityScript Entity_WoodenCrate_Script = {
     es_SetCallback(entity_WoodenCrate_idle, 0)
-    es_SetFlags(ENTITY_FLAGS_DISABLE_COLLISION)
+    es_SetFlags(ENTITY_FLAG_DISABLE_COLLISION)
     es_Call(entity_WoodenCrate_shatter)
     es_SetCallback(entity_WoodenCrate_update_fragments, 0)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 
 EntityBlueprint Entity_WoodenCrate = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(WoodenCrateData),
     .renderCommandList = Entity_WoodenCrate_RenderScript,
     .modelAnimationNodes = 0,

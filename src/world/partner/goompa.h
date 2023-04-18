@@ -6,9 +6,9 @@
 
 void world_goompa_init(Npc* partner);
 
-extern EvtScript world_goompa_take_out;
-extern EvtScript world_goompa_update;
-extern EvtScript world_goompa_use_ability;
-extern EvtScript world_goompa_put_away;
+extern EvtScript EVS_WorldGoompa_TakeOut;
+extern EvtScript EVS_WorldGoompa_Update;
+extern EvtScript EVS_WorldGoompa_UseAbility;
+extern EvtScript EVS_WorldGoompa_PutAway;
 
 #endif

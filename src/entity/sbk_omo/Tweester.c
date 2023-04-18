@@ -34,10 +34,10 @@ void entity_Tweester_render_inner_whirl(s32 entityIndex) {
     guMtxCatF(sp58, sp18, sp18);
     guMtxF2L(sp18, &data->mtxInnerWhirl);
     gDisplayContext->matrixStack[gMatrixListPos] = data->mtxInnerWhirl;
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
     gfx = ENTITY_ADDR(entity, Gfx*, Entity_Tweester_RenderInnerWhirl);
-    gSPDisplayList(gMasterGfxPos++, gfx);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, gfx);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
 
 void entity_Tweester_render_outer_whirl(s32 entityIndex) {
@@ -52,59 +52,59 @@ void entity_Tweester_render_outer_whirl(s32 entityIndex) {
     guMtxCatF(sp58, sp18, sp18);
     guMtxF2L(sp18, &data->mtxOuterWhirl);
     gDisplayContext->matrixStack[gMatrixListPos] = data->mtxOuterWhirl;
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
     gfx = ENTITY_ADDR(entity, Gfx*, Entity_Tweester_RenderOuterWhirl);
-    gSPDisplayList(gMasterGfxPos++, gfx);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, gfx);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
 
 void entity_Tweester_render_face(s32 entityIndex) {
     Entity* entity = get_entity_by_index(entityIndex);
     TweesterData* data = entity->dataBuf.tweester;
 
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetTextureLUT(gMasterGfxPos++, G_TT_RGBA16);
-    gDPLoadTLUT_pal16(gMasterGfxPos++, 0, D_0A0018A0_E58700);
-    gSPTexture(gMasterGfxPos++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
-    gDPSetCombineMode(gMasterGfxPos++, G_CC_MODULATEIA, G_CC_MODULATEIA);
-    gDPSetTextureDetail(gMasterGfxPos++, G_TD_CLAMP);
-    gDPSetTextureLOD(gMasterGfxPos++, G_TL_TILE);
-    gDPLoadTextureBlock_4b(gMasterGfxPos++, D_0A0014A0_E58300, G_IM_FMT_CI, 64, 32, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_CLAMP, 6, 5, G_TX_NOLOD, G_TX_NOLOD);
-    gDPSetTexturePersp(gMasterGfxPos++, G_TP_PERSP);
-    gDPSetTextureFilter(gMasterGfxPos++, G_TF_BILERP);
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, data->faceAnimTexOffset * 4, 0, (data->faceAnimTexOffset + 124) * 4, 31 * 4);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetTextureLUT(gMainGfxPos++, G_TT_RGBA16);
+    gDPLoadTLUT_pal16(gMainGfxPos++, 0, D_0A0018A0_E58700);
+    gSPTexture(gMainGfxPos++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
+    gDPSetCombineMode(gMainGfxPos++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    gDPSetTextureDetail(gMainGfxPos++, G_TD_CLAMP);
+    gDPSetTextureLOD(gMainGfxPos++, G_TL_TILE);
+    gDPLoadTextureBlock_4b(gMainGfxPos++, D_0A0014A0_E58300, G_IM_FMT_CI, 64, 32, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_CLAMP, 6, 5, G_TX_NOLOD, G_TX_NOLOD);
+    gDPSetTexturePersp(gMainGfxPos++, G_TP_PERSP);
+    gDPSetTextureFilter(gMainGfxPos++, G_TF_BILERP);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, data->faceAnimTexOffset * 4, 0, (data->faceAnimTexOffset + 124) * 4, 31 * 4);
 }
 
 void entity_Tweester_setupGfx(s32 entityIndex) {
     Entity* entity = get_entity_by_index(entityIndex);
     TweesterData* data = entity->dataBuf.tweester;
 
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetTextureLUT(gMasterGfxPos++, G_TT_NONE);
-    gSPTexture(gMasterGfxPos++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
-    gDPSetCombineLERP(gMasterGfxPos++, TEXEL1, 0, TEXEL0, 0, TEXEL1, 0, TEXEL0, 0, COMBINED, 0, SHADE, 0, COMBINED, 0, SHADE, 0);
-    gDPSetTextureDetail(gMasterGfxPos++, G_TD_CLAMP);
-    gDPSetTextureLOD(gMasterGfxPos++, G_TL_TILE);
-    gDPSetTextureImage(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 32, D_0A000BF0_E57A50);
-    gDPSetTile(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0000, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
-    gDPLoadSync(gMasterGfxPos++);
-    gDPLoadTile(gMasterGfxPos++, G_TX_LOADTILE, 0, 0, 0x007C, 0x007C);
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetTile(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0000, G_TX_RENDERTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, 0, 0, 0x007C, 0x007C);
-    gDPSetTextureImage(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 32, D_0A000FF0_E57E50);
-    gDPSetTile(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0080, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
-    gDPLoadSync(gMasterGfxPos++);
-    gDPLoadTile(gMasterGfxPos++, G_TX_LOADTILE, 0, 0, 0x007C, 0x007C);
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetTile(gMasterGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0080, 1, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
-    gDPSetTileSize(gMasterGfxPos++, 1, 0, 0, 0x007C, 0x007C);
-    gDPSetTexturePersp(gMasterGfxPos++, G_TP_PERSP);
-    gDPSetTextureFilter(gMasterGfxPos++, G_TF_BILERP);
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, data->innerWhirlTexOffsetX, data->innerWhirlTexOffsetY, data->innerWhirlTexOffsetX + 124, data->innerWhirlTexOffsetY + 124);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetTextureLUT(gMainGfxPos++, G_TT_NONE);
+    gSPTexture(gMainGfxPos++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
+    gDPSetCombineLERP(gMainGfxPos++, TEXEL1, 0, TEXEL0, 0, TEXEL1, 0, TEXEL0, 0, COMBINED, 0, SHADE, 0, COMBINED, 0, SHADE, 0);
+    gDPSetTextureDetail(gMainGfxPos++, G_TD_CLAMP);
+    gDPSetTextureLOD(gMainGfxPos++, G_TL_TILE);
+    gDPSetTextureImage(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 32, D_0A000BF0_E57A50);
+    gDPSetTile(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0000, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
+    gDPLoadSync(gMainGfxPos++);
+    gDPLoadTile(gMainGfxPos++, G_TX_LOADTILE, 0, 0, 0x007C, 0x007C);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetTile(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0000, G_TX_RENDERTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, 0, 0, 0x007C, 0x007C);
+    gDPSetTextureImage(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 32, D_0A000FF0_E57E50);
+    gDPSetTile(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0080, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
+    gDPLoadSync(gMainGfxPos++);
+    gDPLoadTile(gMainGfxPos++, G_TX_LOADTILE, 0, 0, 0x007C, 0x007C);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetTile(gMainGfxPos++, G_IM_FMT_I, G_IM_SIZ_8b, 4, 0x0080, 1, 0, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_WRAP, 5, G_TX_NOLOD);
+    gDPSetTileSize(gMainGfxPos++, 1, 0, 0, 0x007C, 0x007C);
+    gDPSetTexturePersp(gMainGfxPos++, G_TP_PERSP);
+    gDPSetTextureFilter(gMainGfxPos++, G_TF_BILERP);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, data->innerWhirlTexOffsetX, data->innerWhirlTexOffsetY, data->innerWhirlTexOffsetX + 124, data->innerWhirlTexOffsetY + 124);
     entity_Tweester_render_inner_whirl(entityIndex);
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, data->outerWhirlTexOffsetX, data->outerWhirlTexOffsetY, data->outerWhirlTexOffsetX + 124, data->outerWhirlTexOffsetY + 124);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, data->outerWhirlTexOffsetX, data->outerWhirlTexOffsetY, data->outerWhirlTexOffsetX + 124, data->outerWhirlTexOffsetY + 124);
     entity_Tweester_render_outer_whirl(entityIndex);
     entity_Tweester_render_face(entityIndex);
 }
@@ -160,9 +160,9 @@ void entity_Tweester_select_target_point(Entity* entity) {
         data->currentPath = paths[j];
     }
     pathPtr = &data->currentPath[pathOffset];
-    if (*pathPtr != 0x80000000) {
+    if (*pathPtr != TWEESTER_PATH_STOP) {
         pathOffset += 3;
-        if (*pathPtr == 0x80000001){
+        if (*pathPtr == TWEESTER_PATH_LOOP){
             pathOffset = 0;
             pathPtr = data->currentPath;
             data->targetX = *pathPtr++;
@@ -201,7 +201,7 @@ void entity_Tweester_move(Entity* entity) {
 
 void entity_Tweester_idle(Entity* entity) {
     PlayerStatus* playerStatus = &gPlayerStatus;
-    PartnerActionStatus* partnerActionStatus = &gPartnerActionStatus;
+    PartnerStatus* partnerStatus = &gPartnerStatus;
     PlayerData* playerData = &gPlayerData;
     TweesterData* data = entity->dataBuf.tweester;
     f32 delta;
@@ -209,9 +209,9 @@ void entity_Tweester_idle(Entity* entity) {
 
     if (get_time_freeze_mode() == TIME_FREEZE_NORMAL &&
         !is_picking_up_item() &&
-        !(playerStatus->flags & PS_FLAGS_20) &&
+        !(playerStatus->flags & PS_FLAG_PAUSED) &&
         (playerData->currentPartner != PARTNER_GOOMBARIO ||
-         playerStatus->inputEnabledCounter == 0 ||
+         playerStatus->inputDisabledCount == 0 ||
          playerStatus->actionState == ACTION_STATE_USE_TWEESTER
         )) {
         entity_Tweester_move(entity);
@@ -265,22 +265,22 @@ void entity_Tweester_idle(Entity* entity) {
 
     entity->rotation.y = -gCameras[CAM_DEFAULT].currentYaw;
 
-    if (partnerActionStatus->partnerActionState == PARTNER_ACTION_NONE || partnerActionStatus->actingPartner != PARTNER_BOW) {
+    if (partnerStatus->partnerActionState == PARTNER_ACTION_NONE || partnerStatus->actingPartner != PARTNER_BOW) {
         if (playerStatus->actionState == ACTION_STATE_USE_TWEESTER) {
             Npc* npc = npc_find_closest_simple(entity->position.x, entity->position.y, entity->position.z, 50.0f);
-            if (npc != NULL && (npc->flags & NPC_FLAG_PARTICLE)) {
+            if (npc != NULL && (npc->flags & NPC_FLAG_PARTNER)) {
                 TweesterTouchingPartner = entity;
             }
         }
 
         if (!is_picking_up_item() &&
-            !(playerStatus->flags & PS_FLAGS_20) &&
+            !(playerStatus->flags & PS_FLAG_PAUSED) &&
             playerStatus->actionState != ACTION_STATE_USE_TWEESTER &&
             playerStatus->blinkTimer == 0 &&
             fabs(dist2D(entity->position.x, entity->position.z, playerStatus->position.x, playerStatus->position.z)) <= 50.0
             ) {
             TweesterTouchingPlayer = entity;
-            playerStatus->animFlags |= PA_FLAGS_4;
+            playerStatus->animFlags |= PA_FLAG_INTERRUPT_USE_PARTNER;
             set_action_state(ACTION_STATE_USE_TWEESTER);
         }
     }
@@ -315,7 +315,7 @@ EntityScript Entity_Tweester_Script ={
 EntityModelScript Entity_Tweester_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_Tweester_Render, RENDER_MODE_SURFACE_XLU_LAYER1);
 
 EntityBlueprint Entity_Tweester = {
-    .flags = ENTITY_FLAGS_DISABLE_COLLISION,
+    .flags = ENTITY_FLAG_DISABLE_COLLISION,
     .typeDataSize = sizeof(TweesterData),
     .renderCommandList = Entity_Tweester_RenderScript,
     .modelAnimationNodes = 0,

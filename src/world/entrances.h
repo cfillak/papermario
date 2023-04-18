@@ -1,3 +1,6 @@
+#ifndef _ENTRANCES_H_
+#define _ENTRANCES_H_
+
 enum {
     kmr_00_ENTRY_0   = 0,
     kmr_02_ENTRY_0   = 0,
@@ -126,6 +129,7 @@ enum {
     mac_05_ENTRY_2   = 2,
     mac_05_ENTRY_3   = 3,
     mac_06_ENTRY_0   = 0,
+    mac_06_ENTRY_1   = 1,
     tik_01_ENTRY_0   = 0,
     tik_01_ENTRY_1   = 1,
     tik_01_ENTRY_2   = 2,
@@ -254,6 +258,8 @@ enum {
     kkj_24_ENTRY_0   = 0,
     kkj_24_ENTRY_1   = 1,
     kkj_25_ENTRY_0   = 0,
+    kkj_25_ENTRY_1   = 1,
+    kkj_25_ENTRY_2   = 2,
     kkj_26_ENTRY_0   = 0,
     kkj_26_ENTRY_1   = 1,
     kkj_26_ENTRY_2   = 2,
@@ -295,6 +301,9 @@ enum {
     hos_04_ENTRY_2   = 2,
     hos_04_ENTRY_3   = 3,
     hos_04_ENTRY_4   = 4,
+    hos_04_ENTRY_5   = 5,
+    hos_04_ENTRY_6   = 6,
+    hos_04_ENTRY_7   = 7,
     hos_05_ENTRY_0   = 0,
     hos_05_ENTRY_1   = 1,
     hos_05_ENTRY_2   = 2,
@@ -326,6 +335,7 @@ enum {
     nok_03_ENTRY_0   = 0,
     nok_03_ENTRY_1   = 1,
     nok_04_ENTRY_0   = 0,
+    nok_10_ENTRY_0   = 0,
     nok_11_ENTRY_0   = 0,
     nok_11_ENTRY_1   = 1,
     nok_12_ENTRY_0   = 0,
@@ -763,6 +773,7 @@ enum {
     arn_13_ENTRY_1   = 1,
     dgb_00_ENTRY_0   = 0,
     dgb_00_ENTRY_1   = 1,
+    dgb_00_ENTRY_2   = 2,
     dgb_01_ENTRY_0   = 0,
     dgb_01_ENTRY_1   = 1,
     dgb_01_ENTRY_2   = 2,
@@ -962,6 +973,7 @@ enum {
     flo_00_ENTRY_8   = 8,
     flo_00_ENTRY_9   = 9,
     flo_00_ENTRY_A   = 10,
+    flo_00_ENTRY_B   = 11,
     flo_03_ENTRY_0   = 0,
     flo_03_ENTRY_1   = 1,
     flo_03_ENTRY_2   = 2,
@@ -1252,6 +1264,7 @@ enum {
     osr_01_ENTRY_3   = 3,
     osr_02_ENTRY_0   = 0,
     osr_02_ENTRY_1   = 1,
+    osr_02_ENTRY_2   = 2,
     osr_03_ENTRY_0   = 0,
     osr_03_ENTRY_1   = 1,
     osr_03_ENTRY_2   = 2,
@@ -1324,3 +1337,5 @@ enum {
     tst_13_ENTRY_0   = 0,
     tst_20_ENTRY_0   = 0,
 };
+
+#endif

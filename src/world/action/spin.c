@@ -34,11 +34,11 @@ void action_update_spin(void) {
     s32 firstCall = FALSE;
 
     // initialization
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~(PS_FLAGS_ACTION_STATE_CHANGED | PS_FLAGS_80000);
-        playerStatus->animFlags &= ~PA_FLAGS_40000;
-        playerStatus->animFlags |= PA_FLAGS_SPINNING;
-        playerStatus->flags |= PS_FLAGS_20000;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~(PS_FLAG_ACTION_STATE_CHANGED | PS_FLAG_ARMS_RAISED);
+        playerStatus->animFlags &= ~PA_FLAG_INTERRUPT_SPIN;
+        playerStatus->animFlags |= PA_FLAG_SPINNING;
+        playerStatus->flags |= PS_FLAG_SPINNING;
         playerStatus->currentStateTime = 0;
         playerStatus->actionSubstate = SUBSTATE_SPIN_0;
         playerSpinState->stopSoundTimer = 0;
@@ -79,18 +79,18 @@ void action_update_spin(void) {
         }
 
         effectType = -1;
-        anim = ANIM_Mario_10010;
+        anim = ANIM_Mario1_Spin;
 
         if (spinFlags) {
             if (spinFlags & SPIN_TYPE_ATTACK) {
                 effectType = 2;
-                anim = ANIM_Mario_Flailing;
+                anim = ANIM_Mario1_SpinAttack;
             } else if (spinFlags & SPIN_TYPE_DIZZY) {
                 effectType = 4;
-                anim = ANIM_Mario_10010;
+                anim = ANIM_Mario1_Spin;
             } else if (spinFlags & SPIN_TYPE_SPEEDY) {
                 effectType = 0;
-                anim = ANIM_Mario_Spinning;
+                anim = ANIM_Mario1_SpeedySpin;
             }
         }
 
@@ -107,8 +107,8 @@ void action_update_spin(void) {
             playerSpinState->spinSoundID = SOUND_2114;
         }
 
-        sfx_play_sound_at_player(playerSpinState->spinSoundID, 0);
-        suggest_player_anim_setUnkFlag(anim);
+        sfx_play_sound_at_player(playerSpinState->spinSoundID, SOUND_SPACE_MODE_0);
+        suggest_player_anim_always_forward(anim);
 
         if ((clamp_angle(playerStatus->targetYaw - gCameras[gCurrentCameraID].currentYaw) <= 180.0f)) {
             playerStatus->spinRate = playerSpinState->spinRate;
@@ -142,8 +142,8 @@ void action_update_spin(void) {
 
     // check for spin cancel
     if (!firstCall && (check_input_hammer() || check_input_jump())) {
-        playerStatus->animFlags &= ~PA_FLAGS_SPINNING;
-        playerStatus->flags &= ~PS_FLAGS_20000;
+        playerStatus->animFlags &= ~PA_FLAG_SPINNING;
+        playerStatus->flags &= ~PS_FLAG_SPINNING;
         sfx_stop_sound(playerSpinState->spinSoundID);
         player_input_to_move_vector(&angle, &magnitude);
         playerStatus->targetYaw = angle;
@@ -169,11 +169,11 @@ void action_update_spin(void) {
         playerSpinState->spinDirection.x = sin_rad(DEG_TO_RAD(angle)) * playerSpinState->spinDirectionMagnitude;
         playerSpinState->spinDirection.y = -cos_rad(DEG_TO_RAD(angle)) * playerSpinState->spinDirectionMagnitude;
         playerStatus->currentStateTime--;
-        if ((playerStatus->currentStateTime) == 0) {
+        if (playerStatus->currentStateTime == 0) {
             playerSpinState->stopSoundTimer = 4;
             set_action_state(ACTION_STATE_IDLE);
-            playerStatus->flags &= ~PA_FLAGS_20000;
-            playerStatus->animFlags &= ~PA_FLAGS_SPINNING;
+            playerStatus->flags &= ~PS_FLAG_SPINNING;
+            playerStatus->animFlags &= ~PA_FLAG_SPINNING;
             sfx_stop_sound(playerSpinState->spinSoundID);
         }
         playerStatus->currentSpeed = 0.0f;
@@ -181,9 +181,9 @@ void action_update_spin(void) {
     }
 
     if (playerStatus->actionSubstate == SUBSTATE_SPIN_0) {
-        if (playerStatus->animFlags & PA_FLAGS_40000) {
+        if (playerStatus->animFlags & PA_FLAG_INTERRUPT_SPIN) {
             playerStatus->actionSubstate = SUBSTATE_SPIN_1;
-        } else if (gCollisionStatus.pushingAgainstWall >= 0) {
+        } else if (gCollisionStatus.pushingAgainstWall > NO_COLLIDER) {
             playerSpinState->hitWallTime++;
             if (playerSpinState->hitWallTime >= 10) {
                 playerStatus->actionSubstate = SUBSTATE_SPIN_1;
@@ -255,22 +255,22 @@ void action_update_spin(void) {
         if (playerSpinState->hasBufferedSpin) {
             playerStatus->currentStateTime = 2;
             playerStatus->actionSubstate = SUBSTATE_SPIN_2;
-            playerStatus->flags &= ~PS_FLAGS_20000;
-            suggest_player_anim_clearUnkFlag(ANIM_Mario_10002);
+            playerStatus->flags &= ~PS_FLAG_SPINNING;
+            suggest_player_anim_allow_backward(ANIM_Mario1_Idle);
         } else if (angle < playerStatus->spriteFacingAngle) {
             if (playerStatus->spriteFacingAngle >= 180.0f && angle < 180.0f) {
                 playerStatus->spriteFacingAngle = 180.0f;
                 playerStatus->currentStateTime = 2;
                 playerStatus->actionSubstate = SUBSTATE_SPIN_2;
-                playerStatus->flags &= ~PS_FLAGS_20000;
-                suggest_player_anim_clearUnkFlag(ANIM_Mario_10002);
+                playerStatus->flags &= ~PS_FLAG_SPINNING;
+                suggest_player_anim_allow_backward(ANIM_Mario1_Idle);
             }
         } else if (playerStatus->spriteFacingAngle <= 0.0f && angle < 90.0f) {
             playerStatus->spriteFacingAngle = 0.0f;
             playerStatus->currentStateTime = 2;
             playerStatus->actionSubstate = SUBSTATE_SPIN_2;
-            playerStatus->flags &= ~PS_FLAGS_20000;
-            suggest_player_anim_clearUnkFlag(ANIM_Mario_10002);
+            playerStatus->flags &= ~PS_FLAG_SPINNING;
+            suggest_player_anim_allow_backward(ANIM_Mario1_Idle);
         }
         playerStatus->spriteFacingAngle = clamp_angle(playerStatus->spriteFacingAngle);
     }

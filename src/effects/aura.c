@@ -1,23 +1,23 @@
 #include "common.h"
 #include "effects_internal.h"
 
-extern Gfx D_09002000[];
-extern Gfx D_090020E8[];
-extern Gfx D_090021D0[];
-extern Gfx D_090023B0[];
-extern Gfx D_090023C8[];
-extern Gfx D_090023E0[];
-extern Gfx D_090023F8[];
-extern Gfx D_09002410[];
-extern Gfx D_09002428[];
-extern Gfx D_09002440[];
-extern Gfx D_09002458[];
+extern Gfx D_09002000_379F80[];
+extern Gfx D_090020E8_37A068[];
+extern Gfx D_090021D0_37A150[];
+extern Gfx D_090023B0_37A330[];
+extern Gfx D_090023C8_37A348[];
+extern Gfx D_090023E0_37A360[];
+extern Gfx D_090023F8_37A378[];
+extern Gfx D_09002410_37A390[];
+extern Gfx D_09002428_37A3A8[];
+extern Gfx D_09002440_37A3C0[];
+extern Gfx D_09002458_37A3D8[];
 
-Gfx* D_E0076E90[] = { D_090023E0, D_090023E0, D_09002440, D_09002440 };
-Gfx* D_E0076EA0[] = { D_090023F8, D_090023F8, D_09002458, D_09002458 };
-Gfx* D_E0076EB0[] = { D_090023B0, D_090023B0, D_09002410, D_09002410 };
-Gfx* D_E0076EC0[] = { D_090023C8, D_090023C8, D_09002428, D_09002428 };
-Gfx* D_E0076ED0[] = { D_09002000, D_09002000, D_090020E8, D_090021D0 };
+Gfx* D_E0076E90[] = { D_090023E0_37A360, D_090023E0_37A360, D_09002440_37A3C0, D_09002440_37A3C0 };
+Gfx* D_E0076EA0[] = { D_090023F8_37A378, D_090023F8_37A378, D_09002458_37A3D8, D_09002458_37A3D8 };
+Gfx* D_E0076EB0[] = { D_090023B0_37A330, D_090023B0_37A330, D_09002410_37A390, D_09002410_37A390 };
+Gfx* D_E0076EC0[] = { D_090023C8_37A348, D_090023C8_37A348, D_09002428_37A3A8, D_09002428_37A3A8 };
+Gfx* D_E0076ED0[] = { D_09002000_379F80, D_09002000_379F80, D_090020E8_37A068, D_090021D0_37A150 };
 
 void aura_appendGfx(void* argEffect);
 void aura_init(EffectInstance* effect);
@@ -254,7 +254,7 @@ void aura_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void func_E007684C(void) {
@@ -271,8 +271,8 @@ void aura_appendGfx(void* argEffect) {
     s32 primA = data->primA;
     s32 v1, v2;
 
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(effect->graphics->data));
-    gSPDisplayList(gMasterGfxPos++, D_E0076ED0[type]);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(effect->graphics->data));
+    gSPDisplayList(gMainGfxPos++, D_E0076ED0[type]);
 
     shim_guTranslateF(translateMtx, data->posB.x, data->posB.y, data->posB.z);
     if (type == 2) {
@@ -289,9 +289,9 @@ void aura_appendGfx(void* argEffect) {
     }
     shim_guMtxF2L(transformMtx, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-    gSPDisplayList(gMasterGfxPos++, D_E0076EC0[type]);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, D_E0076EC0[type]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 
     shim_guTranslateF(translateMtx, data->posA.x, data->posA.y, data->posA.z);
     if (type == 2) {
@@ -308,23 +308,23 @@ void aura_appendGfx(void* argEffect) {
     }
     shim_guMtxF2L(transformMtx, &gDisplayContext->matrixStack[gMatrixListPos]);
 
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-    gSPDisplayList(gMasterGfxPos++, D_E0076EB0[type]);
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPDisplayList(gMainGfxPos++, D_E0076EB0[type]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, data->primR, data->primG, data->primB, primA);
-    gDPSetEnvColor(gMasterGfxPos++, data->envR, data->envG, data->engB, data->engA);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, data->primR, data->primG, data->primB, primA);
+    gDPSetEnvColor(gMainGfxPos++, data->envR, data->envG, data->engB, data->engA);
 
     v1 = data->unk_34 * 4.0f;
     v2 = data->unk_40 * 4.0f;
 
-    gDPSetTileSize(gMasterGfxPos++, 1, v1, v2, v1 + 124, v2 + 508);
-    gSPDisplayList(gMasterGfxPos++, D_E0076E90[type]);
+    gDPSetTileSize(gMainGfxPos++, 1, v1, v2, v1 + 124, v2 + 508);
+    gSPDisplayList(gMainGfxPos++, D_E0076E90[type]);
 
     v1 = data->unk_4C * 4.0f;
     v2 = data->unk_58 * 4.0f;
 
-    gDPSetTileSize(gMasterGfxPos++, 1, v1 + 30, v2 + 30, v1 + 282, v2 + 538);
-    gSPDisplayList(gMasterGfxPos++, D_E0076EA0[type]);
-    gDPPipeSync(gMasterGfxPos++);
+    gDPSetTileSize(gMainGfxPos++, 1, v1 + 30, v2 + 30, v1 + 282, v2 + 538);
+    gSPDisplayList(gMainGfxPos++, D_E0076EA0[type]);
+    gDPPipeSync(gMainGfxPos++);
 }

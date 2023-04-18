@@ -2,12 +2,21 @@
 /// @brief Gusty Gulch - Tubba's Heart Chamber
 
 #include "common.h"
-#include "../arn.h"
 #include "message_ids.h"
 #include "map.h"
 
+#include "../arn.h"
+#include "mapfs/arn_11_shape.h"
+#include "mapfs/arn_11_hit.h"
+
+#include "sprite/npc/TubbasHeart.h"
+
+enum {
+    NPC_TubbasHeart             = 0,
+};
+
 #define NAMESPACE arn_11
 
-extern EvtScript N(main);
-extern EvtScript N(80240050);
-extern NpcGroupList N(npcGroupList_802410DC);
+extern EvtScript N(EVS_Main);
+extern EvtScript N(EVS_SetupMusic);
+extern NpcGroupList N(DefaultNPCs);

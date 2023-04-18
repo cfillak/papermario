@@ -1,11 +1,7 @@
 #include "common.h"
 #include "nu/nusys.h"
 
-#ifdef VERSION_US
 s16 D_80074010 = 8; // might be an array, could be size 1-8
-#else
-extern s16 D_80074010;
-#endif
 
 void gfxRetrace_Callback(s32);
 void gfxPreNMI_Callback(void);
@@ -14,36 +10,37 @@ void gfx_task_main(void);
 void gfx_draw_frame(void);
 void gfx_init_state(void);
 
-// TODO: name these symbols the same, this is just a shift
-#ifdef VERSION_US
+void create_audio_system(void);
+void load_engine_data(void);
+
 extern s32 D_80073E00;
-#else
-extern s32 D_80073DE0;
-#endif
 extern u16* D_80073E04;
 extern s16 D_80073E08;
 extern s16 D_80073E0A;
 extern s32 D_80073E10[];
 extern u16* D_8009A680;
-extern OSViMode _osViModeNtscLan1;
-extern OSViMode _osViModeMPalLan1;
 
-void boot_main(void) {
-#ifdef VERSION_JP
+#ifdef SHIFT
+#define shim_create_audio_system_obfuscated create_audio_system
+#define shim_load_engine_data_obfuscated load_engine_data
+#endif
+
+void boot_main(void* data) {
+#if VERSION_JP
     if (osTvType == OS_TV_NTSC) {
         nuGfxDisplayOff();
-        osViSetMode(&_osViModeNtscLan1);
+        osViSetMode(&osViModeNtscLan1);
         osViSetSpecialFeatures(OS_VI_GAMMA_OFF | OS_VI_GAMMA_DITHER_OFF | OS_VI_DIVOT_ON | OS_VI_DITHER_FILTER_ON);
         nuGfxDisplayOff();
     } else {
         PANIC();
     }
-#else // VERSION_JP
+#else // not VERSION_JP
     if (osTvType == OS_TV_NTSC) {
-        osViSetMode(&_osViModeNtscLan1);
+        osViSetMode(&osViModeNtscLan1);
         osViSetSpecialFeatures(OS_VI_GAMMA_OFF | OS_VI_GAMMA_DITHER_OFF | OS_VI_DIVOT_ON | OS_VI_DITHER_FILTER_ON);
     } else if (osTvType == OS_TV_MPAL) {
-        osViSetMode(&_osViModeMPalLan1);
+        osViSetMode(&osViModeMpalLan1);
         osViSetSpecialFeatures(OS_VI_GAMMA_OFF | OS_VI_GAMMA_DITHER_OFF | OS_VI_DIVOT_ON | OS_VI_DITHER_FILTER_ON);
     } else {
         PANIC();
@@ -53,18 +50,21 @@ void boot_main(void) {
     crash_screen_init();
 #endif
 
+#if !VERSION_IQUE
     is_debug_init();
+#endif
     nuGfxInit();
     gGameStatusPtr->contBitPattern = nuContInit();
-#ifdef VERSION_US
-    func_8002D160();
-    func_802B2000();
-    func_802B203C();
+
+#if VERSION_IQUE
+    create_audio_system();
+    load_engine_data();
 #else
-    func_8002CA00();
-    func_802B2000();
-    func_802B203C();
+    load_obfuscation_shims();
+    shim_create_audio_system_obfuscated();
+    shim_load_engine_data_obfuscated();
 #endif
+
     nuGfxFuncSet((NUGfxFunc) gfxRetrace_Callback);
     nuGfxPreNMIFuncSet(gfxPreNMI_Callback);
     gRandSeed += osGetCount();
@@ -73,7 +73,6 @@ void boot_main(void) {
     while (TRUE) {}
 }
 
-#ifdef VERSION_US
 void gfxRetrace_Callback(s32 arg0) {
     if (D_80073E00 != 0) {
         if (D_80073E00 == 1) {
@@ -108,11 +107,7 @@ void gfxRetrace_Callback(s32 arg0) {
         }
     }
 }
-#else
-INCLUDE_ASM(s32, "main", gfxRetrace_Callback);
-#endif
 
-#ifdef VERSION_US
 void gfx_task_main(void) {
     s16 t;
     s16 i;
@@ -121,23 +116,23 @@ void gfx_task_main(void) {
 
     gMatrixListPos = 0;
     gDisplayContext = &D_80164000[gCurrentDisplayContextIndex];
-    gMasterGfxPos = gDisplayContext->mainGfx;
+    gMainGfxPos = gDisplayContext->mainGfx;
     temp = D_80073E04;
     gfx_init_state();
 
-    gDPSetDepthImage(gMasterGfxPos++, OS_K0_TO_PHYSICAL(nuGfxZBuffer));
-    gDPSetColorImage(gMasterGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, SCREEN_WIDTH, osVirtualToPhysical(temp));
-    gDPSetScissor(gMasterGfxPos++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    gSPTexture(gMasterGfxPos++, -1, -1, 0, G_TX_RENDERTILE, G_ON);
-    gDPSetCycleType(gMasterGfxPos++, G_CYC_1CYCLE);
-    gDPSetTexturePersp(gMasterGfxPos++, G_TP_NONE);
-    gDPSetTextureLUT(gMasterGfxPos++, G_TT_NONE);
-    gDPSetRenderMode(gMasterGfxPos++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
-    gDPSetTextureFilter(gMasterGfxPos++, G_TF_POINT);
-    gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, 0, 0, 0, 0, TEXEL0, 0, 0, 0, 0, 0, 0, 0, TEXEL0);
-    gDPSetAlphaCompare(gMasterGfxPos++, G_AC_THRESHOLD);
-    gDPSetBlendColor(gMasterGfxPos++, 0, 0, 0, 127);
-    gDPLoadTextureTile_4b(gMasterGfxPos++, D_80073E10, G_IM_FMT_I, 128, 8, 0, 0, 127, 7, 0, G_TX_NOMIRROR | G_TX_WRAP,
+    gDPSetDepthImage(gMainGfxPos++, OS_K0_TO_PHYSICAL(nuGfxZBuffer));
+    gDPSetColorImage(gMainGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, SCREEN_WIDTH, osVirtualToPhysical(temp));
+    gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    gSPTexture(gMainGfxPos++, -1, -1, 0, G_TX_RENDERTILE, G_ON);
+    gDPSetCycleType(gMainGfxPos++, G_CYC_1CYCLE);
+    gDPSetTexturePersp(gMainGfxPos++, G_TP_NONE);
+    gDPSetTextureLUT(gMainGfxPos++, G_TT_NONE);
+    gDPSetRenderMode(gMainGfxPos++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
+    gDPSetTextureFilter(gMainGfxPos++, G_TF_POINT);
+    gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, 0, 0, 0, TEXEL0, 0, 0, 0, 0, 0, 0, 0, TEXEL0);
+    gDPSetAlphaCompare(gMainGfxPos++, G_AC_THRESHOLD);
+    gDPSetBlendColor(gMainGfxPos++, 0, 0, 0, 127);
+    gDPLoadTextureTile_4b(gMainGfxPos++, D_80073E10, G_IM_FMT_I, 128, 8, 0, 0, 127, 7, 0, G_TX_NOMIRROR | G_TX_WRAP,
                           G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
     for (i = 0; i < 20; i++) {
@@ -150,25 +145,25 @@ void gfx_task_main(void) {
             if (t < 0) {
                 continue;
             }
-            gSPTextureRectangle(gMasterGfxPos++, ((i * 8) + 160) * 4,
+            gSPTextureRectangle(gMainGfxPos++, ((i * 8) + 160) * 4,
                                                  ((j * 8)) * 4,
                                                  ((i * 8) + 168) * 4,
                                                  ((j * 8) + 8) * 4,
                                                  G_TX_RENDERTILE,
                                                  (t * 8) * 32, 0, 0x0400, 0x0400);
-            gSPTextureRectangle(gMasterGfxPos++, ((i * 8) + 160) * 4,
+            gSPTextureRectangle(gMainGfxPos++, ((i * 8) + 160) * 4,
                                                  (232 - (j * 8)) * 4,
                                                  ((i * 8) + 168) * 4,
                                                  (240 - (j * 8)) * 4,
                                                  G_TX_RENDERTILE,
                                                  (t * 8) * 32, 7 * 32, 0x0400, -0x0400);
-            gSPTextureRectangle(gMasterGfxPos++, (152 - (i * 8)) * 4,
+            gSPTextureRectangle(gMainGfxPos++, (152 - (i * 8)) * 4,
                                                  ((j * 8)) * 4,
                                                  (160 - (i * 8)) * 4,
                                                  ((j * 8) + 8) * 4,
                                                  G_TX_RENDERTILE,
                                                  (t * 8 + 7) * 32, 0, -0x0400, 0x0400);
-            gSPTextureRectangle(gMasterGfxPos++, (152 - (i * 8)) * 4,
+            gSPTextureRectangle(gMainGfxPos++, (152 - (i * 8)) * 4,
                                                  (232 - (j * 8)) * 4,
                                                  (160 - (i * 8)) * 4,
                                                  (240 - (j * 8)) * 4,
@@ -178,20 +173,17 @@ void gfx_task_main(void) {
     }
 
     D_80074010++;
-    gDPFullSync(gMasterGfxPos++);
-    gSPEndDisplayList(gMasterGfxPos++);
-    nuGfxTaskStart(gDisplayContext->mainGfx, (u32)(gMasterGfxPos - gDisplayContext->mainGfx) * 8, NU_GFX_UCODE_F3DEX, NU_SC_TASK_LODABLE);
+    gDPFullSync(gMainGfxPos++);
+    gSPEndDisplayList(gMainGfxPos++);
+    nuGfxTaskStart(gDisplayContext->mainGfx, (u32)(gMainGfxPos - gDisplayContext->mainGfx) * 8, NU_GFX_UCODE_F3DEX, NU_SC_TASK_LODABLE);
     gCurrentDisplayContextIndex ^= 1;
 }
-#else
-INCLUDE_ASM(s32, "main", func_80026148);
+
+#if VERSION_IQUE
+NOP_FIX
 #endif
 
 void gfxPreNMI_Callback(void) {
-#ifdef VERSION_US
     D_80073E00 = 1;
-#else
-    D_80073DE0 = 1;
-#endif
     nuContRmbForceStop();
 }

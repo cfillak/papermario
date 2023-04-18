@@ -4,8 +4,27 @@
 #include "nu/nusys.h"
 #include "hud_element.h"
 #include "sprite.h"
+#include "model.h"
 
-s32* D_80077950[] = { &D_8038F800, &D_803B5000, &heap_battleHead };
+#if VERSION_JP
+// TODO: split this segment
+extern Addr pause_ROM_START;
+extern Addr pause_ROM_END;
+extern Addr pause_VRAM;
+extern Addr pause_TEXT_START;
+extern Addr pause_TEXT_END;
+extern Addr pause_RODATA_END;
+extern Addr pause_BSS_START;
+extern Addr pause_BSS_END;
+extern Addr pause_DATA_START;
+#endif
+
+extern u16 gFrameBuf0[];
+extern u16 gFrameBuf1[];
+extern u16 gFrameBuf2[];
+u16* pause_frameBuffers[] = { gFrameBuf0, gFrameBuf1, gFrameBuf2 };
+
+extern ShapeFile gMapShapeData;
 
 NUPiOverlaySegment D_8007795C = {
     .romStart = pause_ROM_START,
@@ -23,9 +42,11 @@ void state_init_pause(void) {
     D_800A0921 = 0;
     D_800A0922 = 0;
     disable_player_input();
-    set_time_freeze_mode(TIME_FREEZE_PARTNER_MENU);
+    set_time_freeze_mode(TIME_FREEZE_POPUP_MENU);
     set_windows_visible(WINDOW_GROUP_PAUSE_MENU);
 }
+
+extern Addr D_80200000;
 
 void state_step_pause(void) {
     s32 oldIsBattle = D_800A0921;
@@ -40,8 +61,8 @@ void state_step_pause(void) {
                 D_800A0920 = 4;
                 D_800A0921 = 2;
                 gOverrideFlags |= GLOBAL_OVERRIDES_8;
-                gGameStatusPtr->backgroundFlags &= ~0xF0;
-                gGameStatusPtr->backgroundFlags |= 0x10;
+                gGameStatusPtr->backgroundFlags &= ~BACKGROUND_RENDER_STATE_MASK;
+                gGameStatusPtr->backgroundFlags |= BACKGROUND_RENDER_STATE_1;
 
             }
             break;
@@ -53,8 +74,8 @@ void state_step_pause(void) {
 
                 if (D_800A0920 == 0) {
                     D_800A0920 = -1;
-                    nuGfxSetCfb(&D_80077950, 2);
-                    gGameStatusPtr->unk_15E = gGameStatusPtr->unk_15C;
+                    nuGfxSetCfb(pause_frameBuffers, 2);
+                    gGameStatusPtr->savedBackgroundDarkness = gGameStatusPtr->backgroundDarkness;
                     sfx_stop_env_sounds();
                     func_8003B1A8();
                     gGameStatusPtr->isBattle = oldIsBattle;
@@ -62,14 +83,14 @@ void state_step_pause(void) {
                     battle_heap_create();
                     nuContRmbForceStop();
                     sfx_clear_env_sounds(0);
-                    spr_init_sprites(0);
+                    spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
                     clear_model_data();
                     clear_sprite_shading_data();
                     reset_background_settings();
                     clear_entity_models();
                     clear_animator_list();
-                    clear_generic_entity_list();
-                    hud_element_set_aux_cache(_3169F0_VRAM, 0x38000);
+                    clear_worker_list();
+                    hud_element_set_aux_cache(D_80200000, 0x38000); // TODO shiftability (what should this symbol be?)
                     hud_element_clear_cache();
                     reset_status_menu();
                     clear_item_entity_data();
@@ -77,8 +98,8 @@ void state_step_pause(void) {
                     clear_npcs();
                     clear_entity_data(0);
                     clear_trigger_data();
-                    D_800A0924 = func_80149828();
-                    func_801497FC(0);
+                    SavedReverbMode = sfx_get_reverb_mode();
+                    sfx_set_reverb_mode(0);
                     bgm_quiet_max_volume();
                     nuPiReadRomOverlay(&D_8007795C);
                     pause_init();
@@ -130,17 +151,17 @@ void state_step_unpause(void) {
                     if (D_800A0920 == 0) {
                         MapSettings* mapSettings;
                         MapConfig* mapConfig;
-                        s32 assetData;
+                        void* mapShape;
                         s32 assetSize;
 
                         D_800A0920 = -1;
-                        nuGfxSetCfb(&D_80077950, ARRAY_COUNT(D_80077950));
+                        nuGfxSetCfb(pause_frameBuffers, ARRAY_COUNT(pause_frameBuffers));
                         pause_cleanup();
                         gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
                         mapSettings = get_current_map_settings();
                         mapConfig = &gAreas[gGameStatusPtr->areaID].maps[gGameStatusPtr->mapID];
                         gGameStatusPtr->isBattle = FALSE;
-                        gGameStatusPtr->backgroundFlags &= ~0xF0;
+                        gGameStatusPtr->backgroundFlags &= ~BACKGROUND_RENDER_STATE_MASK;
                         func_8005AF84();
                         func_8002ACDC();
                         nuContRmbForceStopEnd();
@@ -150,7 +171,7 @@ void state_step_unpause(void) {
                         init_sprite_shading_data();
                         init_entity_models();
                         reset_animator_list();
-                        init_generic_entity_list();
+                        init_worker_list();
                         hud_element_set_aux_cache(0, 0);
                         init_hud_element_list();
                         init_item_entity_list();
@@ -158,12 +179,12 @@ void state_step_unpause(void) {
                         init_npc_list();
                         init_entity_data();
                         init_trigger_list();
-                        func_801497FC(D_800A0924);
+                        sfx_set_reverb_mode(SavedReverbMode);
                         bgm_reset_max_volume();
                         load_map_script_lib();
-                        assetData = load_asset_by_name(&wMapShapeName, &assetSize);
-                        decode_yay0(assetData, &D_80210000);
-                        general_heap_free(assetData);
+                        mapShape = load_asset_by_name(wMapShapeName, &assetSize);
+                        decode_yay0(mapShape, &gMapShapeData);
+                        general_heap_free(mapShape);
                         initialize_collision();
                         restore_map_collision_data();
 
@@ -178,11 +199,11 @@ void state_step_unpause(void) {
                             set_background_size(296, 200, 12, 20);
                         }
 
-                        gGameStatusPtr->unk_15C = gGameStatusPtr->unk_15E;
+                        gGameStatusPtr->backgroundDarkness = gGameStatusPtr->savedBackgroundDarkness;
                         calculate_model_sizes();
                         npc_reload_all();
                         set_windows_visible(WINDOW_GROUP_ALL);
-                        func_800E98C4();
+                        status_menu_respond_to_changes();
                         set_time_freeze_mode(TIME_FREEZE_PARTIAL);
                         D_800A0921 = 3;
                         gPlayerStatus.alpha2 = gPlayerStatus.alpha1 - 1;

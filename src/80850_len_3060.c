@@ -4,18 +4,12 @@
 extern HudScript* TimesHudScript;
 extern HudScript* SPIncrementHudScripts[];
 extern HudScript* SPStarHudScripts[];
-extern s32 D_800F7FE8;
-extern s32 D_800F7FEC;
-extern s32 D_800F7FF0;
-extern s32 D_800F7FF4;
-extern s32 D_800F7FF8;
-extern s32 D_800F7FFC;
-extern s32 D_800F8000[];
+extern s32 StatusMenuSPIncrementOffsets[];
 
 extern s16 D_8010CD10;
 extern s16 D_8010CD12;
 
-extern s32 DigitHudScripts[10];
+extern HudScript* DigitHudScripts[10];
 
 extern HudScript HES_StatusHP;
 extern HudScript HES_StatusHeart;
@@ -29,7 +23,10 @@ extern HudScript HES_StatusSPShine;
 extern HudScript HES_StatusSPEmptyIncrement;
 extern HudScript HES_StatusStarEmpty;
 
-extern HudScript SlashHudScript;
+extern HudScript* SlashHudScript;
+
+void status_menu_start_blinking_coins(void);
+void status_menu_stop_blinking_coins(void);
 
 void clear_player_data(void) {
     PlayerData* playerData = &gPlayerData;
@@ -55,7 +52,7 @@ void clear_player_data(void) {
     playerData->starPoints = 0;
     playerData->unk_11 = 0;
     playerData->unk_288 = 0;
-    playerData->merleeSpellType = 0;
+    playerData->merleeSpellType = MERLEE_SPELL_0;
     playerData->merleeCastsLeft = 0;
     playerData->merleeTurnCount = -1;
     playerData->maxStarPower = 0;
@@ -116,7 +113,7 @@ void clear_player_data(void) {
         playerData->partnerUsedTime[i] = 0;
     }
 
-    playerData->droTreeOrbitTime = 0;
+    playerData->droTreeHintTime = 0;
     playerData->starPiecesCollected = 0;
     playerData->jumpGamePlays = 0;
     playerData->jumpGameTotal = 0;
@@ -174,7 +171,7 @@ s32 find_item(s32 itemID) {
     ItemData* item = &gItemTable[itemID];
     s32 i;
 
-    if ((item->typeFlags & 8) != 0) {
+    if ((item->typeFlags & ITEM_TYPE_FLAG_KEY) != 0) {
         for (i = 0; i < ARRAY_COUNT(playerData->keyItems); i++) {
             if (playerData->keyItems[i] == itemID) {
                 break;
@@ -225,7 +222,7 @@ s32 add_badge(s32 itemID) {
     ItemData* item = &gItemTable[itemID];
     s32 i;
 
-    if ((item->typeFlags & 0x40) == 0) {
+    if ((item->typeFlags & ITEM_TYPE_FLAG_BADGE) == 0) {
         return add_item(itemID);
     }
 
@@ -310,10 +307,10 @@ void initialize_status_menu(void) {
     D_8010CD10 = 0;
     D_8010CD12 = 0;
     uiStatus->drawPosY = -100;
-    uiStatus->hidden = 0;
+    uiStatus->hidden = FALSE;
     uiStatus->showTimer = 210;
     uiStatus->unk_3B[0] = 0;
-    uiStatus->ignoreChanges = 0;
+    uiStatus->ignoreChanges = FALSE;
     uiStatus->unk_45[0] = 0;
     uiStatus->unk_45[1] = 0;
     uiStatus->hpBlinking = 0;
@@ -349,189 +346,739 @@ void initialize_status_menu(void) {
 
     iconIndex = hud_element_create(&HES_StatusHP);
     uiStatus->hpIconIndices[0] = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusHeart);
     uiStatus->hpIconIndices[1] = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusFP);
     uiStatus->fpIconIndices[0] = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusFlower);
     uiStatus->fpIconIndices[1] = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusCoin);
     uiStatus->coinIconIndex = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_Item_CoinSparkleRandom);
     uiStatus->coinSparkleIconIndex = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusStarPoint);
     uiStatus->starpointsIconIndex = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusSPShine);
     uiStatus->starpointsShineIconIndex = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     newVar = hud_element_create(&HES_StatusTimes);
     iconIndex = newVar;
     uiStatus->iconIndex8 = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80 | HUD_ELEMENT_FLAGS_DISABLED);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80 | HUD_ELEMENT_FLAG_DISABLED);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusTimes);
     uiStatus->iconIndex9 = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80 | HUD_ELEMENT_FLAGS_DISABLED);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80 | HUD_ELEMENT_FLAG_DISABLED);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusTimes);
     uiStatus->iconIndexA = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80 | HUD_ELEMENT_FLAGS_DISABLED);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80 | HUD_ELEMENT_FLAG_DISABLED);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusTimes);
     uiStatus->iconIndexB = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80 | HUD_ELEMENT_FLAGS_DISABLED);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80 | HUD_ELEMENT_FLAG_DISABLED);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     iconIndex = hud_element_create(&HES_StatusStar1);
     uiStatus->starIconIndex = iconIndex;
-    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAGS_80);
-    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAGS_FILTER_TEX);
+    hud_element_set_flags(iconIndex, HUD_ELEMENT_FLAG_80);
+    hud_element_clear_flags(iconIndex, HUD_ELEMENT_FLAG_FILTER_TEX);
 
     func_800F0D5C();
 }
 
-// close but maybe just regalloc remaining?
-#ifdef NON_EQUIVALENT
 void status_menu_draw_number(s32 iconID, s32 x, s32 y, s32 value, s32 numDigits) {
     s8 digits[4];
     s32 i;
-    s32 y2;
+    s32 x2, y2;
     s32 keepDrawing;
     s32 digit;
-    s32 place;
 
     hud_element_set_script(iconID, TimesHudScript);
-    x += 8;
+    x2 = x + 8;
     y2 = y + 8;
-    hud_element_set_render_pos(iconID, x, y + 7);
-    hud_element_clear_flags(iconID, HUD_ELEMENT_FLAGS_DISABLED);
+    hud_element_set_render_pos(iconID, x2, y2 - 1);
+    hud_element_clear_flags(iconID, HUD_ELEMENT_FLAG_DISABLED);
     hud_element_draw_next(iconID);
 
     // Write each digit of the input number into the digits array
     for (i = 0; i < numDigits; i++) {
-        digit = value / 10;
-        place = (digit) * 10;
-        digit = value - place;
+        digit = value % 10;
         digits[(numDigits - i) - 1] = digit;
         value /= 10;
     }
 
-    x += 13;
+    x2 += 13;
     keepDrawing = FALSE;
 
-    for (i = 0; i < numDigits; i++, x += 8) {
+    for (i = 0; i < numDigits; i++, x2 += 8) {
         digit = digits[i];
 
         // Once we have encountered our first non-zero digit, we need to keep drawing the remaining digits
         if (digit != 0 || keepDrawing || (i == numDigits - 1)) {
             keepDrawing = TRUE;
             hud_element_set_script(iconID, DigitHudScripts[digit]);
-            hud_element_set_render_pos(iconID, x, y2);
-            hud_element_clear_flags(iconID, HUD_ELEMENT_FLAGS_DISABLED);
+            hud_element_set_render_pos(iconID, x2, y2);
+            hud_element_clear_flags(iconID, HUD_ELEMENT_FLAG_DISABLED);
             hud_element_draw_next(iconID);
         }
     }
 }
-#else
-INCLUDE_ASM(s32, "80850_len_3060", status_menu_draw_number);
-#endif
 
-// close but some ordering / reg issues
-#ifdef NON_MATCHING
-void status_menu_draw_stat(s32 id, s32 x, s32 y, s32 arg3, s32 arg4) {
+void status_menu_draw_stat(s32 id, s32 x, s32 y, s32 currentValue, s32 maxValue) {
     s8 digits[4];
-    s32 sp18;
-    s32 sp1C;
     s32 cond;
     s32 digit;
-    s32 numDigits;
+    s32 numDigits = 2;
     s32 localX;
     s32 localY;
-    s32 i;
+    s32 i = 0;
+    s32 baseX = x + 8;
+    s32 baseY = y + 8;
 
-    numDigits = 2;
-
-    sp18 = x + 8;
-    sp1C = y + 8;
-    i = 0;
     hud_element_set_script(id, SlashHudScript);
-    hud_element_set_render_pos(id, x + 22, y + 9);
-    hud_element_clear_flags(id, HUD_ELEMENT_FLAGS_DISABLED);
+    hud_element_set_render_pos(id, baseX + 14, baseY + 1);
+    hud_element_clear_flags(id, HUD_ELEMENT_FLAG_DISABLED);
     hud_element_draw_next(id);
 
-
-    for (; i < numDigits; i++) {
-        s32 num = arg3 % 10;
-
+    for (i = 0; i < numDigits; i++) {
+        s32 num = currentValue % 10;
         digits[numDigits - i - 1] = num;
-        arg3 /= 10;
+        currentValue /= 10;
     }
 
-    localX = sp18;
-    localY = sp1C;
+    localX = baseX;
+    localY = baseY;
     cond = FALSE;
-    for (i = 0; i < numDigits; i++) {
+    for (i = 0; i < numDigits; i++, localX += 8) {
         digit = digits[i];
         if (digit != 0 || cond || i == numDigits - 1) {
             cond = TRUE;
             hud_element_set_script(id, DigitHudScripts[digit]);
-            hud_element_set_render_pos(id, localX + (i * 8), localY);
-            hud_element_clear_flags(id, HUD_ELEMENT_FLAGS_DISABLED);
+            hud_element_set_render_pos(id, localX, localY);
+            hud_element_clear_flags(id, HUD_ELEMENT_FLAG_DISABLED);
             hud_element_draw_next(id);
         }
     }
 
     for (i = 0; i < numDigits; i++) {
-        digits[numDigits - i - 1] = arg4 % 10;
-        arg4 /= 10;
+        digits[numDigits - i - 1] = maxValue % 10;
+        maxValue /= 10;
     }
 
-    localX = sp18 + 26;
-    localY = sp1C;
+    localX = baseX + 26;
+    localY = baseY;
     cond = FALSE;
-    for (i = 0; i < numDigits; i++) {
+    for (i = 0; i < numDigits; i++, localX += 8) {
         digit = digits[i];
         if (digit != 0 || cond || i == numDigits - 1) {
             cond = TRUE;
             hud_element_set_script(id, DigitHudScripts[digit]);
-            hud_element_set_render_pos(id, localX + (i * 8), localY);
-            hud_element_clear_flags(id, HUD_ELEMENT_FLAGS_DISABLED);
+            hud_element_set_render_pos(id, localX, localY);
+            hud_element_clear_flags(id, HUD_ELEMENT_FLAG_DISABLED);
             hud_element_draw_next(id);
         }
     }
 }
-#else
-INCLUDE_ASM(s32, "80850_len_3060", status_menu_draw_stat);
-#endif
 
-void update_status_menu(void);
-INCLUDE_ASM(s32, "80850_len_3060", update_status_menu);
+void update_status_menu(void) {
+    UiStatus* uiStatus = &gUIStatus;
+    PlayerData* playerData = &gPlayerData;
+    PlayerStatus* playerStatus = &gPlayerStatus;
+    s32 sp50;
+    s32 sp54;
+    s32 i;
+    s32 x;
+    s32 y;
+    s32 showStat;
+    s32 id;
+    s32 limit;
+    s32 s7;
+    s32 s1;
+    s32 spBars;
+    s32 maxStarPower;
+
+    if (gGameStatusPtr->creditsViewportMode >= 0 ||
+        gGameStatusPtr->demoState != 0 ||
+        (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH) ||
+        evt_get_variable(NULL, GB_StoryProgress) >= STORY_EPILOGUE)
+    {
+        return;
+    }
+
+    if (gGameStatusPtr->isBattle == 0 && playerData->coins != uiStatus->displayCoins) {
+        status_menu_start_blinking_coins();
+    }
+
+    i = playerData->coins - uiStatus->displayCoins;
+
+    if (i < 0) {
+        i = (i - 4) / 5;
+    } else {
+        i = (i + 4) / 5;
+    }
+    uiStatus->displayCoins += i;
+
+    if (uiStatus->displayHP != playerData->curHP && !uiStatus->ignoreChanges) {
+        if (uiStatus->hidden) {
+            uiStatus->showTimer = 70;
+            uiStatus->hidden = FALSE;
+            uiStatus->unk_3B[0] = 0;
+        } else {
+            uiStatus->showTimer = 70;
+        }
+    }
+
+    if (uiStatus->displayFP != playerData->curFP && !uiStatus->ignoreChanges) {
+        if (uiStatus->hidden) {
+            uiStatus->showTimer = 70;
+            uiStatus->hidden = FALSE;
+            uiStatus->unk_3B[0] = 0;
+        } else {
+            uiStatus->showTimer = 70;
+        }
+    }
+
+    if (uiStatus->displaySP != playerData->specialBarsFilled && !uiStatus->ignoreChanges) {
+        if (uiStatus->hidden) {
+            uiStatus->showTimer = 70;
+            uiStatus->hidden = FALSE;
+            uiStatus->unk_3B[0] = 0;
+        } else {
+            uiStatus->showTimer = 70;
+        }
+    }
+
+    if (uiStatus->displayHP != playerData->curHP) {
+        if (gGameStatusPtr->isBattle == 0 && playerData->curHP < uiStatus->displayHP) {
+            status_menu_start_blinking_hp();
+        }
+        if (uiStatus->displayHP < playerData->curHP) {
+            if (uiStatus->drawPosY >= 18) {
+                if (gGameStatusPtr->frameCounter % 4 == 0) {
+                    uiStatus->displayHP++;
+                    sfx_play_sound(SOUND_213);
+                }
+            } else if (gGameStatusPtr->frameCounter % 4 == 0) {
+                uiStatus->displayHP++;
+            }
+        } else if (gGameStatusPtr->frameCounter % 4 == 0) {
+            uiStatus->displayHP--;
+        }
+    }
+
+    if (uiStatus->displayFP != playerData->curFP) {
+        if (gGameStatusPtr->isBattle == 0 && playerData->curFP < uiStatus->displayFP) {
+            status_menu_start_blinking_fp();
+        }
+        if (uiStatus->displayFP < playerData->curFP) {
+            if (uiStatus->drawPosY >= 18) {
+                if (gGameStatusPtr->frameCounter % 4 == 0) {
+                    uiStatus->displayFP++;
+                    sfx_play_sound(SOUND_217);
+                }
+            } else if (gGameStatusPtr->frameCounter % 4 == 0) {
+                uiStatus->displayFP++;
+            }
+        } else if (gGameStatusPtr->frameCounter % 4 == 0) {
+            uiStatus->displayFP--;
+        }
+    }
+
+    if (uiStatus->displaySP != playerData->specialBarsFilled) {
+        if (uiStatus->displaySP < playerData->specialBarsFilled) {
+            uiStatus->displaySP += 10;
+            if (uiStatus->displaySP > playerData->specialBarsFilled) {
+                uiStatus->displaySP = playerData->specialBarsFilled;
+            }
+        } else {
+            uiStatus->displaySP -= 10;
+            if (uiStatus->displaySP < playerData->specialBarsFilled) {
+                uiStatus->displaySP = playerData->specialBarsFilled;
+            }
+        }
+    }
+
+    if (uiStatus->disabled) {
+        return;
+    }
+
+    if (uiStatus->unk_45[1] && uiStatus->hidden && playerStatus->inputDisabledCount == 0) {
+        uiStatus->showTimer = 42;
+        uiStatus->hidden = FALSE;
+        uiStatus->unk_3B[0] = 0;
+    }
+
+    switch (uiStatus->hidden) {
+        case 0:
+            uiStatus->drawPosY += 10;
+            if (uiStatus->drawPosY >= 18) {
+                uiStatus->drawPosY = 18;
+                if (uiStatus->unk_3B[1] && uiStatus->unk_3B[0] && playerStatus->actionState != ACTION_STATE_IDLE) {
+                    uiStatus->showTimer = 0;
+                }
+                if (uiStatus->showTimer != 0) {
+                    uiStatus->showTimer--;
+                } else {
+                    if (!uiStatus->ignoreChanges) {
+                        if (!uiStatus->unk_3B[0] || playerStatus->actionState != ACTION_STATE_IDLE) {
+                            if (gGameStatusPtr->isBattle == 0) {
+                                uiStatus->hidden = 1;
+                                uiStatus->showTimer = 0;
+                                uiStatus->unk_3B[1] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        case 1:
+            uiStatus->drawPosY -= 5;
+            if (uiStatus->drawPosY < -100) {
+                uiStatus->drawPosY = -100;
+                if (!uiStatus->ignoreChanges) {
+                    if (playerStatus->actionState != ACTION_STATE_IDLE) {
+                        uiStatus->showTimer = 0;
+                    } else if (playerStatus->flags & (PS_FLAG_NO_STATIC_COLLISION | PS_FLAG_INPUT_DISABLED)) {
+                        uiStatus->showTimer = 0;
+                    } else {
+                        uiStatus->showTimer++;
+                    }
+
+                    if (uiStatus->showTimer >= 240 && gGameStatusPtr->isBattle == 0) {
+                        uiStatus->showTimer = 210;
+                        uiStatus->hidden = 0;
+                        uiStatus->unk_3B[0] = 1;
+                        uiStatus->unk_3B[1] = 1;
+                    }
+                }
+            }
+            break;
+    }
+
+    gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, 12, 20, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 20);
+    x = uiStatus->drawPosX;
+    y = uiStatus->drawPosY;
+    draw_box(0, WINDOW_STYLE_5, x,       y, 0, 174, 35, 255, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, NULL, NULL, NULL, SCREEN_WIDTH, SCREEN_HEIGHT, NULL);
+    draw_box(0, WINDOW_STYLE_6, x + 174, y, 0, 122, 25, 255, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, NULL, NULL, NULL, SCREEN_WIDTH, SCREEN_HEIGHT, NULL);
+
+    if (uiStatus->hpBlinkTimer > 0) {
+        uiStatus->hpBlinkTimer--;
+        if (uiStatus->hpBlinkTimer == 0) {
+            status_menu_stop_blinking_hp();
+        }
+    }
+
+    showStat = TRUE;
+    if (uiStatus->hpBlinking) {
+        if (uiStatus->hpBlinkCounter > 8) {
+            showStat = FALSE;
+            if (uiStatus->hpBlinkCounter > 12) {
+                uiStatus->hpBlinkCounter = 0;
+                showStat = TRUE;
+            }
+        }
+        uiStatus->hpBlinkCounter++;
+    }
+
+    if (showStat) {
+        id = uiStatus->hpIconIndices[0];
+        x = uiStatus->drawPosX + 22;
+        y = uiStatus->drawPosY + 13;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        id = uiStatus->hpIconIndices[1];
+        x = uiStatus->drawPosX + 37;
+        y = uiStatus->drawPosY + 13;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        x = uiStatus->drawPosX + 48;
+        y = uiStatus->drawPosY + 8;
+        status_menu_draw_stat(uiStatus->iconIndex8, x, y, uiStatus->displayHP, playerData->curMaxHP);
+    }
+
+    if (uiStatus->fpBlinkTimer > 0) {
+        uiStatus->fpBlinkTimer--;
+        if (uiStatus->fpBlinkTimer == 0) {
+            status_menu_stop_blinking_fp();
+        }
+    }
+
+    showStat = TRUE;
+    if (uiStatus->fpBlinking) {
+        if (uiStatus->fpBlinkCounter > 8) {
+            showStat = FALSE;
+            if (uiStatus->fpBlinkCounter > 12) {
+                uiStatus->fpBlinkCounter = 0;
+                showStat = TRUE;
+            }
+        }
+        uiStatus->fpBlinkCounter++;
+    }
+
+    if (showStat) {
+        id = uiStatus->fpIconIndices[0];
+        x = uiStatus->drawPosX + 110;
+        y = uiStatus->drawPosY + 13;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        id = uiStatus->fpIconIndices[1];
+        x = uiStatus->drawPosX + 125;
+        y = uiStatus->drawPosY + 13;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        x = uiStatus->drawPosX + 136;
+        y = uiStatus->drawPosY + 8;
+        status_menu_draw_stat(uiStatus->iconIndex9, x, y, uiStatus->displayFP, playerData->curMaxFP);
+    }
+
+    if (playerData->level >= 27) {
+        playerData->starPoints = 0;
+    }
+
+    showStat = TRUE;
+    if (uiStatus->starpointsBlinking) {
+        if (uiStatus->starpointsBlinkCounter > 8) {
+            if (uiStatus->starpointsBlinkCounter <= 12) {
+                showStat = FALSE;
+            } else {
+                uiStatus->starpointsBlinkCounter = 0;
+            }
+        }
+        uiStatus->starpointsBlinkCounter++;
+    }
+
+    if (showStat) {
+        id = uiStatus->starpointsIconIndex;
+        x = uiStatus->drawPosX + 195;
+        y = uiStatus->drawPosY + 14;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        id = uiStatus->starpointsShineIconIndex;
+        x = uiStatus->drawPosX + 195;
+        y = uiStatus->drawPosY + 9;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        x = uiStatus->drawPosX + 200;
+        y = uiStatus->drawPosY + 8;
+        status_menu_draw_number(uiStatus->iconIndexA, x, y, playerData->starPoints, 2);
+    }
+
+    if (uiStatus->coinsBlinkTimer > 0) {
+        uiStatus->coinsBlinkTimer--;
+        if (uiStatus->coinsBlinkTimer == 0) {
+            status_menu_stop_blinking_coins();
+        }
+    }
+
+    showStat = TRUE;
+    if (uiStatus->coinsBlinking) {
+        if (uiStatus->coinsBlinkCounter > 8) {
+            showStat = FALSE;
+            if (uiStatus->coinsBlinkCounter > 12) {
+                uiStatus->coinsBlinkCounter = 0;
+                showStat = TRUE;
+            }
+        }
+        uiStatus->coinsBlinkCounter++;
+    }
+
+    if (showStat) {
+        id = uiStatus->coinIconIndex;
+        x = uiStatus->drawPosX + 244;
+        y = uiStatus->drawPosY + 14;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        id = uiStatus->coinSparkleIconIndex;
+        x = uiStatus->drawPosX + 244;
+        y = uiStatus->drawPosY + 14;
+        hud_element_set_render_pos(id, x, y);
+        hud_element_draw_next(id);
+
+        x = uiStatus->drawPosX + 247;
+        y = uiStatus->drawPosY + 8;
+        status_menu_draw_number(uiStatus->iconIndexB, x, y, uiStatus->displayCoins, 3);
+    }
+
+    id = uiStatus->starIconIndex;
+    showStat = TRUE;
+    if (uiStatus->spBlinking) {
+        if (uiStatus->spBlinkCounter > 5) {
+            if (uiStatus->spBlinkCounter <= 8) {
+                showStat = FALSE;
+            } else {
+                uiStatus->spBlinkCounter = 0;
+                showStat = TRUE;
+            }
+        }
+        uiStatus->spBlinkCounter++;
+    }
+
+    x = uiStatus->drawPosX + 20;
+    y = uiStatus->drawPosY + 28;
+
+    spBars = uiStatus->displaySP / 256;
+    limit = uiStatus->displaySP % 256;
+    limit /= 32;
+    limit += spBars * 8;
+    if (uiStatus->unk_57 == 1) {
+        spBars = playerData->specialBarsFilled / 256;
+        limit = playerData->specialBarsFilled % 256;
+        limit = limit / 32;
+        limit += spBars * 8;
+        func_800F0CB0(0, x + limit * 25 / 10, y, 1.0f);
+        uiStatus->unk_57 = 2;
+    }
+
+    sp54 = FALSE;
+    if (uiStatus->unk_57 != 0) {
+        if (uiStatus->unk_58 != 0) {
+            uiStatus->unk_58--;
+        } else {
+            uiStatus->unk_57 = 0;
+        }
+        if ((uiStatus->unk_58 / 5) & 1) {
+            sp54 = TRUE;
+        }
+        maxStarPower = uiStatus->unk_59; // required to match
+        s7 = uiStatus->unk_59 % 8;
+        s7 += uiStatus->unk_59 / 8 * 8;
+    } else {
+        s7 = limit;
+    }
+
+    i = 0;
+    sp50 = 0;
+    s1 = 0;
+
+    if (uiStatus->spBlinking) {
+        if (!showStat) {
+            s32 limit = uiStatus->spBarsToBlink * 8;
+            do {} while (0);
+            if (sp50 < limit) {
+                while (TRUE) {
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++; s1++; if (i >= limit) { break; }
+                    i++;
+                    s1 = 0;
+                    sp50++;
+                    if (i >= limit) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    while (TRUE) {
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[0], y - 2);
+        hud_element_draw_next(id);
+
+        s1++;
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[1], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[2], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[3], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[4], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[5], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPIncrementHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[6], y - 2);
+        hud_element_draw_next(id);
+        s1++;
+
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+        i++;
+        hud_element_set_script(id, SPStarHudScripts[sp50]);
+        hud_element_set_render_pos(id, x + 12 + sp50 * 20, y);
+        hud_element_draw_next(id);
+
+        s1 = 0;
+        sp50++;
+        if (i >= limit || i >= s7 && !sp54) {
+            break;
+        }
+    }
+
+    maxStarPower = playerData->maxStarPower;
+    limit = maxStarPower * 8;
+    while (TRUE) {
+        if (i >= limit) {
+            break;
+        }
+        if (s1 == 0) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 1;
+        }
+        if (s1 == 1) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 2;
+        }
+        if (s1 == 2) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 3;
+        }
+        if (s1 == 3) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 4;
+        }
+        if (s1 == 4) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 5;
+        }
+        if (s1 == 5) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 6;
+        }
+        if (s1 == 6) {
+            i++;
+            hud_element_set_script(id, &HES_StatusSPEmptyIncrement);
+            hud_element_set_render_pos(id, x + sp50 * 20 + StatusMenuSPIncrementOffsets[s1], y - 2);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+            s1 = 7;
+        }
+
+        if (s1 == 7) {
+            i++;
+            hud_element_set_script(id, &HES_StatusStarEmpty);
+            hud_element_set_render_pos(id, x + 12 + sp50 * 20, y);
+            hud_element_draw_next(id);
+            if (i >= limit) {
+                break;
+            }
+        }
+        s1 = 0;
+        sp50++;
+    }
+
+    func_800F0D80();
+    func_800F102C();
+}
 
 void coin_counter_draw_content(UNK_TYPE arg0, s32 posX, s32 posY) {
     UiStatus* uiStatus = &gUIStatus;
@@ -549,7 +1096,7 @@ void coin_counter_draw_content(UNK_TYPE arg0, s32 posX, s32 posY) {
     hud_element_set_render_pos(iconIndex, posX + 15, posY + 11);
     hud_element_draw_clipped(iconIndex);
 
-    draw_number(uiStatus->displayCoins, posX + 58, posY + 4, 1, 10, 255, 3);
+    draw_number(uiStatus->displayCoins, posX + 58, posY + 4, DRAW_NUMBER_CHARSET_THIN, MSG_PAL_STANDARD, 255, DRAW_NUMBER_STYLE_MONOSPACE | DRAW_NUMBER_STYLE_ALIGN_RIGHT);
 }
 
 void update_coin_counter(void) {
@@ -576,7 +1123,7 @@ void update_coin_counter(void) {
         if ((uiStatus->displayCoins == playerData->coins) || (uiStatus->unk_6C[0] <= 30)) {
             uiStatus->unk_6C[0] -= 1;
             if (uiStatus->unk_6C[0] == 0) {
-                set_window_update(WINDOW_ID_20, (s32)basic_hidden_window_update);
+                set_window_update(WINDOW_ID_CURRENCY_COUNTER, (s32)basic_hidden_window_update);
                 uiStatus->unk_6C[1] = 15;
                 D_8010CD10 = 0;
                 D_8010CD12 = 1;
@@ -597,7 +1144,7 @@ void show_coin_counter(void) {
     s32 index;
 
     if ((D_8010CD10 != 0) || (D_8010CD12 != 0)) {
-        set_window_update(WINDOW_ID_20, WINDOW_UPDATE_HIDE);
+        set_window_update(WINDOW_ID_CURRENCY_COUNTER, WINDOW_UPDATE_HIDE);
         if (uiStatus->iconIndex12 > -1) {
             hud_element_free(uiStatus->iconIndex10);
             hud_element_free(uiStatus->iconIndex11);
@@ -610,15 +1157,15 @@ void show_coin_counter(void) {
     }
 
     if (uiStatus->unk_6C[0] == 0) {
-        set_window_properties(WINDOW_ID_20, 32, 164, 64, 20, 0x15, coin_counter_draw_content, 0, -1);
-        set_window_update(WINDOW_ID_20, (s32)basic_window_update);
+        set_window_properties(WINDOW_ID_CURRENCY_COUNTER, 32, 164, 64, 20, WINDOW_PRIORITY_21, coin_counter_draw_content, 0, -1);
+        set_window_update(WINDOW_ID_CURRENCY_COUNTER, (s32)basic_window_update);
         index = hud_element_create(&HES_MenuTimes);
         uiStatus->iconIndex10 = index;
-        hud_element_set_flags(index, HUD_ELEMENT_FLAGS_80);
+        hud_element_set_flags(index, HUD_ELEMENT_FLAG_80);
         hud_element_set_tint(index, 255, 255, 255);
         index = hud_element_create(&HES_StatusCoin);
         uiStatus->iconIndex11 = index;
-        hud_element_set_flags(index, HUD_ELEMENT_FLAGS_80);
+        hud_element_set_flags(index, HUD_ELEMENT_FLAG_80);
         hud_element_set_tint(index, 255, 255, 255);
         uiStatus->unk_6C[0] = 0;
 
@@ -626,7 +1173,7 @@ void show_coin_counter(void) {
             uiStatus->unk_6C[2] = uiStatus->ignoreChanges;
         }
 
-        uiStatus->ignoreChanges = 1;
+        uiStatus->ignoreChanges = TRUE;
         D_8010CD10 = 1;
     }
 }
@@ -667,7 +1214,7 @@ void open_status_menu_long(void) {
 
     if (uiStatus->hidden) {
         uiStatus->showTimer = 210;
-        uiStatus->hidden = 0;
+        uiStatus->hidden = FALSE;
         uiStatus->unk_3B[0] = 1;
     }
 }
@@ -677,7 +1224,7 @@ void open_status_menu_short(void) {
 
     if (uiStatus->hidden) {
         uiStatus->showTimer = 105;
-        uiStatus->hidden = 0;
+        uiStatus->hidden = FALSE;
         uiStatus->unk_3B[0] = 1;
     }
 }
@@ -685,8 +1232,8 @@ void open_status_menu_short(void) {
 void close_status_menu(void) {
     UiStatus* uiStatus = &gUIStatus;
 
-    if (uiStatus->hidden != 1) {
-        uiStatus->hidden = 1;
+    if (uiStatus->hidden != TRUE) {
+        uiStatus->hidden = TRUE;
         uiStatus->showTimer = 0;
         uiStatus->unk_3B[0] = 1;
     }
@@ -696,9 +1243,9 @@ void func_800E97E4(void) {
     UiStatus* uiStatus = &gUIStatus;
 
     uiStatus->drawPosY = -100;
-    uiStatus->ignoreChanges = 0;
+    uiStatus->ignoreChanges = FALSE;
     uiStatus->showTimer = 0;
-    uiStatus->hidden = 1;
+    uiStatus->hidden = TRUE;
     uiStatus->unk_3B[0] = 0;
     uiStatus->unk_3B[1] = 0;
 }
@@ -708,7 +1255,7 @@ void func_800E9810(void) {
 
     uiStatus->showTimer = 210;
     uiStatus->drawPosY = 0;
-    uiStatus->ignoreChanges = 0;
+    uiStatus->ignoreChanges = FALSE;
     uiStatus->hidden = 0;
     uiStatus->unk_3B[0] = 1;
     uiStatus->unk_3B[1] = 0;
@@ -736,19 +1283,19 @@ s32 func_800E9860(void) {
     return ret;
 }
 
-void func_800E9894(void) {
-    gUIStatus.ignoreChanges = 1;
+void status_menu_ignore_changes(void) {
+    gUIStatus.ignoreChanges = TRUE;
 }
 
 void func_800E98A8(void) {
     UiStatus* uiStatus = &gUIStatus;
 
-    uiStatus->ignoreChanges = 1;
+    uiStatus->ignoreChanges = TRUE;
     uiStatus->drawPosY = 18;
 }
 
-void func_800E98C4(void) {
-    gUIStatus.ignoreChanges = 0;
+void status_menu_respond_to_changes(void) {
+    gUIStatus.ignoreChanges = FALSE;
 }
 
 s32 func_800E98D4(void) {
@@ -857,7 +1404,7 @@ void status_menu_stop_blinking_sp(void) {
     }
 }
 
-void status_menu_start_blinking_sp_bars(s8 numBarsToBlink) {
+void status_menu_start_blinking_sp_bars(s32 numBarsToBlink) {
     UiStatus* uiStatus = &gUIStatus;
 
     uiStatus->spBarsToBlink = numBarsToBlink;
@@ -920,7 +1467,7 @@ void reset_status_menu(void) {
     uiStatus->hidden = 0;
     uiStatus->showTimer = 210;
     uiStatus->unk_3B[0] = 0;
-    uiStatus->ignoreChanges = 0;
+    uiStatus->ignoreChanges = FALSE;
     uiStatus->unk_45[0] = 0;
     uiStatus->unk_45[1] = 0;
     uiStatus->hpBlinking = 0;
@@ -945,11 +1492,11 @@ void reset_status_menu(void) {
     uiStatus->displaySP = playerData->specialBarsFilled;
     uiStatus->unk_3B[1] = 0;
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < ARRAY_COUNT(uiStatus->hpIconIndices); i++) {
         copy_world_hud_element_ref_to_battle(uiStatus->hpIconIndices[i], uiStatus->hpIconIndices[i]);
     }
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < ARRAY_COUNT(uiStatus->fpIconIndices); i++) {
         copy_world_hud_element_ref_to_battle(uiStatus->fpIconIndices[i], uiStatus->fpIconIndices[i]);
     }
 
@@ -964,17 +1511,14 @@ void reset_status_menu(void) {
     copy_world_hud_element_ref_to_battle(uiStatus->starIconIndex, uiStatus->starIconIndex);
 }
 
-// Weird order of loading stuff
-#ifdef NON_EQUIVALENT
 s32 is_ability_active(s32 ability) {
     PlayerData* playerData = &gPlayerData;
     s32 attackFXArray[6];
-    s32 abilityMoveID;
     s32 ret;
     s32 attackFXIndex;
-    s32 i;
     s32 badgeMoveID;
     u8* moveID;
+    s32 i;
 
     ret = 0;
     attackFXIndex = 0;
@@ -983,7 +1527,7 @@ s32 is_ability_active(s32 ability) {
         attackFXArray[i] = 0;
     }
 
-    if (gGameStatusPtr->peachFlags & 1) {
+    if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH) {
         return 0;
     }
 
@@ -997,204 +1541,304 @@ s32 is_ability_active(s32 ability) {
 
         switch (ability) {
             case ABILITY_DODGE_MASTER:
-                abilityMoveID = 0x4c;
+                if (badgeMoveID == MOVE_DODGE_MASTER) {
+                    ret++;
+                }
                 break;
             case ABILITY_SPIKE_SHIELD:
-                abilityMoveID = 0x40;
+                if (badgeMoveID == MOVE_SPIKE_SHIELD) {
+                    ret++;
+                }
                 break;
             case ABILITY_FIRST_ATTACK:
-                abilityMoveID = 0x4d;
+                if (badgeMoveID == MOVE_FIRST_ATTACK) {
+                    ret++;
+                }
                 break;
             case ABILITY_HP_PLUS:
-                abilityMoveID = 0x52;
+                if (badgeMoveID == MOVE_HP_PLUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_DOUBLE_DIP:
-                abilityMoveID = 0x35;
+                if (badgeMoveID == MOVE_DOUBLE_DIP) {
+                    ret++;
+                }
                 break;
             case ABILITY_MYSTERY_SCROLL:
-                if (badgeMoveID == 0x53) {
+                if (badgeMoveID == MOVE_MYSTERY_SCROLL) {
                     ret++;
                 }
                 if (playerData->hasActionCommands) {
                     ret++;
                 }
-                continue;
+                break;
             case ABILITY_FIRE_SHIELD:
-                abilityMoveID = 0x41;
+                if (badgeMoveID == MOVE_FIRE_SHIELD) {
+                    ret++;
+                }
                 break;
             case ABILITY_PRETTY_LUCKY:
-                abilityMoveID = 0x42;
+                if (badgeMoveID == MOVE_PRETTY_LUCKY) {
+                    ret++;
+                }
                 break;
             case ABILITY_HP_DRAIN:
-                abilityMoveID = 0x5a;
+                if (badgeMoveID == MOVE_HP_DRAIN) {
+                    ret++;
+                }
                 break;
             case ABILITY_ALL_OR_NOTHING:
-                abilityMoveID = 0x3c;
+                if (badgeMoveID == MOVE_ALLOR_NOTHING) {
+                    ret++;
+                }
                 break;
             case ABILITY_SLOW_GO:
-                abilityMoveID = 0x4e;
+                if (badgeMoveID == MOVE_SLOW_GO) {
+                    ret++;
+                }
                 break;
             case ABILITY_FP_PLUS:
-                abilityMoveID = 0x5b;
+                if (badgeMoveID == MOVE_FP_PLUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_ICE_POWER:
-                abilityMoveID = 0x3d;
+                if (badgeMoveID == MOVE_ICE_POWER) {
+                    ret++;
+                }
                 break;
             case ABILITY_FEELING_FINE:
-                abilityMoveID = 0x43;
+                if (badgeMoveID == MOVE_FEELING_FINE) {
+                    ret++;
+                }
                 break;
             case ABILITY_ATTACK_FX:
-                if (badgeMoveID == 0x54) {
+                if (badgeMoveID == MOVE_ATTACK_FX_A) {
                     attackFXArray[attackFXIndex++] = 1;
                     ret = -1;
                 }
-                if (badgeMoveID == 0x55) {
+                if (badgeMoveID == MOVE_ATTACK_FX_D) {
                     attackFXArray[attackFXIndex++] = 2;
                     ret = -1;
                 }
-                if (badgeMoveID == 0x56) {
+                if (badgeMoveID == MOVE_ATTACK_FX_B) {
                     attackFXArray[attackFXIndex++] = 3;
                     ret = -1;
                 }
-                if (badgeMoveID == 0x57) {
+                if (badgeMoveID == MOVE_ATTACK_FX_E) {
                     attackFXArray[attackFXIndex++] = 4;
                     ret = -1;
                 }
-                if (badgeMoveID == 0x58) {
+                if (badgeMoveID == MOVE_ATTACK_FX_C) {
                     attackFXArray[attackFXIndex++] = 5;
                     ret = -1;
                 }
-                if (badgeMoveID == 0x59) {
+                if (badgeMoveID == MOVE_ATTACK_FX_F) {
                     attackFXArray[attackFXIndex++] = 6;
                     ret = -1;
                 }
-                continue;
+                break;
             case ABILITY_MONEY_MONEY:
-                abilityMoveID = 0x5c;
+                if (badgeMoveID == MOVE_MONEY_MONEY) {
+                    ret++;
+                }
                 break;
             case ABILITY_CHILL_OUT:
-                abilityMoveID = 0x5d;
+                if (badgeMoveID == MOVE_CHILL_OUT_BADGE) {
+                    ret++;
+                }
                 break;
             case ABILITY_HAPPY_HEART:
-                abilityMoveID = 0x5e;
+                if (badgeMoveID == MOVE_HAPPY_HEART) {
+                    ret++;
+                }
                 break;
             case ABILITY_ZAP_TAP:
-                abilityMoveID = 0x44;
+                if (badgeMoveID == MOVE_ZAP_TAP) {
+                    ret++;
+                }
                 break;
             case ABILITY_MEGA_RUSH:
-                abilityMoveID = 0x5f;
+                if (badgeMoveID == MOVE_MEGA_RUSH) {
+                    ret++;
+                }
                 break;
             case ABILITY_BERSERKER:
-                abilityMoveID = 0x60;
+                if (badgeMoveID == MOVE_BERSERKER) {
+                    ret++;
+                }
                 break;
             case ABILITY_RIGHT_ON:
-                abilityMoveID = 0x4f;
+                if (badgeMoveID == MOVE_RIGHT_ON) {
+                    ret++;
+                }
                 break;
             case ABILITY_RUNAWAY_PAY:
-                abilityMoveID = 0x61;
+                if (badgeMoveID == MOVE_RUNAWAY_PAY) {
+                    ret++;
+                }
                 break;
             case ABILITY_FLOWER_SAVER:
-                abilityMoveID = 0x62;
+                if (badgeMoveID == MOVE_FLOWER_SAVER) {
+                    ret++;
+                }
                 break;
             case ABILITY_PAY_OFF:
-                abilityMoveID = 99;
+                if (badgeMoveID == MOVE_PAY_OFF) {
+                    ret++;
+                }
                 break;
             case ABILITY_DEFEND_PLUS:
-                abilityMoveID = 0x45;
+                if (badgeMoveID == MOVE_DEFEND_PLUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_POWER_PLUS:
-                abilityMoveID = 0x3b;
+                if (badgeMoveID == MOVE_POWER_PLUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_REFUND:
-                abilityMoveID = 0x6e;
+                if (badgeMoveID == MOVE_REFUND) {
+                    ret++;
+                }
                 break;
             case ABILITY_POWER_RUSH:
-                abilityMoveID = 100;
+                if (badgeMoveID == MOVE_POWER_RUSH) {
+                    ret++;
+                }
                 break;
             case ABILITY_CRAZY_HEART:
-                abilityMoveID = 0x65;
+                if (badgeMoveID == MOVE_CRAZY_HEART) {
+                    ret++;
+                }
                 break;
             case ABILITY_LAST_STAND:
-                abilityMoveID = 0x46;
+                if (badgeMoveID == MOVE_LAST_STAND) {
+                    ret++;
+                }
                 break;
             case ABILITY_CLOSE_CALL:
-                abilityMoveID = 0x47;
+                if (badgeMoveID == MOVE_CLOSE_CALL) {
+                    ret++;
+                }
                 break;
             case ABILITY_P_UP_D_DOWN:
-                abilityMoveID = 0x3e;
+                if (badgeMoveID == MOVE_P_UP_D_DOWN) {
+                    ret++;
+                }
                 break;
             case ABILITY_LUCKY_DAY:
-                abilityMoveID = 0x48;
+                if (badgeMoveID == MOVE_LUCKY_DAY) {
+                    ret++;
+                }
                 break;
             case ABILITY_MEGA_HP_DRAIN:
-                abilityMoveID = 0x66;
+                if (badgeMoveID == MOVE_MEGA_HP_DRAIN) {
+                    ret++;
+                }
                 break;
             case ABILITY_P_DOWN_D_UP:
-                abilityMoveID = 0x49;
+                if (badgeMoveID == MOVE_P_DOWN_D_UP) {
+                    ret++;
+                }
                 break;
             case ABILITY_FLOWER_FANATIC:
-                abilityMoveID = 0x67;
+                if (badgeMoveID == MOVE_FLOWER_FANATIC) {
+                    ret++;
+                }
                 break;
             case ABILITY_SPEEDY_SPIN:
-                abilityMoveID = 0x6d;
+                if (badgeMoveID == MOVE_SPEEDY_SPIN) {
+                    ret++;
+                }
                 break;
             case ABILITY_SPIN_ATTACK:
-                abilityMoveID = 0x6a;
+                if (badgeMoveID == MOVE_SPIN_ATTACK) {
+                    ret++;
+                }
                 break;
             case ABILITY_I_SPY:
-                abilityMoveID = 0x6c;
+                if (badgeMoveID == MOVE_I_SPY) {
+                    ret++;
+                }
                 break;
             case ABILITY_BUMP_ATTACK:
-                abilityMoveID = 0x50;
+                if (badgeMoveID == MOVE_BUMP_ATTACK) {
+                    ret++;
+                }
                 break;
             case ABILITY_QUICK_CHANGE:
-                abilityMoveID = 0x38;
+                if (badgeMoveID == MOVE_QUICK_CHANGE) {
+                    ret++;
+                }
                 break;
             case ABILITY_HEART_FINDER:
-                abilityMoveID = 0x68;
+                if (badgeMoveID == MOVE_HEART_FINDER) {
+                    ret++;
+                }
                 break;
             case ABILITY_FLOWER_FINDER:
-                abilityMoveID = 0x69;
+                if (badgeMoveID == MOVE_FLOWER_FINDER) {
+                    ret++;
+                }
                 break;
             case ABILITY_DIZZY_ATTACK:
-                abilityMoveID = 0x6b;
+                if (badgeMoveID == MOVE_DIZZY_ATTACK) {
+                    ret++;
+                }
                 break;
             case ABILITY_FINAL_GOOMPA:
-                abilityMoveID = 0x6f;
+                if (badgeMoveID == MOVE_UNUSED_FINAL_GOOMPA) {
+                    ret++;
+                }
                 break;
-            case ABILITY_FINAL_BOMBOMB:
-                abilityMoveID = 0x70;
+            case ABILITY_FINAL_BOBOMB:
+                if (badgeMoveID == MOVE_UNUSED_FINAL_BOBOMB) {
+                    ret++;
+                }
                 break;
             case ABILITY_DEEP_FOCUS:
-                abilityMoveID = 0x71;
+                if (badgeMoveID == MOVE_DEEP_FOCUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_SUPER_FOCUS:
-                abilityMoveID = 0x72;
+                if (badgeMoveID == MOVE_SUPER_FOCUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_KAIDEN:
-                abilityMoveID = 0x73;
+                if (badgeMoveID == MOVE_KAIDEN) {
+                    ret++;
+                }
                 break;
             case ABILITY_DAMAGE_DODGE:
-                abilityMoveID = 0x33;
+                if (badgeMoveID == MOVE_DAMAGE_DODGE) {
+                    ret++;
+                }
                 break;
             case ABILITY_HAPPY_FLOWER:
-                abilityMoveID = 0x74;
+                if (badgeMoveID == MOVE_HAPPY_FLOWER) {
+                    ret++;
+                }
                 break;
             case ABILITY_GROUP_FOCUS:
-                abilityMoveID = 0x75;
+                if (badgeMoveID == MOVE_GROUP_FOCUS) {
+                    ret++;
+                }
                 break;
             case ABILITY_PEEKABOO:
-                abilityMoveID = 0x76;
+                if (badgeMoveID == MOVE_PEEKABOO) {
+                    ret++;
+                }
                 break;
             case ABILITY_HEALTHY_HEALTHY:
-                abilityMoveID = 0x4a;
+                if (badgeMoveID == MOVE_HEALTHY_HEALTHY) {
+                    ret++;
+                }
                 break;
-            default:
-                do { } while (0);
-                continue;
-        }
-        if (badgeMoveID == abilityMoveID) {
-            ret++;
         }
     }
 
@@ -1203,9 +1847,6 @@ s32 is_ability_active(s32 ability) {
     }
     return ret;
 }
-#else
-INCLUDE_ASM(s32, "80850_len_3060", is_ability_active);
-#endif
 
 s32 is_partner_ability_active(s32 ability) {
     return 0;
@@ -1255,8 +1896,8 @@ s32 add_star_pieces(s32 amt) {
     s32 newSP = playerData->starPieces;
 
     newSP += amt;
-    if (newSP > 222) {
-        newSP = 222;
+    if (newSP > MAX_STAR_PIECES) {
+        newSP = MAX_STAR_PIECES;
     }
     if (newSP < 0) {
         newSP = 0;
@@ -1312,7 +1953,7 @@ s32 recover_fp(s32 amt) {
     s32 ret;
 
     if (amt == -2) {
-        playerData->curMaxFP += 1;
+        playerData->curMaxFP++;
         playerData->curFP = playerData->curMaxFP;
         return playerData->curMaxFP;
     }
@@ -1334,7 +1975,7 @@ s32 recover_hp(s32 amt) {
     s32 ret;
 
     if (amt == -2) {
-        playerData->curMaxHP += 1;
+        playerData->curMaxHP++;
         playerData->curHP = playerData->curMaxHP;
         return playerData->curMaxHP;
     }

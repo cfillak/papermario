@@ -1,13 +1,13 @@
 #include "battle/battle.h"
 
-ApiStatus N(UnkActorSizeFunc)(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(UnkActorSizeFunc)) {
     Actor* actor = get_actor(script->owner1.actorID);
     Actor* targetActor = get_actor(actor->targetActorID);
     s16 targetActorSizeX;
     u8 targetActorSizeY;
     u8 targetActorLargerDimension;
 
-    if (!(targetActor->flags & ACTOR_FLAG_HP_OFFSET_BELOW)) {
+    if (!(targetActor->flags & ACTOR_FLAG_UPSIDE_DOWN)) {
         script->varTable[1] += targetActor->size.y / 2;
         script->varTable[1] += targetActor->size.y / 4;
     } else {

@@ -1,6 +1,6 @@
 from segtypes.n64.segment import N64Segment
+from segtypes.n64.palette import iter_in_groups
 from util.color import unpack_color
-from util.iter import iter_in_groups
 from util import options
 import png
 
@@ -28,7 +28,7 @@ class N64SegPm_charset_palettes(N64Segment):
             self.palettes.append(palette)
 
     def split(self, rom_bytes):
-        fs_dir = options.get_asset_path() / self.dir / self.name / "palette"
+        fs_dir = options.opts.asset_path / self.dir / self.name / "palette"
         fs_dir.mkdir(parents=True, exist_ok=True)
 
         for i, palette in enumerate(self.palettes):
@@ -41,7 +41,7 @@ class N64SegPm_charset_palettes(N64Segment):
     def get_linker_entries(self):
         from segtypes.linker_entry import LinkerEntry
 
-        fs_dir = options.get_asset_path() / self.dir / self.name / "palette"
+        fs_dir = options.opts.asset_path / self.dir / self.name / "palette"
 
         return [LinkerEntry(
             self,

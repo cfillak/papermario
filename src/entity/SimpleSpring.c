@@ -15,14 +15,14 @@ void entity_ScriptSpring_idle(Entity* entity) {
 
     if (playerStatus->actionState != ACTION_STATE_RIDE && (entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_FLOOR)) {
         playerStatus->camResetDelay = 5;
-        playerStatus->flags &= ~PS_FLAGS_FALLING;
-        playerStatus->flags |= PS_FLAGS_800000;
+        playerStatus->flags &= ~PS_FLAG_FALLING;
+        playerStatus->flags |= PS_FLAG_SCRIPTED_FALL;
         play_model_animation(entity->virtualModelIndex, Entity_ScriptSpring_AnimLaunch);
         if (entity_start_script(entity)) {
             set_action_state(ACTION_STATE_USE_SPRING);
         }
         exec_entity_commandlist(entity);
-        sfx_play_sound_at_position(SOUND_2086, 0, entity->position.x, entity->position.y, entity->position.z);
+        sfx_play_sound_at_position(SOUND_2086, SOUND_SPACE_MODE_0, entity->position.x, entity->position.y, entity->position.z);
     }
 }
 
@@ -37,7 +37,7 @@ void entity_SimpleSpring_idle(Entity* entity) {
         play_model_animation(entity->virtualModelIndex, Entity_SimpleSpring_AnimLaunch);
         entity_start_script(entity);
         exec_entity_commandlist(entity);
-        sfx_play_sound_at_position(SOUND_2086, 0, entity->position.x, entity->position.y, entity->position.z);
+        sfx_play_sound_at_position(SOUND_2086, SOUND_SPACE_MODE_0, entity->position.x, entity->position.y, entity->position.z);
         disable_player_input();
         playerStatus->currentSpeed = 0;
     }
@@ -87,7 +87,7 @@ DmaEntry Entity_ScriptSpring_dma[] = { ENTITY_ROM(ScriptSpring_gfx), ENTITY_ROM(
 DmaEntry Entity_SimpleSpring_dma[] = { ENTITY_ROM(SimpleSpring_gfx), ENTITY_ROM(SimpleSpring_anim) };
 
 EntityBlueprint Entity_ScriptSpring = {
-    .flags = ENTITY_FLAGS_ALWAYS_FACE_CAMERA | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_ALWAYS_FACE_CAMERA | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = 0,
     .renderCommandList = Entity_ScriptSpring_AnimIdle,
     .modelAnimationNodes = Entity_ScriptSpring_Mesh,
@@ -100,7 +100,7 @@ EntityBlueprint Entity_ScriptSpring = {
 };
 
 EntityBlueprint Entity_SimpleSpring = {
-    .flags = ENTITY_FLAGS_ALWAYS_FACE_CAMERA | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_ALWAYS_FACE_CAMERA | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = sizeof(SimpleSpringData),
     .renderCommandList = Entity_SimpleSpring_AnimIdle,
     .modelAnimationNodes = Entity_SimpleSpring_Mesh,

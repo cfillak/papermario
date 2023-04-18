@@ -70,7 +70,7 @@ void entity_Chest_adjust_camera(Entity* entity) {
         script = &Entity_Chest_AdjustCam_KZN;
     }
     if (script != NULL) {
-        start_script(script, EVT_PRIORITY_A, EVT_FLAG_20);
+        start_script(script, EVT_PRIORITY_A, EVT_FLAG_RUN_IMMEDIATELY);
     }
 }
 
@@ -85,11 +85,11 @@ void entity_Chest_reset_camera(Entity* entity) {
     } else {
         script = &Entity_Chest_ResetCam_Default;
     }
-    start_script(script, EVT_PRIORITY_A, EVT_FLAG_20);
+    start_script(script, EVT_PRIORITY_A, EVT_FLAG_RUN_IMMEDIATELY);
 }
 
 void entity_Chest_setupGfx(s32 entityIndex) {
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     ChestData* data = entity->dataBuf.chest;
     Matrix4f sp18;
@@ -104,13 +104,13 @@ void entity_Chest_setupGfx(s32 entityIndex) {
     gfx = ENTITY_ADDR(entity, Gfx*, Entity_Chest_RenderLid);
     gSPDisplayList(gfxPos++, gfx);
     gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_Chest_check_opened(Entity* entity) {
     ChestData* data = entity->dataBuf.chest;
     if ((data->gameFlagIndex != 0xFFFF) && (get_global_flag(data->gameFlagIndex) != 0)) {
-        entity->flags |= ENTITY_FLAGS_4000;
+        entity->flags |= ENTITY_FLAG_4000;
         data->itemID = -1;
         data->lidAngle = -28.7f;
         set_entity_commandlist(entity, Entity_Chest_ScriptOpened);
@@ -125,22 +125,22 @@ void entity_Chest_idle(Entity* entity) {
 
     rotation = clamp_angle(180.0f - entity->rotation.y);
     angle = fabsf(rotation - clamp_angle(atan2(entity->position.x, entity->position.z, playerStatus->position.x, playerStatus->position.z)));
-    if ((!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) &&
+    if ((!(playerStatus->animFlags & PA_FLAG_USING_WATT)) &&
         (!(entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_FLOOR)) &&
         ((angle <= 40.0f) || (angle >= 320.0f))) {
-        entity->flags |= ENTITY_FLAGS_SHOWS_INSPECT_PROMPT;
-        if ((playerStatus->animFlags & PA_FLAGS_INTERACT_PROMPT_AVAILABLE) && (entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_WALL)) {
+        entity->flags |= ENTITY_FLAG_SHOWS_INSPECT_PROMPT;
+        if ((playerStatus->animFlags & PA_FLAG_INTERACT_PROMPT_AVAILABLE) && (entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_WALL)) {
             exec_entity_commandlist(entity);
             data = entity->dataBuf.chest;
             data->state = 0;
-            entity->flags &= ~ENTITY_FLAGS_SHOWS_INSPECT_PROMPT;
+            entity->flags &= ~ENTITY_FLAG_SHOWS_INSPECT_PROMPT;
             if (data->itemID != 0) {
                 disable_player_input();
             }
             func_800EF3E4();
         }
     } else {
-        entity->flags &= ~ENTITY_FLAGS_SHOWS_INSPECT_PROMPT;
+        entity->flags &= ~ENTITY_FLAG_SHOWS_INSPECT_PROMPT;
     }
 }
 
@@ -242,7 +242,7 @@ void entity_Chest_close(Entity* entity) {
             data->postLidAnimDelay--;
             if (data->postLidAnimDelay == 0) {
                 data->state++;
-                entity->flags |= ENTITY_FLAGS_4000;
+                entity->flags |= ENTITY_FLAG_4000;
             }
             break;
         case 4:
@@ -330,7 +330,7 @@ void entity_GiantChest_open(Entity* entity) {
                 chest->giveItemHeightInterpPhase = 180.0f;
                 chest->state++;
                 if (chest->itemID != 0) {
-                    suggest_player_anim_setUnkFlag(ANIM_Mario_6000C);
+                    suggest_player_anim_always_forward(ANIM_MarioW1_Lift);
                     sin_cos_rad(DEG_TO_RAD(90.0f - gCameras[CAM_DEFAULT].currentYaw), &sinRight, &cosRight);
                     sin_cos_rad(DEG_TO_RAD(180.0f - gCameras[CAM_DEFAULT].currentYaw), &sinFwd, &cosFwd);
                     horizontalOffset = 0.0f;
@@ -385,7 +385,9 @@ void entity_GiantChest_give_equipment(Entity* entity) {
         data->itemEntityPos.x = entity->position.x + (sin_rad(angle) * 10.0f);
         data->itemEntityPos.y = entity->position.y;
         data->itemEntityPos.z = entity->position.z + (cos_rad(angle) * 10.0f);
-        data->itemEntityIndex = make_item_entity_nodelay(data->itemID, data->itemEntityPos.x, data->itemEntityPos.y, data->itemEntityPos.z, 1, -1);
+        data->itemEntityIndex = make_item_entity_nodelay(data->itemID,
+            data->itemEntityPos.x, data->itemEntityPos.y, data->itemEntityPos.z,
+            ITEM_SPAWN_MODE_DECORATION, -1);
     }
 
     flagIndex = data->gameFlagIndex;
@@ -409,10 +411,10 @@ void entity_Chest_enable_player_input(Entity* entity) {
 void entity_GiantChest_await_got_item(Entity* entity) {
     ChestData* data = entity->dataBuf.chest;
     if (data->itemID != 0) {
-        if (data->unk_30 != 0) {
+        if (data->gotItemDone) {
             exec_entity_commandlist(entity);
             remove_item_entity_by_index(data->itemEntityIndex);
-            suggest_player_anim_clearUnkFlag(ANIM_Mario_10002);
+            suggest_player_anim_allow_backward(ANIM_Mario1_Idle);
             enable_player_input();
             data->itemID = -1;
         }
@@ -484,7 +486,7 @@ EntityScript Entity_Chest_Script = {
 EntityModelScript Entity_Chest_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_Chest_RenderBox, RENDER_MODE_SURFACE_OPA);
 
 EntityBlueprint Entity_GiantChest = {
-    .flags = ENTITY_FLAGS_4000,
+    .flags = ENTITY_FLAG_4000,
     .typeDataSize = sizeof(ChestData),
     .renderCommandList = Entity_Chest_RenderScript,
     .modelAnimationNodes = 0,
@@ -496,7 +498,7 @@ EntityBlueprint Entity_GiantChest = {
     .aabbSize = { 50, 45, 46 }
 };
 EntityBlueprint Entity_Chest = {
-    .flags = ENTITY_FLAGS_8000 | ENTITY_FLAGS_4000,
+    .flags = ENTITY_FLAG_8000 | ENTITY_FLAG_4000,
     .typeDataSize = sizeof(ChestData),
     .renderCommandList = Entity_Chest_RenderScript,
     .modelAnimationNodes = 0,

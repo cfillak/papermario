@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9254_42F074(void);
+API_CALLABLE(action_command_spiny_surge_init);
+API_CALLABLE(action_command_spiny_surge_start);
+void action_command_spiny_surge_update(void);
+void action_command_spiny_surge_draw(void);
+void action_command_spiny_surge_free(void);
 
 #endif

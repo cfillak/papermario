@@ -1,5 +1,9 @@
 #include "model.h"
 
+extern AnimatedModelList gBattleMeshAnimationList;
+extern AnimatedModelList gWorldMeshAnimationList;
+extern AnimatedModelList* gCurrentMeshAnimationListPtr;
+
 void update_animated_models(void) {
     s32 i;
 
@@ -82,11 +86,11 @@ ApiStatus LoadAnimatedModel(Evt* script, s32 isInitialCall) {
 ApiStatus LoadAnimatedMesh(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 index = evt_get_variable(script, *args++);
-    s32 var1 = evt_get_variable(script, *args++);
+    StaticAnimatorNode** tree = (StaticAnimatorNode**) evt_get_variable(script, *args++);
     AnimatedModel* animModel = (*gCurrentMeshAnimationListPtr)[index];
     s32 animModelID = create_model_animator(0);
 
-    load_mesh_animator_tree(animModelID, var1);
+    load_mesh_animator_tree(animModelID, tree);
     animModel->animModelID = animModelID;
     animModel->pos.x = 0;
     animModel->pos.y = 0;
@@ -106,7 +110,7 @@ ApiStatus LoadAnimatedMesh(Evt* script, s32 isInitialCall) {
 ApiStatus PlayModelAnimation(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 index = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
+    s16* var2 = (s16*) evt_get_variable(script, *args++);
     AnimatedModel* model = (*gCurrentMeshAnimationListPtr)[index];
 
     model->currentAnimData = var2;
@@ -118,7 +122,7 @@ ApiStatus PlayModelAnimation(Evt* script, s32 isInitialCall) {
 ApiStatus PlayModelAnimationStartingFrom(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 index = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
+    s16* var2 = (s16*) evt_get_variable(script, *args++);
     s32 var3 = evt_get_variable(script, *args++);
     AnimatedModel* model = (*gCurrentMeshAnimationListPtr)[index];
 
@@ -131,7 +135,7 @@ ApiStatus PlayModelAnimationStartingFrom(Evt* script, s32 isInitialCall) {
 ApiStatus ChangeModelAnimation(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 index = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
+    s16* var2 = (s16*) evt_get_variable(script, *args++);
     AnimatedModel* model = (*gCurrentMeshAnimationListPtr)[index];
 
     if (model->currentAnimData == var2) {
@@ -268,7 +272,7 @@ void reset_model_animators(void) {
         (*gCurrentMeshAnimationListPtr)[i]->animModelID = -1;
     }
 
-    create_generic_entity_world(update_animated_models, render_animated_models);
+    create_worker_world(update_animated_models, render_animated_models);
 }
 
 void init_model_animators(void) {

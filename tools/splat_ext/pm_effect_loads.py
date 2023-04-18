@@ -44,7 +44,7 @@ glabel {name}
 """
 
     def effect_path(self, effect):
-        return options.get_build_path() / "asm" / "effects" / f"{effect}.s"
+        return options.opts.build_path / "asm" / "effects" / f"{effect}.s"
 
     def __init__(
         self,
@@ -53,12 +53,6 @@ glabel {name}
         type,
         name,
         vram_start,
-        extract,
-        given_subalign,
-        exclusive_ram_id,
-        given_dir,
-        symbol_name_format,
-        symbol_name_format_no_rom,
         args,
         yaml,
     ):
@@ -68,17 +62,11 @@ glabel {name}
             type,
             name,
             vram_start,
-            extract,
-            given_subalign,
-            exclusive_ram_id,
-            given_dir,
-            symbol_name_format=symbol_name_format,
-            symbol_name_format_no_rom=symbol_name_format_no_rom,
             args=args,
             yaml=yaml,
         )
 
-        with open(options.get_asm_path() / ".." / "effects.yaml") as f:
+        with open(options.opts.asm_path / ".." / "effects.yaml") as f:
             self.effects = yaml_loader.load(f.read(), Loader=yaml_loader.SafeLoader)
 
     def split(self, rom_bytes):

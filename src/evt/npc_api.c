@@ -1,5 +1,6 @@
 #include "common.h"
 #include "npc.h"
+#include "world/partners.h"
 
 extern s32 wExtraPartnerID;
 extern s32 wExtraPartnerNpcID;
@@ -17,10 +18,10 @@ Npc* resolve_npc(Evt* script, s32 npcIdOrPtr) {
 void set_npc_animation(Npc* npc, u32 animID) {
     PlayerData* playerData = &gPlayerData;
 
-    if (animID - PARTNER_ANIM_WALK < 9) {
-        npc->currentAnim = gPartnerAnimations[playerData->currentPartner].anims[animID - PARTNER_ANIM_WALK];
-    } else if ((animID - 0x201) < 0x10) {
-        npc->currentAnim = get_enemy(npc->npcID)->animList[animID - 0x201];
+    if (PARTNER_ANIM_STILL <= animID && animID <= PARTNER_ANIM_HURT) {
+        npc->currentAnim = gPartnerAnimations[playerData->currentPartner].anims[animID - PARTNER_ANIM_STILL];
+    } else if (ENEMY_ANIM_IDLE <= animID && animID <= ENEMY_ANIM_F) {
+        npc->currentAnim = get_enemy(npc->npcID)->animList[animID - ENEMY_ANIM_IDLE];
     } else {
         npc->currentAnim = animID;
     }
@@ -38,7 +39,7 @@ ApiStatus CreateNpc(Evt* script, s32 isInitialCall) {
     blueprint.onUpdate = NULL;
     blueprint.onRender = NULL;
 
-    npc = get_npc_by_index(_create_npc_basic(&blueprint));
+    npc = get_npc_by_index(create_basic_npc(&blueprint));
     npc->npcID = npcID;
     disable_npc_shadow(npc);
     return ApiStatus_DONE2;
@@ -83,7 +84,7 @@ ApiStatus SetNpcPos(Evt* script, s32 isInitialCall) {
     npc->colliderPos.x = npc->pos.x;
     npc->colliderPos.y = npc->pos.y;
     npc->colliderPos.z = npc->pos.z;
-    npc->flags |= 0x10000;
+    npc->flags |= NPC_FLAG_DIRTY_SHADOW;
 
     return ApiStatus_DONE2;
 }
@@ -106,7 +107,7 @@ ApiStatus SetNpcRotation(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802CDE68(Evt* script, s32 isInitialCall) {
+ApiStatus SetNpcRotationPivot(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 npcId = evt_get_variable(script, *args++);
     f32 value = evt_get_float_variable(script, *args++);
@@ -117,7 +118,7 @@ ApiStatus func_802CDE68(Evt* script, s32 isInitialCall) {
         return ApiStatus_DONE2;
     }
 
-    npc->rotationVerticalPivotOffset = value;
+    npc->rotationPivotOffsetY = value;
     return ApiStatus_DONE2;
 }
 
@@ -151,7 +152,7 @@ ApiStatus SetNpcCollisionSize(Evt* script, s32 isInitialCall) {
     }
 
     npc->collisionHeight = height;
-    npc->collisionRadius = radius;
+    npc->collisionDiameter = radius;
     return ApiStatus_DONE2;
 }
 
@@ -268,9 +269,9 @@ ApiStatus NpcMoveTo(Evt* script, s32 isInitialCall) {
     npc_move_heading(npc, npc->moveSpeed, npc->yaw);
 
     if (npc->moveSpeed < 4.0) {
-        func_8003D660(npc, 0);
+        spawn_surface_effects(npc, SURFACE_INTERACT_WALK);
     } else {
-        func_8003D660(npc, 1);
+        spawn_surface_effects(npc, SURFACE_INTERACT_RUN);
     }
 
     dist = dist2D(npc->pos.x, npc->pos.z, npc->moveToPos.x, npc->moveToPos.z);
@@ -332,7 +333,7 @@ ApiStatus _npc_jump_to(Evt* script, s32 isInitialCall, s32 snapYaw) {
             npc->moveSpeed = dist / npc->duration;
         }
 
-        npc->flags |= 0x800;
+        npc->flags |= NPC_FLAG_JUMPING;
         npc->jumpVelocity = (npc->jumpScale * npc->duration * 0.5f) + (goalY / npc->duration);
         script->functionTemp[0] =1;
     }
@@ -349,8 +350,8 @@ ApiStatus _npc_jump_to(Evt* script, s32 isInitialCall, s32 snapYaw) {
         npc->pos.x = npc->moveToPos.x;
         npc->pos.y = npc->moveToPos.y;
         npc->pos.z = npc->moveToPos.z;
-        npc->flags &= ~0x800;
-        func_8003D660(npc, 2);
+        npc->flags &= ~NPC_FLAG_JUMPING;
+        spawn_surface_effects(npc, SURFACE_INTERACT_LAND);
         return ApiStatus_DONE1;
     }
     return ApiStatus_BLOCK;
@@ -604,18 +605,18 @@ ApiStatus NpcFaceNpc(Evt* script, s32 isInitialCall) {
 ApiStatus SetNpcFlagBits(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 npcID = evt_get_variable(script, *args++);
-    s32 flagBits = *args++;
-    s32 enable = evt_get_variable(script, *args++);
+    s32 bits = *args++;
+    s32 mode = evt_get_variable(script, *args++);
     Npc* npc = resolve_npc(script, npcID);
 
     if (npc == NULL) {
         return ApiStatus_DONE2;
     }
 
-    if (enable) {
-        npc->flags |= flagBits;
+    if (mode) {
+        npc->flags |= bits;
     } else {
-        npc->flags &= ~flagBits;
+        npc->flags &= ~bits;
     }
 
     return ApiStatus_DONE2;
@@ -734,7 +735,7 @@ ApiStatus GetPartnerPos(Evt* script, s32 isInitialCall) {
     Bytecode posX = *ptrReadPos++;
     Bytecode posY = *ptrReadPos++;
     Bytecode posZ = *ptrReadPos++;
-    Npc* npc = get_npc_unsafe(-4);
+    Npc* npc = get_npc_unsafe(NPC_PARTNER);
 
     if (npc == NULL) {
         return ApiStatus_DONE2;
@@ -779,7 +780,7 @@ ApiStatus func_802CF56C(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-s32 BringPartnerOut(Evt *script, s32 isInitialCall) {
+s32 BringPartnerOut(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     NpcBlueprint bp;
     NpcBlueprint* bpPointer = &bp;
@@ -805,14 +806,14 @@ s32 BringPartnerOut(Evt *script, s32 isInitialCall) {
         partner = get_npc_unsafe(NPC_PARTNER);
         partner->npcID = -5;
 
-        bpPointer->flags = NPC_FLAG_100;
-        bpPointer->initialAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_FLY];
+        bpPointer->flags = NPC_FLAG_IGNORE_PLAYER_COLLISION;
+        bpPointer->initialAnim = gPartnerAnimations[wExtraPartnerID].fly;
         bpPointer->onUpdate = NULL;
         bpPointer->onRender = NULL;
 
-        wExtraPartnerNpcID = _create_npc_basic(bpPointer);
+        wExtraPartnerNpcID = create_basic_npc(bpPointer);
         npc = get_npc_by_index(wExtraPartnerNpcID);
-        npc->collisionRadius = 10;
+        npc->collisionDiameter = 10;
         npc->collisionHeight = 10;
         npc->npcID = NPC_PARTNER;
         npc->scale.x = 0.0f;
@@ -840,7 +841,7 @@ s32 BringPartnerOut(Evt *script, s32 isInitialCall) {
         }
 
         npc->jumpVelocity = ((playerY - targetY) + (npc->jumpScale * npc->duration * npc->duration * 0.5f)) / npc->duration;
-        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_WALK];
+        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].walk;
         return ApiStatus_BLOCK;
     }
 
@@ -848,7 +849,7 @@ s32 BringPartnerOut(Evt *script, s32 isInitialCall) {
     npc->jumpVelocity -= npc->jumpScale;
     npc->pos.y += npc->jumpVelocity;
     if (npc->jumpVelocity <= 0.0f) {
-        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_JUMP];
+        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].jump;
     }
     npc_move_heading(npc, npc->moveSpeed, npc->yaw);
     duration = npc->duration;
@@ -861,7 +862,7 @@ s32 BringPartnerOut(Evt *script, s32 isInitialCall) {
 
     npc->duration--;
     if (npc->duration < 0) {
-        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_IDLE];
+        npc->currentAnim = gPartnerAnimations[wExtraPartnerID].idle;
         npc->jumpVelocity = 0.0f;
         npc->pos.y = npc->moveToPos.y;
         npc->scale.x = 1.0f;
@@ -886,8 +887,8 @@ ApiStatus PutPartnerAway(Evt* script, s32 isInitialCall) {
 
     if (isInitialCall) {
         if (wExtraPartnerID != 0) {
-            partner->flags &= ~0x200;
-            partner->flags &= ~8;
+            partner->flags &= ~NPC_FLAG_GRAVITY;
+            partner->flags &= ~NPC_FLAG_8;
             targetX = playerStatus->position.x;
             partner->moveToPos.x = targetX;
             partnerX = partner->pos.x;
@@ -910,7 +911,7 @@ ApiStatus PutPartnerAway(Evt* script, s32 isInitialCall) {
 
             partnerY = targetY - partnerY;
             partner->jumpVelocity = (partnerY + (partner->jumpScale * partner->duration * partner->duration * 0.5f)) / partner->duration;
-            partner->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_WALK];
+            partner->currentAnim = gPartnerAnimations[wExtraPartnerID].walk;
             return ApiStatus_BLOCK;
         } else {
             return ApiStatus_DONE2;
@@ -920,7 +921,7 @@ ApiStatus PutPartnerAway(Evt* script, s32 isInitialCall) {
     partner->jumpVelocity -= partner->jumpScale;
     partner->pos.y += partner->jumpVelocity;
     if (partner->jumpVelocity <= 0.0f) {
-        partner->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_JUMP];
+        partner->currentAnim = gPartnerAnimations[wExtraPartnerID].jump;
     }
     npc_move_heading(partner, partner->moveSpeed, partner->yaw);
 
@@ -935,7 +936,7 @@ ApiStatus PutPartnerAway(Evt* script, s32 isInitialCall) {
 
     partner->duration--;
     if (partner->duration < 0) {
-        partner->currentAnim = gPartnerAnimations[wExtraPartnerID].anims[PARTNER_ANIM_INDEX_FALL];
+        partner->currentAnim = gPartnerAnimations[wExtraPartnerID].fall;
         partner->jumpVelocity = 0.0f;
         partner->pos.y = partner->moveToPos.y;
         free_npc_by_index(wExtraPartnerNpcID);
@@ -951,23 +952,23 @@ ApiStatus GetCurrentPartnerID(Evt* script, s32 isInitialCall) {
 }
 
 ApiStatus PartnerCanUseAbility(Evt* script, s32 isInitialCall) {
-    Bytecode arg0 = *script->ptrReadPos;
+    Bytecode outVar = *script->ptrReadPos;
 
-    evt_set_variable(script, arg0, partner_can_use_ability());
+    evt_set_variable(script, outVar, partner_can_use_ability());
     return ApiStatus_DONE2;
 }
 
 ApiStatus PartnerIsFlying(Evt* script, s32 isInitialCall) {
-    Bytecode arg0 = *script->ptrReadPos;
+    Bytecode outVar = *script->ptrReadPos;
 
-    evt_set_variable(script, arg0, partner_is_flying());
+    evt_set_variable(script, outVar, partner_is_flying());
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802CFD30(Evt* script, s32 isInitialCall) {
+ApiStatus SetNpcFoldParams(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 npcId = evt_get_variable(script, *args++);
-    Bytecode var1 = evt_get_variable(script, *args++);
+    Bytecode foldType = evt_get_variable(script, *args++);
     Bytecode var2 = evt_get_variable(script, *args++);
     Bytecode var3 = evt_get_variable(script, *args++);
     Bytecode var4 = evt_get_variable(script, *args++);
@@ -978,21 +979,21 @@ ApiStatus func_802CFD30(Evt* script, s32 isInitialCall) {
         return ApiStatus_DONE2;
     }
 
-    func_8003D624(npc, var1, var2, var3, var4, var5, npc->unk_A2);
+    npc_set_fold_params(npc, foldType, var2, var3, var4, var5, npc->foldFlags);
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802CFE2C(Evt* script, s32 isInitialCall) {
+ApiStatus SetNpcFoldFlags(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 npcId = evt_get_variable(script, *args++);
-    Bytecode arg1 = *args;
+    Bytecode flags = *args;
     Npc* npc = resolve_npc(script, npcId);
 
     if (npc == NULL) {
         return ApiStatus_DONE2;
     }
 
-    npc->unk_A2 = arg1;
+    npc->foldFlags = flags;
     return ApiStatus_DONE2;
 }
 
@@ -1068,14 +1069,14 @@ ApiStatus PlaySoundAtNpc(Evt* script, s32 isInitialCall) {
     Bytecode* ptrReadPos = script->ptrReadPos;
     s32 npcID = evt_get_variable(script, *ptrReadPos++);
     s32 soundID = evt_get_variable(script, *ptrReadPos++);
-    s32 value2 = evt_get_variable(script, *ptrReadPos++);
+    s32 flags = evt_get_variable(script, *ptrReadPos++);
     Npc* npc = resolve_npc(script, npcID);
 
     if (npc == NULL) {
         return ApiStatus_DONE2;
     }
 
-    sfx_play_sound_at_position(soundID, value2, npc->pos.x, npc->pos.y, npc->pos.z);
+    sfx_play_sound_at_position(soundID, flags, npc->pos.x, npc->pos.y, npc->pos.z);
     return ApiStatus_DONE2;
 }
 

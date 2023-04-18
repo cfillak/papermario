@@ -12,12 +12,12 @@ void action_update_knockback(void) {
 
     static f32 ReturnAngle;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        
-        suggest_player_anim_setUnkFlag(ANIM_Mario_FallBack);
-        
-        playerStatus->flags |= PS_FLAGS_FLYING;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+
+        suggest_player_anim_always_forward(ANIM_Mario1_Hurt);
+
+        playerStatus->flags |= PS_FLAG_FLYING;
 
         playerStatus->actionSubstate = SUBSTATE_FLYING;
         playerStatus->gravityIntegrator[0] = 18.3473f;
@@ -25,7 +25,7 @@ void action_update_knockback(void) {
         playerStatus->gravityIntegrator[2] = 0.8059f;
         playerStatus->gravityIntegrator[3] = -0.0987f;
 
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
 
         ReturnAngle = atan2(playerStatus->position.x, playerStatus->position.z, playerStatus->lastGoodPosition.x,
                            playerStatus->lastGoodPosition.z);
@@ -36,7 +36,7 @@ void action_update_knockback(void) {
 
     speed = playerStatus->currentSpeed;
 
-    if (playerStatus->flags & PS_FLAGS_40000) {
+    if (playerStatus->flags & PS_FLAG_ENTERING_BATTLE) {
         speed *= 0.5f;
     }
 
@@ -50,12 +50,12 @@ void action_update_knockback(void) {
 
         if (playerStatus->gravityIntegrator[0] < 0.0f) {
             playerStatus->actionSubstate = SUBSTATE_FALLING;
-            playerStatus->flags |= PS_FLAGS_FALLING;
+            playerStatus->flags |= PS_FLAG_FALLING;
         }
     } else {
         s32 colliderID;
 
-        playerStatus->position.y = player_check_collision_below(func_800E34D8(), &colliderID);
+        playerStatus->position.y = player_check_collision_below(player_fall_distance(), &colliderID);
 
         if (colliderID >= 0) {
             colliderID = get_collider_flags(colliderID); //TODO surfaceType

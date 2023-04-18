@@ -97,8 +97,8 @@ enum {
     EVT_OP_END_THREAD,
     EVT_OP_CHILD_THREAD, ///< Parallel threads are killed as soon as the parent script returns.
     EVT_OP_END_CHILD_THREAD,
-    EVT_OP_90,
-    EVT_OP_DEBUG_PRINT, ///< Args: expression
+    EVT_OP_DEBUG_LOG,
+    EVT_OP_DEBUG_PRINT_VAR, ///< Args: expression
     EVT_OP_92,
     EVT_OP_93,
     EVT_OP_94,
@@ -119,8 +119,15 @@ typedef s32 ApiStatus;
 #define ApiStatus_REPEAT 3   /* Call again immediately */
 #define ApiStatus_FINISH 255 /* Corresponds to EVT_FINISH */
 
+enum EventCommandResults {
+    EVT_CMD_RESULT_YIELD        = -1,
+    EVT_CMD_RESULT_CONTINUE     = 0,
+    EVT_CMD_RESULT_ERROR        = 1,
+};
+
 enum EventGroupFlags {
     EVT_GROUP_00    = 0x00,
+    EVT_GROUP_0A    = 0x0A, // 8 | 2
     EVT_GROUP_0B    = 0x0B, // 8 | 4 | 1
     EVT_GROUP_1B    = 0x1B, // 10 | 8 | 4 | 1
     EVT_GROUP_EF    = 0xEF, // ~10
@@ -139,10 +146,12 @@ enum EventPriority {
 };
 
 enum EventStateFlags {
-    EVT_FLAG_01     = 0x01,
-    EVT_FLAG_10     = 0x10, // has child?
-    EVT_FLAG_20     = 0x20, // add to global script list
-    EVT_FLAG_40     = 0x40, // thread?
+    EVT_FLAG_ACTIVE             = 0x01,
+    EVT_FLAG_SUSPENDED_IN_GROUP = 0x02,
+    EVT_FLAG_BLOCKED_BY_CHILD   = 0x10,
+    EVT_FLAG_RUN_IMMEDIATELY    = 0x20, ///< don't wait for next `update_scripts` call
+    EVT_FLAG_THREAD             = 0x40,
+    EVT_FLAG_SUSPENDED          = 0x80, ///< doesn't affect child
 };
 
 #endif

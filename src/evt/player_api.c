@@ -1,16 +1,13 @@
 #include "common.h"
 #include "npc.h"
 #include "sprite.h"
+#include "world/partners.h"
 
-Npc* playerNpc = (Npc*) 0x802DB270; // TODO: raw ptr, shiftability
+extern Npc playerNpcData;
+extern u16 PlayerFoldFlags;
+extern s32 D_802DB5B4[3]; // unused
 
-extern u16 D_802DB5B0;
-extern VirtualEntityList D_802DB5C0;
-extern VirtualEntityList D_802DB6C0;
-extern VirtualEntityList* D_802DB7C0;
-
-void virtual_entity_list_render_world(void);
-void virtual_entity_list_render_UI(void);
+Npc* playerNpc = &playerNpcData;
 
 ApiStatus HidePlayerShadow(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
@@ -47,7 +44,7 @@ ApiStatus DisablePlayerInput(Evt* script, s32 isInitialCall) {
         close_status_menu();
         func_800E984C();
         if (playerStatus->actionState == ACTION_STATE_SPIN) {
-            playerStatus->animFlags |= 0x40000;
+            playerStatus->animFlags |= PA_FLAG_INTERRUPT_SPIN;
         }
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
     } else {
@@ -85,10 +82,10 @@ ApiStatus SetPlayerCollisionSize(Evt* script, s32 isInitialCall) {
     s32 radius = evt_get_variable(script, *args++);
 
     playerNpc->collisionHeight = height;
-    playerNpc->collisionRadius = radius;
+    playerNpc->collisionDiameter = radius;
 
     playerStatus->colliderHeight = playerNpc->collisionHeight;
-    playerStatus->colliderDiameter = playerNpc->collisionRadius;
+    playerStatus->colliderDiameter = playerNpc->collisionDiameter;
 
     return ApiStatus_DONE2;
 }
@@ -113,7 +110,7 @@ ApiStatus SetPlayerAnimation(Evt* script, s32 isInitialCall) {
 
     gPlayerStatus.anim = playerNpc->currentAnim = anim;
 
-    if (gPlayerStatus.anim == ANIM_Mario_80003) {
+    if (gPlayerStatus.anim == ANIM_MarioW2_Collapse) {
         exec_ShakeCam1(0, 0, 2);
     }
 
@@ -255,21 +252,21 @@ s32 player_jump(Evt* script, s32 isInitialCall, s32 mode) {
         }
 
         playerNpc->jumpVelocity = (playerNpc->jumpScale * (playerNpc->duration - 1) / 2) + (yTemp / playerNpc->duration);
-        playerStatus->flags |= PS_FLAGS_FLYING;
-        playerStatus->animFlags |= PA_FLAGS_10000000;
+        playerStatus->flags |= PS_FLAG_FLYING;
+        playerStatus->animFlags |= PA_FLAG_NO_OOB_RESPAWN;
 
         if (mode == 0) {
-            if (!(playerStatus->animFlags & PA_FLAGS_8BIT_MARIO)) {
-                if (!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) {
-                    anim = ANIM_Mario_AnimMidairStill;
+            if (!(playerStatus->animFlags & PA_FLAG_8BIT_MARIO)) {
+                if (!(playerStatus->animFlags & PA_FLAG_USING_WATT)) {
+                    anim = ANIM_Mario1_Jump;
                 } else {
-                    anim = ANIM_Mario_60009;
+                    anim = ANIM_MarioW1_JumpWatt;
                 }
             } else {
-                anim = ANIM_Mario_90005;
+                anim = ANIM_MarioW3_8bit_Jump;
             }
-            suggest_player_anim_clearUnkFlag(anim);
-            sfx_play_sound_at_player(SOUND_JUMP_2081, 0);
+            suggest_player_anim_allow_backward(anim);
+            sfx_play_sound_at_player(SOUND_JUMP_2081, SOUND_SPACE_MODE_0);
         }
         script->functionTemp[0] = 1;
     }
@@ -280,16 +277,16 @@ s32 player_jump(Evt* script, s32 isInitialCall, s32 mode) {
     playerNpc->jumpVelocity -= playerNpc->jumpScale;
 
     if (mode == 0 && jumpVelocity > 0.0f && playerNpc->jumpVelocity <= 0.0f) {
-        if (!(playerStatus->animFlags & PA_FLAGS_8BIT_MARIO)) {
-            if (!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) {
-                anim = ANIM_Mario_AnimMidair;
+        if (!(playerStatus->animFlags & PA_FLAG_8BIT_MARIO)) {
+            if (!(playerStatus->animFlags & PA_FLAG_USING_WATT)) {
+                anim = ANIM_Mario1_Fall;
             } else {
-                anim = ANIM_Mario_6000A;
+                anim = ANIM_MarioW1_FallWatt;
             }
         } else {
-            anim = ANIM_Mario_90005;
+            anim = ANIM_MarioW3_8bit_Jump;
         }
-        suggest_player_anim_clearUnkFlag(anim);
+        suggest_player_anim_allow_backward(anim);
     }
 
     playerStatus->position.x = playerNpc->pos.x;
@@ -302,21 +299,21 @@ s32 player_jump(Evt* script, s32 isInitialCall, s32 mode) {
 
     playerNpc->duration--;
     if (playerNpc->duration == 0) {
-        playerStatus->flags &= ~PS_FLAGS_FLYING;
-        playerStatus->animFlags &= ~PA_FLAGS_10000000;
+        playerStatus->flags &= ~PS_FLAG_FLYING;
+        playerStatus->animFlags &= ~PA_FLAG_NO_OOB_RESPAWN;
 
         if (mode == 0) {
-            if (!(playerStatus->animFlags & PA_FLAGS_8BIT_MARIO)) {
-                if (!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) {
-                    anim = ANIM_Mario_10009;
+            if (!(playerStatus->animFlags & PA_FLAG_8BIT_MARIO)) {
+                if (!(playerStatus->animFlags & PA_FLAG_USING_WATT)) {
+                    anim = ANIM_Mario1_Land;
                 } else {
-                    anim = ANIM_Mario_6000B;
+                    anim = ANIM_MarioW1_LandWatt;
                 }
             } else {
-                anim = ANIM_Mario_AnimPanting;
+                anim = ANIM_Mario1_TiredIdle;
             }
-            suggest_player_anim_clearUnkFlag(anim);
-            func_8003D660(playerNpc, 2);
+            suggest_player_anim_allow_backward(anim);
+            spawn_surface_effects(playerNpc, SURFACE_INTERACT_LAND);
         }
 
         if (mode == 0 || mode == 2) {
@@ -326,8 +323,8 @@ s32 player_jump(Evt* script, s32 isInitialCall, s32 mode) {
 
             if (colliderID >= 0) {
                 playerStatus->position.y = yTemp;
-                func_800E315C(colliderID);
-                func_800EFD08();
+                player_handle_floor_collider_type(colliderID);
+                handle_floor_behavior();
             }
         }
         return TRUE;
@@ -443,9 +440,9 @@ ApiStatus SetPlayerFlagBits(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     PlayerStatus* playerStatus = &gPlayerStatus;
     Bytecode bits = *args++;
-    Bytecode a1 = *args;
+    Bytecode mode = evt_get_variable(script, *args++);
 
-    if (evt_get_variable(script, a1)) {
+    if (mode) {
         playerStatus->flags |= bits;
     } else {
         playerStatus->flags &= ~bits;
@@ -511,7 +508,7 @@ ApiStatus DisablePartner(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus UseEntryHeading(Evt *script, s32 isInitialCall) {
+ApiStatus UseEntryHeading(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     MapSettings* mapSettings = get_current_map_settings();
     s32 var1 = evt_get_variable(script, *args++);
@@ -522,7 +519,6 @@ ApiStatus UseEntryHeading(Evt *script, s32 isInitialCall) {
     f32 cosTheta;
     f32 sinTheta;
     f32 exitTangentFrac;
-    f32* blah;
 
     sin_cos_deg(clamp_angle((*mapSettings->entryList)[gGameStatusPtr->entryID].yaw + 180.0f), &sinTheta, &cosTheta);
 
@@ -530,15 +526,14 @@ ApiStatus UseEntryHeading(Evt *script, s32 isInitialCall) {
     gPlayerStatus.position.x = (entryX + (var1 * sinTheta)) - (exitTangentFrac * cosTheta);
     gPlayerStatus.position.z = (entryZ - (var1 * cosTheta)) - (exitTangentFrac * sinTheta);
 
-    blah = &script->varTable[5];
-    *blah = dist2D(gPlayerStatus.position.x, gPlayerStatus.position.z, entryX, entryZ) / var2;
-    gPlayerStatus.flags |= 0x4000000;
+    script->varTableF[5] = dist2D(gPlayerStatus.position.x, gPlayerStatus.position.z, entryX, entryZ) / var2;
+    gPlayerStatus.flags |= PS_FLAG_CAMERA_DOESNT_FOLLOW;
 
     return ApiStatus_DONE2;
 }
 
 ApiStatus func_802D2148(Evt* script, s32 isInitialCall) {
-    gPlayerStatus.flags &= ~0x4000000;
+    gPlayerStatus.flags &= ~PS_FLAG_CAMERA_DOESNT_FOLLOW;
     return ApiStatus_DONE2;
 }
 
@@ -546,7 +541,7 @@ ApiStatus UseExitHeading(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     PlayerStatus* playerStatus = &gPlayerStatus;
     MapSettings* mapSettings = get_current_map_settings();
-    f32* varTableVar5 = &script->varTable[5];
+    f32* varTableVar5 = &script->varTableF[5];
 
     if (can_trigger_loading_zone()) {
         s32 var1 = evt_get_variable(script, *args++);
@@ -573,8 +568,8 @@ ApiStatus UseExitHeading(Evt* script, s32 isInitialCall) {
         script->varTable[3] = (playerStatus->position.z - (var1 * cosTheta)) - (exitTangentFrac * sinTheta);
         script->varTable[2] = (*mapSettings->entryList)[entryID].y;
         *varTableVar5 = var1 / 15;
-        playerStatus->animFlags |= 0x100000;
-        playerStatus->flags |= 0x4000000;
+        playerStatus->animFlags |= PA_FLAG_CHANGING_MAP;
+        playerStatus->flags |= PS_FLAG_CAMERA_DOESNT_FOLLOW;
         return ApiStatus_DONE2;
     }
 
@@ -594,150 +589,166 @@ s32 func_802D23F8(void) {
 ApiStatus WaitForPlayerTouchingFloor(Evt* script, s32 isInitialCall) {
     if ((gCollisionStatus.currentFloor >= 0) && func_802D23F8()) {
         return ApiStatus_DONE2;
+    } else {
+        return ApiStatus_BLOCK;
     }
-
-    return ApiStatus_BLOCK;
 }
 
 ApiStatus func_802D2484(Evt* script, s32 isInitialCall) {
-    return (gCollisionStatus.currentFloor >= 0) * ApiStatus_DONE2;
+    if (gCollisionStatus.currentFloor >= 0) {
+        return ApiStatus_DONE2;
+    } else {
+        return ApiStatus_BLOCK;
+    }
 }
 
 ApiStatus IsPlayerOnValidFloor(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 val = 0;
+    s32 result = FALSE;
 
     if (gCollisionStatus.currentFloor >= 0) {
-        val = func_802D23F8() != 0;
+        result = (func_802D23F8() != 0);
     }
-    evt_set_variable(script, *args, val);
+    evt_set_variable(script, *args++, result);
 
     return ApiStatus_DONE2;
 }
 
 ApiStatus WaitForPlayerMoveToComplete(Evt* script, s32 isInitialCall) {
-    return (gPlayerStatus.moveFrames == 0) * ApiStatus_DONE2;
+    if (gPlayerStatus.moveFrames == 0) {
+        return ApiStatus_DONE2;
+    } else {
+        return ApiStatus_BLOCK;
+    }
 }
 
 ApiStatus WaitForPlayerInputEnabled(Evt* script, s32 isInitialCall) {
-    return !(gPlayerStatus.flags & 0x2000) * ApiStatus_DONE2;
+    if (gPlayerStatus.flags & PS_FLAG_INPUT_DISABLED) {
+        return ApiStatus_BLOCK;
+    } else {
+        return ApiStatus_DONE2;
+    }
 }
 
-ApiStatus func_802D2520(Evt* script, s32 isInitialCall) {
+ApiStatus UpdatePlayerFold(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     PlayerStatus* playerStatus = &gPlayerStatus;
     s32 a0 = *args++;
-    s32 val = evt_get_variable(script, *args++);
+    s32 foldType = evt_get_variable(script, *args++);
     s32 a2, a3, a4, a5;
 
-    func_802DDFF8(a0, 0, 0, 0, 0, 0, 0);
+    func_802DDFF8(a0, FOLD_UPD_CLEAR, 0, 0, 0, 0, 0);
 
-    switch (val) {
-        case 0:
-            playerStatus->renderMode = 0xD;
-            func_802DDFF8(a0, 0, 0, 0, 0, 0, D_802DB5B0);
+    switch (foldType) {
+        case FOLD_UPD_CLEAR:
+            playerStatus->renderMode = RENDER_MODE_ALPHATEST;
+            func_802DDFF8(a0, FOLD_UPD_CLEAR, 0, 0, 0, 0, PlayerFoldFlags);
             break;
-        case 2:
-        case 3:
-            playerStatus->renderMode = 0xD;
-        case 1:
-            func_802DDFF8(a0, val, 0, 0, 0, 0, D_802DB5B0);
+        case FOLD_TYPE_2:
+        case FOLD_TYPE_3:
+            playerStatus->renderMode = RENDER_MODE_ALPHATEST;
+        case FOLD_TYPE_1:
+            func_802DDFF8(a0, foldType, 0, 0, 0, 0, PlayerFoldFlags);
             break;
-        case 4:
-            playerStatus->renderMode = 13;
+        case FOLD_UPD_WAVY:
+            playerStatus->renderMode = RENDER_MODE_ALPHATEST;
             a2 = evt_get_variable(script, *args++);
             a3 = evt_get_variable(script, *args++);
             a4 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 4, a2, a3, a4, 0, D_802DB5B0);
+            func_802DDFF8(a0, FOLD_UPD_WAVY, a2, a3, a4, 0, PlayerFoldFlags);
             break;
-        case 6:
-            playerStatus->renderMode = 13;
+        case FOLD_UPD_SET_COLOR:
+            playerStatus->renderMode = RENDER_MODE_ALPHATEST;
             a2 = evt_get_variable(script, *args++);
             a3 = evt_get_variable(script, *args++);
             a4 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 6, a2, a3, a4, 0xFF, D_802DB5B0);
+            func_802DDFF8(a0, FOLD_UPD_SET_COLOR, a2, a3, a4, 255, PlayerFoldFlags);
             break;
-        case 7:
-            playerStatus->renderMode = 22;
+        case FOLD_UPD_SET_ALPHA:
+            playerStatus->renderMode = RENDER_MODE_SURFACE_XLU_LAYER2;
             a5 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 7, 0xFF, 0xFF, 0xFF, a5, D_802DB5B0);
+            func_802DDFF8(a0, FOLD_UPD_SET_ALPHA, 255, 255, 255, a5, PlayerFoldFlags);
             break;
-        case 8:
-            playerStatus->renderMode = 22;
-            a2 = evt_get_variable(script, *args++);
-            a3 = evt_get_variable(script, *args++);
-            a4 = evt_get_variable(script, *args++);
-            a5 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 8, a2, a3, a4, a5, D_802DB5B0);
-            break;
-        case 5:
-            playerStatus->renderMode = 13;
-            a2 = evt_get_variable(script, *args++);
-            a3 = evt_get_variable(script, *args++);
-            a4 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 5, a2, a3, a4, 0, D_802DB5B0);
-            break;
-        case 13:
-            playerStatus->renderMode = 22;
+        case FOLD_UPD_SET_TINT:
+            playerStatus->renderMode = RENDER_MODE_SURFACE_XLU_LAYER2;
             a2 = evt_get_variable(script, *args++);
             a3 = evt_get_variable(script, *args++);
             a4 = evt_get_variable(script, *args++);
             a5 = evt_get_variable(script, *args++);
-            func_802DDFF8(a0, 13, a2, a3, a4, a5, D_802DB5B0);
+            func_802DDFF8(a0, FOLD_UPD_SET_TINT, a2, a3, a4, a5, PlayerFoldFlags);
+            break;
+        case FOLD_UPD_SET_ANIM:
+            playerStatus->renderMode = RENDER_MODE_ALPHATEST;
+            a2 = evt_get_variable(script, *args++);
+            a3 = evt_get_variable(script, *args++);
+            a4 = evt_get_variable(script, *args++);
+            func_802DDFF8(a0, FOLD_UPD_SET_ANIM, a2, a3, a4, 0, PlayerFoldFlags);
+            break;
+        case FOLD_UPD_HOLOGRAM:
+            playerStatus->renderMode = RENDER_MODE_SURFACE_XLU_LAYER2;
+            a2 = evt_get_variable(script, *args++);
+            a3 = evt_get_variable(script, *args++);
+            a4 = evt_get_variable(script, *args++);
+            a5 = evt_get_variable(script, *args++);
+            func_802DDFF8(a0, FOLD_UPD_HOLOGRAM, a2, a3, a4, a5, PlayerFoldFlags);
             break;
     }
 
-    D_802DB5B0 = 0;
+    PlayerFoldFlags = 0;
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802D286C(Evt* script, s32 isInitialCall) {
-    s32 temp = *script->ptrReadPos;
+ApiStatus SetPlayerFoldFlags(Evt* script, s32 isInitialCall) {
+    s32 foldFlags = *script->ptrReadPos;
 
-    D_802DB5B0 = temp;
+    PlayerFoldFlags = foldFlags;
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802D2884(Evt* script, s32 isInitialCall) {
+ApiStatus FacePlayerTowardPoint(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     PlayerStatus* playerStatus = &gPlayerStatus;
-    f32* ft1 = &script->functionTempF[1];
-    f32* angle = &script->functionTempF[2];
-    s32* ft3 = &script->functionTemp[3];
+    f32* initialYaw = &script->functionTempF[1];
+    f32* deltaYaw = &script->functionTempF[2];
+    s32* duration = &script->functionTemp[3];
 
     if (isInitialCall) {
-        f32 x = evt_get_float_variable(script, *args++);
-        f32 z = evt_get_float_variable(script, *args++);
-        f32 yawTemp;
+        f32 targetX = evt_get_float_variable(script, *args++);
+        f32 targetY = evt_get_float_variable(script, *args++);
+        f32 targetYaw;
 
-        *ft1 = playerNpc->yaw = playerStatus->targetYaw;
+        *initialYaw = playerNpc->yaw = playerStatus->targetYaw;
 
-        if (playerStatus->position.x != x || playerStatus->position.z != z) {
-            yawTemp = atan2(playerStatus->position.x, playerStatus->position.z, x, z);
+        if (playerStatus->position.x != targetX || playerStatus->position.z != targetY) {
+            targetYaw = atan2(playerStatus->position.x, playerStatus->position.z, targetX, targetY);
         } else {
-            yawTemp = playerStatus->targetYaw;
+            targetYaw = playerStatus->targetYaw;
         }
 
-        *angle = yawTemp - *ft1;
-        *ft3 = evt_get_variable(script, *args++);
+        *deltaYaw = targetYaw - *initialYaw;
+        *duration = evt_get_variable(script, *args++);
         playerNpc->duration = 0;
 
-        if (*angle < -180.0f) {
-            *angle += 360.0f;
+        if (*deltaYaw < -180.0f) {
+            *deltaYaw += 360.0f;
         }
-        if (*angle > 180.0f) {
-            *angle -= 360.0f;
+        if (*deltaYaw > 180.0f) {
+            *deltaYaw -= 360.0f;
         }
     }
 
-    if (*ft3 > 0) {
+    if (*duration > 0) {
         playerNpc->duration++;
-        playerNpc->yaw = *ft1 + ((*angle * playerNpc->duration) / *ft3);
+        playerNpc->yaw = *initialYaw + ((*deltaYaw * playerNpc->duration) / *duration);
         playerStatus->targetYaw = playerNpc->yaw = clamp_angle(playerNpc->yaw);
-        return !(playerNpc->duration < *ft3) * ApiStatus_DONE1;
+        if (playerNpc->duration < *duration) {
+            return ApiStatus_BLOCK;
+        } else {
+            return ApiStatus_DONE1;
+        }
     }
 
-    playerNpc->yaw += *angle;
+    playerNpc->yaw += *deltaYaw;
     playerStatus->targetYaw = playerNpc->yaw = clamp_angle(playerNpc->yaw);
     return ApiStatus_DONE2;
 }
@@ -746,21 +757,22 @@ ApiStatus DisablePulseStone(Evt* script, s32 isInitialCall) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
     if (evt_get_variable(script, *script->ptrReadPos)) {
-        playerStatus->animFlags &= ~PA_FLAGS_USING_PULSE_STONE;
+        playerStatus->animFlags &= ~PA_FLAG_USING_PULSE_STONE;
     } else {
-        playerStatus->animFlags |= PA_FLAGS_USING_PULSE_STONE;
+        playerStatus->animFlags |= PA_FLAG_USING_PULSE_STONE;
     }
 
     return ApiStatus_DONE2;
 }
 
-ApiStatus GetCurrentPartner(Evt* script, s32 isInitialCall) {
+// returns partnerID of current partner if using their ability, otherwise PARTNER_NONE
+ApiStatus GetPartnerInUse(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     Bytecode outVar = *args++;
     PlayerData* playerData = &gPlayerData;
-    s32 currentPartner = 0;
+    s32 currentPartner = PARTNER_NONE;
 
-    if (gPartnerActionStatus.partnerActionState != PARTNER_ACTION_NONE) {
+    if (gPartnerStatus.partnerActionState != PARTNER_ACTION_NONE) {
         currentPartner = playerData->currentPartner;
     }
 
@@ -768,17 +780,17 @@ ApiStatus GetCurrentPartner(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802D2B50(void) {
+ApiStatus ForceUsePartner(Evt* script, s32 isInitialCall) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    playerStatus->animFlags |= PA_FLAGS_8;
+    playerStatus->animFlags |= PA_FLAG_FORCE_USE_PARTNER;
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802D2B6C(Evt* script, s32 isInitialCall) {
+ApiStatus InterruptUsePartner(Evt* script, s32 isInitialCall) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    playerStatus->animFlags |= PA_FLAGS_4;
+    playerStatus->animFlags |= PA_FLAG_INTERRUPT_USE_PARTNER;
     return ApiStatus_DONE2;
 }
 
@@ -789,711 +801,43 @@ ApiStatus Disable8bitMario(Evt* script, s32 isInitialCall) {
     if (evt_get_variable(script, *args)) {
         playerStatus->colliderHeight = 37;
         playerStatus->colliderDiameter = 26;
-        playerStatus->animFlags &= ~PA_FLAGS_8BIT_MARIO;
+        playerStatus->animFlags &= ~PA_FLAG_8BIT_MARIO;
     } else {
         playerStatus->colliderHeight = 19;
         playerStatus->colliderDiameter = 26;
-        playerStatus->animFlags |= PA_FLAGS_8BIT_MARIO
-            | PA_FLAGS_40000
-            | PA_FLAGS_4;
+        playerStatus->animFlags |= PA_FLAG_8BIT_MARIO
+            | PA_FLAG_INTERRUPT_SPIN
+            | PA_FLAG_INTERRUPT_USE_PARTNER;
     }
 
     return ApiStatus_DONE2;
 }
 
 ApiStatus func_802D2C14(Evt* script, s32 isInitialCall) {
-    func_800EF3D4(evt_get_variable(script, *script->ptrReadPos));
+    Bytecode* args = script->ptrReadPos;
+
+    func_800EF3D4(evt_get_variable(script, *args++));
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802D2C40(Evt* script) {
+ApiStatus SetPlayerPushVelocity(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     f32 x = evt_get_variable(script, *args++);
-    PlayerStatus* playerStatus = &gPlayerStatus;
     f32 y;
     f32 z;
 
-    playerStatus->extraVelocity.x = x;
-    playerStatus->extraVelocity.y = evt_get_variable(script, *args++);
-    playerStatus->extraVelocity.z = evt_get_variable(script, *args++);
+    gPlayerStatus.pushVelocity.x = x;
+    gPlayerStatus.pushVelocity.y = evt_get_variable(script, *args++);
+    gPlayerStatus.pushVelocity.z = evt_get_variable(script, *args++);
 
     return ApiStatus_DONE2;
 }
 
 ApiStatus PlaySoundAtPlayer(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 var = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
+    s32 soundID = evt_get_variable(script, *args++);
+    s32 flags = evt_get_variable(script, *args++);
 
-    sfx_play_sound_at_player(var, var2);
+    sfx_play_sound_at_player(soundID, flags);
     return ApiStatus_DONE2;
-}
-
-void virtual_entity_appendGfx_quad(u8 r, u8 g, u8 b, u8 a, u16 left, u16 top, u16 right, u16 bottom) {
-    gDPPipeSync(gMasterGfxPos++);
-
-    if (a == 0xFF) {
-        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1);
-    } else {
-        gDPSetRenderMode(gMasterGfxPos++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
-        gDPSetCombineMode(gMasterGfxPos++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
-    }
-
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, r, g, b, a);
-    gDPFillRectangle(gMasterGfxPos++, left, top, right, bottom);
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetRenderMode(gMasterGfxPos++, G_RM_TEX_EDGE, G_RM_TEX_EDGE2);
-    gDPSetCombineMode(gMasterGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
-}
-
-void virtual_entity_render_quad(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7) {
-    u16 temp1 = arg4 + arg6;
-    u16 temp2 = arg5 + arg7;
-
-    virtual_entity_appendGfx_quad(arg0, arg1, arg2, arg3, arg4, arg5, temp1, temp2);
-}
-
-void virtual_entity_move_polar(VirtualEntity* virtualEntity, f32 magnitude, f32 angle) {
-    f32 theta = DEG_TO_RAD(angle);
-    f32 sinTheta = sin_rad(theta);
-    f32 cosTheta = cos_rad(theta);
-
-    virtualEntity->pos.x += magnitude * sinTheta;
-    virtualEntity->pos.z += -magnitude * cosTheta;
-}
-
-void virtual_entity_list_update(void) {
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        VirtualEntity* virtualEntity = (*D_802DB7C0)[i];
-
-        if (virtualEntity != NULL && virtualEntity->entityModelIndex >= 0) {
-            exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-        }
-    }
-}
-
-void virtual_entity_list_render_world(void) {
-    Matrix4f translation;
-    Matrix4f xRot;
-    Matrix4f yRot;
-    Matrix4f zRot;
-    Matrix4f rotation;
-    Matrix4f temp;
-    Matrix4f transform;
-    Matrix4f scale;
-    Mtx transformMtxL;
-    VirtualEntity* virtualEntity;
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity != NULL) {
-            if (!(virtualEntity->entityModelIndex < 0 || get_entity_model(virtualEntity->entityModelIndex)->flags & ENTITY_MODEL_FLAGS_CAM3)) {
-                guTranslateF(translation, virtualEntity->pos.x, virtualEntity->pos.y, virtualEntity->pos.z);
-                guRotateF(xRot, virtualEntity->rot.x, 1.0f, 0.0f, 0.0f);
-                guRotateF(yRot, virtualEntity->rot.y, 0.0f, 1.0f, 0.0f);
-                guRotateF(zRot, virtualEntity->rot.z, 0.0f, 0.0f, 1.0f);
-                guScaleF(scale, virtualEntity->scale.x, virtualEntity->scale.y, virtualEntity->scale.z);
-                guMtxCatF(zRot, xRot, temp);
-                guMtxCatF(temp, yRot, rotation);
-                guMtxCatF(scale, rotation, temp);
-                guMtxCatF(temp, translation, transform);
-                guMtxF2L(transform, &transformMtxL);
-                draw_entity_model_A(virtualEntity->entityModelIndex, &transformMtxL);
-            }
-        }
-    }
-}
-
-void virtual_entity_list_render_UI(void) {
-    Matrix4f translation;
-    Matrix4f xRot;
-    Matrix4f yRot;
-    Matrix4f zRot;
-    Matrix4f rotation;
-    Matrix4f temp;
-    Matrix4f transform;
-    Matrix4f scale;
-    Mtx transformMtxL;
-    VirtualEntity* virtualEntity;
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity != NULL) {
-            if (!(virtualEntity->entityModelIndex < 0 || !(get_entity_model(virtualEntity->entityModelIndex)->flags & ENTITY_MODEL_FLAGS_CAM3))) {
-                guTranslateF(translation, virtualEntity->pos.x, virtualEntity->pos.y, virtualEntity->pos.z);
-                guRotateF(xRot, virtualEntity->rot.x, 1.0f, 0.0f, 0.0f);
-                guRotateF(yRot, virtualEntity->rot.y, 0.0f, 1.0f, 0.0f);
-                guRotateF(zRot, virtualEntity->rot.z, 0.0f, 0.0f, 1.0f);
-                guScaleF(scale, virtualEntity->scale.x, virtualEntity->scale.y, virtualEntity->scale.z);
-                guMtxCatF(zRot, xRot, temp);
-                guMtxCatF(temp, yRot, rotation);
-                guMtxCatF(scale, rotation, temp);
-                guMtxCatF(temp, translation, transform);
-                guMtxF2L(transform, &transformMtxL);
-                draw_entity_model_E(virtualEntity->entityModelIndex, &transformMtxL);
-            }
-        }
-    }
-}
-
-ApiStatus InitVirtualEntityList(Evt* script, s32 isInitialCall) {
-    if (!gGameStatusPtr->isBattle) {
-        D_802DB7C0 = &D_802DB6C0;
-    } else {
-        D_802DB7C0 = &D_802DB5C0;
-    }
-    return ApiStatus_DONE2;
-}
-
-ApiStatus CreateVirtualEntityAt(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    u32* cmdList = (u32*)evt_get_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->entityModelIndex = load_entity_model(cmdList);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-
-    return ApiStatus_DONE2;
-}
-
-ApiStatus CreateVirtualEntity(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 outVar = *args++;
-    s32* unkStructPtr = (s32*)evt_get_variable(script, *args++);
-    VirtualEntity* virtualEntity;
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity->entityModelIndex < 0) {
-            break;
-        }
-    }
-
-    if (i >= ARRAY_COUNT(*D_802DB7C0)) {
-        return ApiStatus_DONE2;
-    }
-
-    virtualEntity->entityModelIndex = load_entity_model(unkStructPtr);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-    evt_set_variable(script, outVar, i);
-
-    return ApiStatus_DONE2;
-}
-
-ApiStatus CreateVirtualEntity_ALT(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 outVar = *args++;
-    s32* unkStructPtr = (s32*)evt_get_variable(script, *args++);
-    VirtualEntity* virtualEntity;
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity->entityModelIndex < 0) {
-            break;
-        }
-    }
-
-    if (i >= ARRAY_COUNT(*D_802DB7C0)) {
-        return ApiStatus_DONE2;
-    }
-
-    virtualEntity->entityModelIndex = ALT_load_entity_model(unkStructPtr);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-    evt_set_variable(script, outVar, i);
-
-    return ApiStatus_DONE2;
-}
-
-ApiStatus DeleteVirtualEntity(Evt* script, s32 isInitialCall) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[evt_get_variable(script, *script->ptrReadPos)];
-
-    free_entity_model_by_index(virtualEntity->entityModelIndex);
-    virtualEntity->entityModelIndex = -1;
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityRenderCommands(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    u32* commandList = (u32*)evt_get_variable(script, *args++);
-
-    set_entity_model_render_command_list((*D_802DB7C0)[index]->entityModelIndex, commandList);
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityPosition(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    f32 x = evt_get_float_variable(script, *args++);
-    f32 y = evt_get_float_variable(script, *args++);
-    f32 z = evt_get_float_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->pos.x = x;
-    virtualEntity->pos.y = y;
-    virtualEntity->pos.z = z;
-    return ApiStatus_DONE2;
-}
-
-ApiStatus GetVirtualEntityPosition(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-    s32 outVar1 = *args++;
-    s32 outVar2 = *args++;
-    s32 outVar3 = *args++;
-
-    evt_set_variable(script, outVar1, virtualEntity->pos.x);
-    evt_set_variable(script, outVar2, virtualEntity->pos.y);
-    evt_set_variable(script, outVar3, virtualEntity->pos.z);
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityRotation(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    f32 x = evt_get_float_variable(script, *args++);
-    f32 y = evt_get_float_variable(script, *args++);
-    f32 z = evt_get_float_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->rot.x = x;
-    virtualEntity->rot.y = y;
-    virtualEntity->rot.z = z;
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityScale(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    f32 x = evt_get_float_variable(script, *args++);
-    f32 y = evt_get_float_variable(script, *args++);
-    f32 z = evt_get_float_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->scale.x = x;
-    virtualEntity->scale.y = y;
-    virtualEntity->scale.z = z;
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityMoveSpeed(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-
-    (*D_802DB7C0)[index]->moveSpeed = evt_get_float_variable(script, *args++);
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityJumpGravity(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-
-    (*D_802DB7C0)[index]->jumpGravity = evt_get_float_variable(script, *args++);
-    return ApiStatus_DONE2;
-}
-
-ApiStatus VirtualEntityMoveTo(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    VirtualEntity* virtualEntity;
-
-    if (isInitialCall) {
-        script->functionTemp[0] = 0;
-    }
-
-    if (script->functionTemp[0] == 0) {
-        s32 index = evt_get_variable(script, *args++);
-        f32 xTemp = evt_get_variable(script, *args++);
-        f32 yTemp = evt_get_variable(script, *args++);
-        f32 zTemp = evt_get_variable(script, *args++);
-        s32 moveTime = evt_get_variable(script, *args++);
-        f32 goalPosX;
-        f32 goalPosZ;
-
-        virtualEntity = (*D_802DB7C0)[index];
-        script->functionTemp[1] = index;
-
-        virtualEntity->goalPos.x = xTemp;
-        virtualEntity->goalPos.y = yTemp;
-        virtualEntity->goalPos.z = zTemp;
-
-        xTemp = virtualEntity->pos.x;
-        zTemp = virtualEntity->pos.z;
-
-        goalPosX = virtualEntity->goalPos.x;
-        goalPosZ = virtualEntity->goalPos.z;
-
-        virtualEntity->moveTime = moveTime;
-        virtualEntity->moveAngle = atan2(xTemp, zTemp, goalPosX, goalPosZ);
-        virtualEntity->moveDist = dist2D(xTemp, zTemp, goalPosX, goalPosZ);
-
-        if (virtualEntity->moveTime == 0.0f) {
-            virtualEntity->moveTime = virtualEntity->moveDist / virtualEntity->moveSpeed;
-        } else {
-            virtualEntity->moveSpeed = virtualEntity->moveDist / virtualEntity->moveTime;
-        }
-
-        script->functionTemp[0] = 1;
-    }
-
-    virtualEntity = (*D_802DB7C0)[script->functionTemp[1]];
-    virtual_entity_move_polar(virtualEntity, virtualEntity->moveSpeed, virtualEntity->moveAngle);
-    virtualEntity->moveTime--;
-
-    if (virtualEntity->moveTime <= 0.0f) {
-        virtualEntity->pos.x = virtualEntity->goalPos.x;
-        virtualEntity->pos.z = virtualEntity->goalPos.z;
-        return ApiStatus_DONE1;
-    }
-
-    return ApiStatus_BLOCK;
-}
-
-ApiStatus VirtualEntityJumpTo(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    VirtualEntity* virtualEntity;
-    s32 index;
-    f32 xTemp;
-    f32 yTemp;
-    f32 zTemp;
-    s32 moveTime;
-    f32 goalPosX;
-    f32 goalPosY;
-    f32 goalPosZ;
-
-    if (isInitialCall) {
-        script->functionTemp[0] = 0;
-    }
-
-    if (script->functionTemp[0] == 0) {
-        index = evt_get_variable(script, *args++);
-        xTemp = evt_get_variable(script, *args++);
-        yTemp = evt_get_variable(script, *args++);
-        zTemp = evt_get_variable(script, *args++);
-        moveTime = evt_get_variable(script, *args++);
-
-        virtualEntity = (*D_802DB7C0)[index];
-        script->functionTemp[1] = index;
-
-        virtualEntity->goalPos.x = xTemp;
-        virtualEntity->goalPos.y = yTemp;
-        virtualEntity->goalPos.z = zTemp;
-
-        xTemp = virtualEntity->pos.x;
-        yTemp = virtualEntity->pos.y;
-        zTemp = virtualEntity->pos.z;
-
-        goalPosX = virtualEntity->goalPos.x;
-        yTemp = virtualEntity->goalPos.y - yTemp;
-        goalPosZ = virtualEntity->goalPos.z;
-
-
-        virtualEntity->moveTime = moveTime;
-        virtualEntity->moveAngle = atan2(xTemp, zTemp, goalPosX, goalPosZ);
-        virtualEntity->moveDist = dist2D(xTemp, zTemp, goalPosX, goalPosZ);
-
-        if (virtualEntity->moveTime == 0.0f) {
-            virtualEntity->moveTime = virtualEntity->moveDist / virtualEntity->moveSpeed;
-        } else {
-            virtualEntity->moveSpeed = virtualEntity->moveDist / virtualEntity->moveTime;
-        }
-
-        virtualEntity->jumpVelocity = (virtualEntity->jumpGravity * virtualEntity->moveTime / 2) +
-                                      (yTemp / virtualEntity->moveTime);
-        script->functionTemp[0] = 1;
-    }
-
-    virtualEntity = (*D_802DB7C0)[script->functionTemp[1]];
-    virtualEntity->pos.y += virtualEntity->jumpVelocity;
-    virtualEntity->jumpVelocity -= virtualEntity->jumpGravity;
-
-    virtual_entity_move_polar(virtualEntity, virtualEntity->moveSpeed, virtualEntity->moveAngle);
-
-    virtualEntity->moveTime -= 1.0f;
-    if (virtualEntity->moveTime <= 0.0f) {
-        virtualEntity->pos.x = virtualEntity->goalPos.x;
-        virtualEntity->pos.y = virtualEntity->goalPos.y;
-        virtualEntity->pos.z = virtualEntity->goalPos.z;
-        return ApiStatus_DONE1;
-    }
-
-    return ApiStatus_BLOCK;
-}
-
-ApiStatus VirtualEntityLandJump(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    VirtualEntity* virtualEntity;
-
-    if (isInitialCall) {
-        script->functionTemp[0] = 0;
-    }
-
-    if (script->functionTemp[0] == 0) {
-        script->functionTemp[1] = evt_get_variable(script, *args++);
-        script->functionTemp[0] = 1;
-    }
-
-    virtualEntity = (*D_802DB7C0)[script->functionTemp[1]];
-    virtualEntity->pos.y += virtualEntity->jumpVelocity;
-    virtualEntity->jumpVelocity -= virtualEntity->jumpGravity;
-
-    virtual_entity_move_polar(virtualEntity, virtualEntity->moveSpeed, virtualEntity->moveAngle);
-
-    if (virtualEntity->pos.y < 0.0f) {
-        virtualEntity->pos.y = 0.0f;
-        return ApiStatus_DONE1;
-    }
-
-    return ApiStatus_BLOCK;
-}
-
-ApiStatus SetVirtualEntityFlags(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    s32 flags = *args++;
-
-    get_entity_model((*D_802DB7C0)[index]->entityModelIndex)->flags = flags;
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityFlagBits(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    s32 flags = *args++;
-    s32 cond = evt_get_variable(script, *args++);
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    if (cond) {
-        set_entity_model_flags(virtualEntity->entityModelIndex, flags);
-    } else {
-        clear_entity_model_flags(virtualEntity->entityModelIndex, flags);
-    }
-
-    return ApiStatus_DONE2;
-}
-
-ApiStatus SetVirtualEntityRenderMode(Evt* script, s32 isInitialCall) {
-    Bytecode* args = script->ptrReadPos;
-    s32 index = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
-    EntityModel* entityModel = get_entity_model((*D_802DB7C0)[index]->entityModelIndex);
-
-    switch (var2) {
-        case -1:
-            entityModel->renderMode = 1;
-            break;
-        case 0:
-            entityModel->renderMode = 1;
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            break;
-        case 2:
-            entityModel->renderMode = 0xD;
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            break;
-        case 3:
-            entityModel->renderMode = 0x16;
-            evt_get_variable(script, *args++);
-            break;
-        case 4:
-            entityModel->renderMode = 0x16;
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            evt_get_variable(script, *args++);
-            break;
-    }
-    return ApiStatus_DONE2;
-}
-
-VirtualEntity* virtual_entity_get_by_index(s32 index) {
-    return (*D_802DB7C0)[index];
-}
-
-VirtualEntity* virtual_entity_create_at_index(s32 index, s32* entityModelData) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->entityModelIndex = load_entity_model(entityModelData);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-
-    return (*D_802DB7C0)[index];
-}
-
-s32 virtual_entity_create(s32* cmdList) {
-    s32 i;
-    VirtualEntity* virtualEntity;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity->entityModelIndex < 0) {
-            break;
-        }
-    }
-
-    if (i >= ARRAY_COUNT(*D_802DB7C0)) {
-        return 0;
-    }
-
-    virtualEntity->entityModelIndex = load_entity_model(cmdList);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-
-    return i;
-}
-
-VirtualEntity* ALT_virtual_entity_create(s32* cmdList) {
-    s32 i;
-    VirtualEntity* virtualEntity;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        virtualEntity = (*D_802DB7C0)[i];
-        if (virtualEntity->entityModelIndex < 0) {
-            break;
-        }
-    }
-
-    if (i >= ARRAY_COUNT(*D_802DB7C0)) {
-        return NULL;
-    }
-
-    virtualEntity->entityModelIndex = ALT_load_entity_model(cmdList);
-    virtualEntity->pos.x = 0.0f;
-    virtualEntity->pos.y = 0.0f;
-    virtualEntity->pos.z = 0.0f;
-    virtualEntity->rot.x = 0.0f;
-    virtualEntity->rot.y = 0.0f;
-    virtualEntity->rot.z = 0.0f;
-    virtualEntity->scale.x = 1.0f;
-    virtualEntity->scale.y = 1.0f;
-    virtualEntity->scale.z = 1.0f;
-
-    exec_entity_model_commandlist(virtualEntity->entityModelIndex);
-
-    return (*D_802DB7C0)[i];
-}
-
-void virtual_entity_set_pos(s32 index, s32 arg1, s32 arg2, s32 arg3) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->pos.x = arg1;
-    virtualEntity->pos.y = arg2;
-    virtualEntity->pos.z = arg3;
-}
-
-void virtual_entity_set_scale(s32 index, f32 arg1, f32 arg2, f32 arg3) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->scale.x = arg1;
-    virtualEntity->scale.y = arg2;
-    virtualEntity->scale.z = arg3;
-}
-
-void virtual_entity_set_rotation(s32 index, f32 arg1, f32 arg2, f32 arg3) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    virtualEntity->rot.x = arg1;
-    virtualEntity->rot.y = arg2;
-    virtualEntity->rot.z = arg3;
-}
-
-void virtual_entity_delete_by_index(s32 index) {
-    VirtualEntity* virtualEntity = (*D_802DB7C0)[index];
-
-    free_entity_model_by_index(virtualEntity->entityModelIndex);
-    virtualEntity->entityModelIndex = -1;
-}
-
-void virtual_entity_delete_by_ref(VirtualEntity* arg0) {
-    s32 i;
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        if ((*D_802DB7C0)[i] == arg0) {
-            virtual_entity_delete_by_index(i);
-            return;
-        }
-    }
-}
-
-void clear_virtual_entity_list(void) {
-    s32 i;
-
-    if (!gGameStatusPtr->isBattle) {
-        D_802DB7C0 = &D_802DB6C0;
-    } else {
-        D_802DB7C0 = &D_802DB5C0;
-    }
-
-    for (i = 0; i < ARRAY_COUNT(*D_802DB7C0); i++) {
-        (*D_802DB7C0)[i] = heap_malloc(sizeof(VirtualEntity));
-        ASSERT((*D_802DB7C0)[i] != NULL);
-        (*D_802DB7C0)[i]->entityModelIndex = -1;
-    }
-
-    create_generic_entity_world(virtual_entity_list_update, virtual_entity_list_render_world);
-    create_generic_entity_backUI(NULL, virtual_entity_list_render_UI);
-}
-
-void init_virtual_entity_list(void) {
-    if (!gGameStatusPtr->isBattle) {
-        D_802DB7C0 = &D_802DB6C0;
-    } else {
-        D_802DB7C0 = &D_802DB5C0;
-    }
 }

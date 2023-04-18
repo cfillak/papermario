@@ -21,7 +21,7 @@ if [[ "$uname" == "Darwin" ]]; then
     curl -L "https://github.com/decompals/mips-binutils-2.6/releases/download/main/binutils-2.6-mac.tar.gz" | tar zx -C tools/build/cc/gcc2.7.2
 
     echo "Downloading IDO 5.3 for macOS"
-    curl -L "https://github.com/ethteck/ido-static-recomp/releases/download/per-function/ido-5.3-recomp-macos-latest.tar.gz" | tar zx -C tools/build/cc/ido5.3
+    curl -L "https://github.com/decompals/ido-static-recomp/releases/download/v0.2/ido-5.3-recomp-macos-latest.tar.gz" | tar zx -C tools/build/cc/ido5.3
 
     echo "Installing packages for macOS"
 
@@ -33,6 +33,7 @@ if [[ "$uname" == "Darwin" ]]; then
     # Install packages
     brew install md5sha1sum ninja gcc nanaian/brew/mips-linux-gnu-binutils || exit 1
     python3 -m pip install -U -r requirements.txt || exit 1
+    python3 -m python_githooks || exit 1
 
     if [[ $1 == "--extra" ]]; then
         echo "Installing extra"
@@ -49,6 +50,7 @@ if cat /etc/os-release | grep -E 'ID=debian|ID_LIKE=(.*)debian' &> /dev/null; th
 
     ${SUDO} apt install -y curl git python3 python3-pip python3-setuptools build-essential binutils-mips-linux-gnu zlib1g-dev libyaml-dev ninja-build cpp-mips-linux-gnu || exit 1
     python3 -m pip install -U -r requirements.txt
+    python3 -m python_githooks || exit 1
 
     if [[ $1 == "--extra" ]]; then
         echo "Installing extra"
@@ -69,6 +71,7 @@ if cat /etc/os-release | grep -E 'ID=arch|ID_LIKE=arch' &> /dev/null; then
     # Install dependencies
     ${SUDO} pacman -S --noconfirm --needed curl git python python-pip python-setuptools base-devel zlib libyaml ninja || exit 1
     python3 -m pip install -U -r requirements.txt
+    python3 -m python_githooks || exit 1
 
     # Install binutils if required
     if ! command -v mips-linux-gnu-ar &> /dev/null; then
@@ -123,6 +126,7 @@ if cat /etc/os-release | grep ID=opensuse &> /dev/null; then
     ${SUDO} ln -s /usr/bin/mips-suse-linux-strip /usr/bin/mips-linux-gnu-strip
 
     python3 -m pip install -U -r requirements.txt
+    python3 -m python_githooks || exit 1
 
     if [[ $1 == "--extra" ]]; then
         echo "Installing extra"
@@ -145,6 +149,7 @@ if cat /etc/os-release | grep ID=alpine &> /dev/null; then
     # Install dependencies
     ${SUDO} apk add --no-cache bash curl wget git python3 python3-dev py3-pip build-base zlib-dev yaml-dev ninja
     python3 -m pip install -U -r requirements.txt
+    python3 -m python_githooks || exit 1
 
     # Install binutils if required
     if ! command -v mips-linux-gnu-ar &> /dev/null; then
@@ -206,4 +211,4 @@ curl -L "https://github.com/decompals/mips-gcc-2.7.2/releases/download/main/gcc-
 curl -L "https://github.com/decompals/mips-binutils-2.6/releases/download/main/binutils-2.6-linux.tar.gz" | tar zx -C tools/build/cc/gcc2.7.2
 
 echo "Downloading IDO 5.3 for Linux"
-curl -L "https://github.com/ethteck/ido-static-recomp/releases/download/per-function/ido-5.3-recomp-ubuntu-latest.tar.gz" | tar zx -C tools/build/cc/ido5.3
+curl -L "https://github.com/decompals/ido-static-recomp/releases/download/v0.2/ido-5.3-recomp-ubuntu-latest.tar.gz" | tar zx -C tools/build/cc/ido5.3

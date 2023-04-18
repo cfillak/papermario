@@ -2,27 +2,29 @@
 #include "world/actions.h"
 
 AnimID StepUpPeachAnims[] = {
-    ANIM_Peach_A0002, // none
-    ANIM_Peach_A002B, // cream
-    ANIM_Peach_A002D, // strawberry
-    ANIM_Peach_A002F, // butter
-    ANIM_Peach_A0031, // cleanser
-    ANIM_Peach_A0033, // water
-    ANIM_Peach_A0035, // milk
-    ANIM_Peach_A0037, // flour
-    ANIM_Peach_A0039, // egg
-    ANIM_Peach_A003B, // complete cake
-    ANIM_Peach_A003D, // cake bowl
-    ANIM_Peach_A003F, // cake mixed
-    ANIM_Peach_A0041, // cake pan
-    ANIM_Peach_A0043, // cake batter
-    ANIM_Peach_A0045, // cake bare
-    ANIM_Peach_A0047, // salt
-    ANIM_Peach_A0049, // sugar
-    ANIM_Peach_A004B, // cake with icing
-    ANIM_Peach_A004D, // cake with berries
+    ANIM_Peach1_Walk, // none
+    ANIM_Peach1_CarryCream, // cream
+    ANIM_Peach1_CarryStrawberry, // strawberry
+    ANIM_Peach1_CarryButter, // butter
+    ANIM_Peach1_CarryCleanser, // cleanser
+    ANIM_Peach1_CarryWater, // water
+    ANIM_Peach1_CarryMilk, // milk
+    ANIM_Peach1_CarryFlour, // flour
+    ANIM_Peach1_CarryEgg, // egg
+    ANIM_Peach1_CarryCompleteCake, // complete cake
+    ANIM_Peach1_CarryCakeBowl, // cake bowl
+    ANIM_Peach1_CarryCakeMixed, // cake mixed
+    ANIM_Peach1_CarryCakePan, // cake pan
+    ANIM_Peach1_CarryCakeBatter, // cake batter
+    ANIM_Peach1_CarryBareCake, // cake bare
+    ANIM_Peach1_CarrySalt, // salt
+    ANIM_Peach1_CarrySugar, // sugar
+    ANIM_Peach1_CarryIcingCake, // cake with icing
+    ANIM_Peach1_CarryBerryCake, // cake with berries
     0x00000000
 };
+
+void func_802B6198_E24768(void);
 
 void action_update_step_up(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
@@ -31,22 +33,22 @@ void action_update_step_up(void) {
     s32 colliderID;
     AnimID anim;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         phys_adjust_cam_on_landing();
-        if (!(playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS)) {
-            if (!(playerStatus->animFlags & PA_FLAGS_HOLDING_WATT)) {
-                anim = ANIM_Mario_Walking;
+        if (!(playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS)) {
+            if (!(playerStatus->animFlags & PA_FLAG_USING_WATT)) {
+                anim = ANIM_Mario1_Walk;
             } else {
-                anim = ANIM_Mario_60000;
+                anim = ANIM_MarioW1_CarryWalk;
             }
-            suggest_player_anim_clearUnkFlag(anim);
+            suggest_player_anim_allow_backward(anim);
         } else {
             func_802B6198_E24768();
         }
         playerStatus->actionSubstate = 0;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
+        playerStatus->peakJumpTime = 0;
         playerStatus->gravityIntegrator[0] = 17.7566f;
         playerStatus->gravityIntegrator[1] = -11.3862f;
         playerStatus->gravityIntegrator[2] = 3.5f;
@@ -55,7 +57,7 @@ void action_update_step_up(void) {
 
     integrate_gravity();
     sin_cos_rad(DEG_TO_RAD(playerStatus->targetYaw), &sinTheta, &cosTheta);
-    colliderID = -1;
+    colliderID = NO_COLLIDER;
     playerStatus->position.x += sinTheta * 3.0f;
     playerStatus->position.z -= cosTheta * 3.0f;
 
@@ -75,11 +77,11 @@ void action_update_step_up(void) {
 }
 
 void func_802B6198_E24768(void) {
-    if (!(gPlayerStatus.animFlags & PA_FLAGS_IN_DISGUISE)) {
-        if (!(gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_HAS_INGREDIENT)) {
-            suggest_player_anim_clearUnkFlag((StepUpPeachAnims)[gGameStatusPtr->peachCookingIngredient]);
+    if (!(gPlayerStatus.animFlags & PA_FLAG_INVISIBLE)) {
+        if (!(gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_DEPRESSED)) {
+            suggest_player_anim_allow_backward(StepUpPeachAnims[gGameStatusPtr->peachBakingIngredient]);
         } else {
-            suggest_player_anim_clearUnkFlag(ANIM_Peach_D000D);
+            suggest_player_anim_allow_backward(ANIM_Peach3_WalkSad);
         }
     } else {
         peach_set_disguise_anim(BasicPeachDisguiseAnims[gPlayerStatus.peachDisguise].walk);
@@ -89,9 +91,9 @@ void func_802B6198_E24768(void) {
 void action_update_step_up_peach(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        suggest_player_anim_clearUnkFlag(ANIM_Peach_A0005);
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+        suggest_player_anim_allow_backward(ANIM_Peach1_StepUp);
         playerStatus->currentStateTime = 8;
     }
 
@@ -101,7 +103,7 @@ void action_update_step_up_peach(void) {
             try_player_footstep_sounds(1);
         }
     } else {
-        if (!(playerStatus->flags & PS_FLAGS_4000)) {
+        if (!(playerStatus->flags & PS_FLAG_CUTSCENE_MOVEMENT)) {
             set_action_state(ACTION_STATE_IDLE);
         } else if (playerStatus->currentSpeed >= playerStatus->runSpeed) {
             set_action_state(ACTION_STATE_RUN);

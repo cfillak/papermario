@@ -5,15 +5,22 @@
 #include "enums.h"
 #include "script_api/map.h"
 
-#define GET_MACRO(_1,_2,_3,NAME,ARGS...) NAME
-#define NPC_GROUP(ARGS...) GET_MACRO(ARGS, NPC_GROUP_3, NPC_GROUP_2, NPC_GROUP_1)(ARGS)
-
 // battle and stage are optional in overloaded NPC_GROUP macros
-#define NPC_GROUP_1(npcs) { sizeof(npcs) / sizeof(StaticNpc), (StaticNpc*) &npcs, 0, 0 }
-#define NPC_GROUP_2(npcs, battle) { sizeof(npcs) / sizeof(StaticNpc), (StaticNpc*) &npcs, battle, 0 }
-#define NPC_GROUP_3(npcs, battle, stage) { sizeof(npcs) / sizeof(StaticNpc), (StaticNpc*) &npcs, battle, stage + 1 }
+#define NPC_GROUP(args...) VFUNC(NPC_GROUP, args)
+#define NPC_GROUP1(npcs)                { sizeof(npcs) / sizeof(NpcData), (NpcData*) &npcs, 0, 0 }
+#define NPC_GROUP2(npcs, battle)        { sizeof(npcs) / sizeof(NpcData), (NpcData*) &npcs, battle, 0 }
+#define NPC_GROUP3(npcs, battle, stage) { sizeof(npcs) / sizeof(NpcData), (NpcData*) &npcs, battle, stage + 1 }
 
-#define NO_DROPS { { F16(100), F16(0), 0, F16(0) }, }
+#define NPC_GROUP_EXPLICIT_SIZE(args...) VFUNC(NPC_GROUP_EXPLICIT_SIZE, args)
+#define NPC_GROUP_EXPLICIT_SIZE3(npcs, start, count)                { count, (NpcData*) &npcs[start], 0, 0 }
+#define NPC_GROUP_EXPLICIT_SIZE4(npcs, start, count, battle)        { count, (NpcData*) &npcs[start], battle, 0 }
+#define NPC_GROUP_EXPLICIT_SIZE5(npcs, start, count, battle, stage) { count, (NpcData*) &npcs[start], battle, stage + 1 }
+
+#define NO_DROPS { \
+    .dropFlags = NPC_DROP_FLAG_80, \
+    .heartDrops  = { { F16(100), F16(0), 0, F16(0) }, }, \
+    .flowerDrops = { { F16(100), F16(0), 0, F16(0) }, }, \
+}
 
 #define STANDARD_HEART_DROPS(attempts) { \
     { F16(20), F16(70), attempts, F16(50) }, \
@@ -24,10 +31,10 @@
 }
 
 #define GENEROUS_HEART_DROPS(attempts) { \
-    { F16(20), F16(80), attempts, F16(50) } \
-    { F16(30), F16(70), attempts, F16(50) } \
-    { F16(50), F16(60), attempts, F16(40) } \
-    { F16(80), F16(50), attempts, F16(40) } \
+    { F16(20), F16(80), attempts, F16(50) }, \
+    { F16(30), F16(70), attempts, F16(50) }, \
+    { F16(50), F16(60), attempts, F16(40) }, \
+    { F16(80), F16(50), attempts, F16(40) }, \
     { F16(100), F16(40), attempts, F16(30) }, \
 }
 
@@ -90,20 +97,20 @@ typedef struct MobileAISettings {
     /* 0x20 */ s32 chaseUpdateInterval;     // how often to re-run chase init and re-acquire player position (frames)
     /* 0x24 */ f32 chaseRadius;
     /* 0x28 */ f32 chaseOffsetDist;         // offset along npc->yaw of the test point for chase volume overlap, creates directionality to enemy 'sight'
-    /* 0x2C */ s32 unk_AI_2C;               // unk time
+    /* 0x2C */ s32 unk_AI_2C;               // probably a boolean for enable loitering after a wander movement
 } MobileAISettings; // size = 0x30
 
-typedef struct StationaryAISettings {
-    /* 0x00 */ f32 unk_00;
-    /* 0x04 */ s32 unk_04;
+typedef struct GuardAISettings {
+    /* 0x00 */ f32 alertRadius;
+    /* 0x04 */ f32 alertOffsetDist;         // offset along npc->yaw of the test point for alert volume overlap, creates directionality to enemy 'sight'
     /* 0x08 */ s32 playerSearchInterval;    // how often to search for player (frames)
     /* 0x0C */ f32 chaseSpeed;
     /* 0x10 */ s32 chaseTurnRate;           // how many degrees this NPC can turn per frame while chasing
     /* 0x14 */ s32 chaseUpdateInterval;     // how often to re-run chase init and re-acquire player position (frames)
     /* 0x18 */ f32 chaseRadius;
     /* 0x1C */ f32 chaseOffsetDist;         // offset along npc->yaw of the test point for alert volume overlap, creates directionality to enemy 'sight'
-    /* 0x20 */ s32 unk_20;
-} StationaryAISettings; // size = 0x24
+    /* 0x20 */ s32 unk_AI_20;               // probably equivalent to unk_AI_2C in MobileAISettings
+} GuardAISettings; // size = 0x24
 
 struct FireBarData;
 typedef void (*FireBarCallback)(struct FireBarData*, s32);
@@ -140,7 +147,7 @@ typedef struct NpcSettings {
     /* 0x18 */ EvtScript* aux;
     /* 0x1C */ EvtScript* onDefeat;
     /* 0x20 */ s32 flags;
-    /* 0x24 */ char unk_24[4];
+    /* 0x24 */ s32 unk_24;
     /* 0x28 */ s16 level;
     /* 0x2A */ s16 actionFlags;  // action flags: 1 = jump on seeing player
 } NpcSettings; // size = 0x2C
@@ -148,7 +155,7 @@ typedef struct NpcSettings {
 typedef struct ItemDrop {
     /* 0x00 */ s16 item;
     /* 0x02 */ s16 weight;
-    /* 0x04 */ s16 unk_08;
+    /* 0x04 */ s16 unk_04;
 } ItemDrop; // size = 0x06
 
 /// @brief Describes heart/flower drop chances after defeating an Npc in the overworld.
@@ -158,7 +165,7 @@ typedef struct ItemDrop {
 /// - Roll generalChance. If it fails, drop 0.
 /// - Roll chancePerAttempt attempts times. For each success, drop a heart/flower.
 ///
-/// StaticNpc holds a table of StatDrops for each stat (hearts, flowers). All are checked together
+/// NpcData holds a table of StatDrops for each stat (hearts, flowers). All are checked together
 /// and the number of hearts/flowers to drop is the total number of successful attempts for each stat.
 ///
 /// Each heart/flower is worth 1 HP and 1 FP respectively, if picked up.
@@ -174,7 +181,7 @@ typedef struct StatDrop {
 
 typedef struct EnemyDrops {
     /* 0x00 */ u8 dropFlags;
-    /* 0x01 */ s8 itemDropChance; // %
+    /* 0x01 */ u8 itemDropChance; // %
     /* 0x02 */ ItemDrop itemDrops[8];
     /* 0x32 */ StatDrop heartDrops[8];
     /* 0x72 */ StatDrop flowerDrops[8];
@@ -182,6 +189,18 @@ typedef struct EnemyDrops {
     /* 0xB4 */ s16 maxCoinBonus;
     /* 0xB6 */ char unk_DE[2];
 } EnemyDrops; // size = 0xB8
+
+// TODO unify this with EnemyDrops (union? requires changing tons of data)
+typedef struct EnemyDropsFlat {
+    /* 0x00 */ u8 dropFlags;
+    /* 0x01 */ u8 itemDropChance;
+    /* 0x02 */ s16 itemDrops[8 * 3];
+    /* 0x32 */ s16 heartDrops[8 * 4];
+    /* 0x72 */ s16 flowerDrops[8 * 4];
+    /* 0xB2 */ s16 minCoinBonus;
+    /* 0xB4 */ s16 maxCoinBonus;
+    /* 0xB6 */ char unk_DE[2];
+} EnemyDropsFlat; // size = 0xB8
 
 enum TerritoryShape { SHAPE_CYLINDER, SHAPE_RECT };
 
@@ -226,10 +245,11 @@ typedef union {
 
 typedef union NpcInitialVars {
     /* 0x0 */ s32 value;
+    /* 0x0 */ s8 bytes[4];
     /* 0x0 */ s32* array;
 } NpcInitialVars;
 
-typedef struct StaticNpc {
+typedef struct NpcData {
     /* 0x000 */ s32 id;
     /* 0x004 */ NpcSettings* settings;
     /* 0x008 */ Vec3f pos;
@@ -263,17 +283,19 @@ typedef struct StaticNpc {
     /* 0x1E2 */ s8 unk__1E2;
     /* 0x1E3 */ u8 aiDetectFlags;
     /* 0x1E4 */ u32 aiFlags;
-    /* 0x1E8 */ s32* extraAnimations;
+    /* 0x1E8 */ AnimID* extraAnimations;
     /* 0x1EC */ s32 tattle;
-} StaticNpc; // size = 0x1F0
+} NpcData; // size = 0x1F0
 
 /// Zero-terminated.
-typedef struct {
+typedef struct NpcGroup {
     /* 0x00 */ s32 npcCount;
-    /* 0x04 */ StaticNpc* npcs;
+    /* 0x04 */ NpcData* npcs;
     /* 0x08 */ s16 battle;
     /* 0x0A */ s16 stage;
-} NpcGroupList[]; // size = 0x0C
+} NpcGroup; // size = 0x0C
+
+typedef NpcGroup NpcGroupList[];
 
 // function signature used for state handlers in AI main functions
 typedef void AIStateHandler(Evt* script, MobileAISettings* settings, EnemyDetectVolume* territory);
@@ -283,10 +305,10 @@ typedef struct Enemy {
     /* 0x04 */ s8 encounterIndex;
     /* 0x05 */ s8 encountered;
     /* 0x06 */ u8 scriptGroup; /* scripts launched for this npc controller will be assigned this group */
-    /* 0x07 */ s8 unk_07;
+    /* 0x07 */ s8 hitboxIsActive; // when set, contact will trigger a first strike
     /* 0x08 */ s16 npcID;
     /* 0x0A */ s16 spawnPos[3];
-    /* 0x10 */ Vec3s unk_10;
+    /* 0x10 */ Vec3s unk_10;    //TODO hitbox pos?
     /* 0x16 */ char unk_16[2];
     /* 0x18 */ NpcSettings* npcSettings;
     /* 0x1C */ EvtScript* initBytecode;
@@ -317,8 +339,8 @@ typedef struct Enemy {
     /* 0xAC */ u8 aiDetectFlags; // detect player flags: 1 = require line of sight | 2 = adjust hitbox for moving player
     /* 0xAD */ char unk_AD[3];
     /* 0xB0 */ u32 aiFlags;
-    /* 0xB4 */ s8 aiPaused;
-    /* 0xB5 */ s8 unk_B5;
+    /* 0xB4 */ s8 aiSuspendTime;
+    /* 0xB5 */ s8 instigatorValue; // value is passed to first actor in formation if a battle is triggered with this enemy
     /* 0xB6 */ char unk_B6[2];
     /* 0xB8 */ EvtScript* unk_B8; // some bytecode
     /* 0xBC */ struct Evt* unk_BC; // some script
@@ -330,9 +352,15 @@ typedef struct Enemy {
     /* 0xD4 */ EnemyDrops* drops;
     /* 0xD8 */ u32 tattleMsg;
     /* 0xDC */ s32 unk_DC;
-    /* 0xE0 */ s16 unk_E0;
+    /* 0xE0 */ s16 savedNpcYaw;
     /* 0xE2 */ char unk_E2[6];
-} Enemy; // size = 0xE8
+    #ifdef _DEAD_H_
+    /* 0x0DC */ char unk_E8[32];
+    /* 0x108 */ Vec3f unk_108; // Associated NPC Pos?
+    /* 0x114 */ f32 unk_114;
+    /* 0x118 */ f32 unk_118;
+    #endif
+} Enemy; // size = 0xE8, dead size = 0x11C
 
 typedef struct Encounter {
     /* 0x00 */ s32 count;
@@ -352,14 +380,14 @@ typedef struct EncounterStatus {
     /* 0x008 */ s8 unk_08;
     /* 0x009 */ s8 battleOutcome; /* 0 = won, 1 = lost */
     /* 0x00A */ s8 battleTriggerCooldown; ///< set to 15 after victory, 45 after fleeing
-    /* 0x00B */ s8 merleeCoinBonus; /* triple coins when != 0 */
+    /* 0x00B */ b8 hasMerleeCoinBonus; /* triple coins when TRUE */
     /* 0x00C */ u8 damageTaken; /* valid after battle */
     /* 0x00D */ char unk_0D;
     /* 0x00E */ s16 coinsEarned; /* valid after battle */
-    /* 0x010 */ char unk_10;
+    /* 0x010 */ s8 instigatorValue;
     /* 0x011 */ s8 allowFleeing;
-    /* 0x012 */ s8 unk_12;
-    /* 0x013 */ u8 dropWhackaBump;
+    /* 0x012 */ s8 scriptedBattle; ///< battle started by StartBattle but not by encounter
+    /* 0x013 */ s8 dropWhackaBump;
     /* 0x014 */ s32 songID;
     /* 0x018 */ s32 unk_18;
     /* 0x01C */ s8 numEncounters; /* number of encounters for current map (in list) */
@@ -380,7 +408,15 @@ typedef struct EncounterStatus {
     /* 0x0A0 */ s8 dizzyAttackStatus;
     /* 0x0A1 */ char unk_A1[0x1];
     /* 0x0A2 */ s16 dizzyAttackDuration;
-    /* 0x0A4 */ char unk_A4[0xC];
+    /* 0x0A4 */ s8 unk_A4;
+    /* 0x0A5 */ char unk_A5[0x1];
+    /* 0x0A6 */ s16 unk_A6;
+    /* 0x0A8 */ s8 unk_A8;
+    /* 0x0A9 */ char unk_A9[0x1];
+    /* 0x0AA */ s16 unk_AA;
+    /* 0x0AC */ s8 unk_AC;
+    /* 0x0AD */ char unk_AD[0x1];
+    /* 0x0AE */ s16 unk_AE;
     /* 0x0B0 */ s32 defeatFlags[60][12];
     /* 0xFB0 */ s16 recentMaps[2];
     /* 0xFB4 */ char unk_FB4[4];
@@ -404,13 +440,13 @@ void init_npc_list(void);
 /// Presumably did something once upon a time but got commented out.
 void npc_iter_no_op(void);
 
-s32 _create_npc(NpcBlueprint* blueprint, AnimID** animList, s32 skipLoadingAnims);
+s32 create_npc_impl(NpcBlueprint* blueprint, AnimID* animList, s32 skipLoadingAnims);
 
-s32 _create_npc_basic(NpcBlueprint* blueprint);
+s32 create_basic_npc(NpcBlueprint* blueprint);
 
-s32 _create_npc_standard(NpcBlueprint* blueprint, AnimID** animList);
+s32 create_standard_npc(NpcBlueprint* blueprint, AnimID* animList);
 
-s32 _create_npc_partner(NpcBlueprint* blueprint);
+s32 create_peach_npc(NpcBlueprint* blueprint);
 
 void free_npc_by_index(s32 listIndex);
 
@@ -425,16 +461,16 @@ void npc_do_other_npc_collision(Npc* npc);
 /// @returns TRUE if a collision occurred
 s32 npc_do_player_collision(Npc* npc);
 
-void npc_do_gravity(Npc* npc);
+void npc_try_apply_gravity(Npc* npc);
 
-s32 func_800397E8(Npc* npc, f32 arg1);
+s32 npc_try_snap_to_ground(Npc* npc, f32 velocity);
 
 /// Updates all NPCs.
 void update_npcs(void);
 
 f32 npc_get_render_yaw(Npc* npc);
 
-void appendGfx_npc(Npc* npc);
+void appendGfx_npc(void* data);
 
 /// Renders all NPCs.
 void render_npcs(void);
@@ -452,7 +488,7 @@ void disable_npc_shadow(Npc* npc);
 
 void update_npc_blur(Npc* npc);
 
-void appendGfx_npc_blur(Npc* npc);
+void appendGfx_npc_blur(void* npc);
 
 void npc_enable_collisions(void);
 
@@ -492,7 +528,7 @@ void npc_remove_decoration(Npc* npc, s32 idx);
 
 s32 npc_update_decorations(Npc* npc);
 
-void npc__remove_decoration(Npc* npc, s32 idx);
+void npc_remove_decoration_impl(Npc* npc, s32 idx);
 
 void npc_reset_current_decoration(Npc* npc, s32 idx);
 
@@ -528,8 +564,8 @@ void npc__reset_current_decoration(Npc* npc, s32 idx);
 
 /// Finds the closest NPC to a given point within a radius. Ignores Y position.
 ///
-/// NPCs with NPC_FLAG_PARTICLE set are ignored.
-/// See also npc_find_closest_simple(), which requires that NPC_FLAG_PARTICLE be set.
+/// NPCs with NPC_FLAG_PARTNER set are ignored.
+/// See also npc_find_closest_simple(), which requires that NPC_FLAG_PARTNER be set.
 ///
 /// @param x        X position
 /// @param y        Y position (unused)
@@ -541,8 +577,8 @@ Npc* npc_find_closest(f32 x, f32 y, f32 z, f32 radius);
 
 /// Finds the closest simple-hitbox NPC to a given point within a radius. Ignores Y position.
 ///
-/// Only NPCs with NPC_FLAG_PARTICLE set are considered.
-/// See also npc_find_closest(), which requires that NPC_FLAG_PARTICLE be unset.
+/// Only NPCs with NPC_FLAG_PARTNER set are considered.
+/// See also npc_find_closest(), which requires that NPC_FLAG_PARTNER be unset.
 ///
 /// @param x        X position
 /// @param y        Y position (unused)
@@ -558,21 +594,21 @@ s32 npc_get_collider_below(Npc* npc);
 
 void func_8003D3BC(Npc* npc);
 
-void func_8003D624(Npc* npc, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
+void npc_set_fold_params(Npc* npc, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
-void func_8003D660(Npc* npc, s32);
+void spawn_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-void func_8003D788(Npc* npc, s32);
+void spawn_default_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-void func_8003DA38(Npc* npc, s32);
+void spawn_flower_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-s32 func_8003DC38(Npc*, s32);
+void spawn_cloud_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-void func_8003DFA0(Npc* npc, s32);
+void spawn_snow_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-void func_8003E0D4(Npc* npc, s32);
+void spawn_hedge_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
-void func_8003E1D0(Npc* npc, s32);
+void spawn_water_surface_effects(Npc* npc, SurfaceInteractMode mode);
 
 /// Duplicate of set_defeated().
 void COPY_set_defeated(s32 mapID, s32 encounterID);
@@ -591,7 +627,7 @@ void draw_encounter_ui(void);
 
 void draw_first_strike_ui(void);
 
-void npc_dyn_entity_draw_no_op(void);
+void npc_render_worker_do_nothing(void);
 
 void make_npcs(s32 flags, s32 mapID, s32* npcGroupList);
 
@@ -648,5 +684,7 @@ Enemy* get_enemy(s32 npcID);
 ///
 /// @returns pointer to Enemy struct, if one is found. Otherwise, NULL.
 Enemy* get_enemy_safe(s32 npcID);
+
+void set_npc_sprite(Npc* npc, s32 anim, AnimID* extraAnimList);
 
 #endif

@@ -1,6 +1,6 @@
 #include "audio.h"
 
-extern s32 D_80078554;
+extern u8 EnvelopeReleaseDefaultFast[];
 extern u8 BgmDivisors[8];
 extern u8 D_80078558[40];
 
@@ -118,23 +118,16 @@ void au_bgm_update_main(BGMPlayer* player) {
     }
 }
 
-// Return values are being pushed into v0 in the wrong place
-// May depend on data decomp
-#ifdef NON_EQUIVALENT
 BGMPlayer* au_bgm_get_player_with_song_name(s32 songString) {
-    SndGlobals* globals = gBGMPlayerA->data;
-
-    if (songString == globals->dataBGM[0]->name) {
+    if (songString != gBGMPlayerA->globals->dataBGM[0]->name) {
+        if (songString == gBGMPlayerA->globals->dataBGM[1]->name) {
+            return gBGMPlayerB;
+        }
+    } else {
         return gBGMPlayerA;
-    }
-    if (songString == globals->dataBGM[1]->name) {
-        return gBGMPlayerB;
     }
     return NULL;
 }
-#else
-INCLUDE_ASM(BGMPlayer*, "audio/28910_len_5090", au_bgm_get_player_with_song_name, s32 songString);
-#endif
 
 AuResult au_bgm_dispatch_player_event(SongUpdateEvent* event) {
     BGMPlayer* player;
@@ -163,14 +156,14 @@ AuResult au_bgm_dispatch_player_event(SongUpdateEvent* event) {
                 }
             }
             volume0 = event->startVolume;
-            if (volume0 >= 0x80) {
+            if (volume0 > 0x7F) {
                 volume0 = 0x7F;
             }
             if (volume0 != 0) {
                 volume0 = (volume0 << 8) | 0xFF;
             }
             volume1 = event->finalVolume;
-            if (volume1 >= 0x80) {
+            if (volume1 > 0x7F) {
                 volume1 = 0x7F;
             }
             if (volume1 != 0) {
@@ -520,12 +513,12 @@ AuResult func_8004E0F4(SongUpdateEvent* update) {
     return status;
 }
 
-void au_bgm_player_init(BGMPlayer* player, s32 priority, s32 reverbType, AuGlobals* globals) {
+void au_bgm_player_init(BGMPlayer* player, s32 priority, s32 busId, AuGlobals* globals) {
     s16 i;
 
     player->globals = globals;
     func_8004E880(player, BGM_SAMPLE_RATE, 48);
-    player->unk_48 = 0x8000;
+    player->busVolume = 0x8000;
     player->masterTempo = BGM_DEFAULT_TEMPO;
     player->masterVolume = 0x7F000000;
     player->updateCounter = 0;
@@ -544,17 +537,17 @@ void au_bgm_player_init(BGMPlayer* player, s32 priority, s32 reverbType, AuGloba
     player->masterVolumeTarget = 0;
     player->masterVolumeStep = 0;
     player->masterPitchShift = 0;
-    player->unk_20E = 0;
+    player->detune = 0;
     player->unk_220 = 0;
     player->trackVolsConfig = NULL;
     player->bFadeConfigSetsVolume = FALSE;
     player->masterState = BGM_PLAY_STATE_IDLE;
     player->priority = priority;
-    player->defaultReverbType = reverbType;
+    player->busId = busId;
     *(s32*)player->segLoopCounters = 0;
     player->unk_222 = 0;
     player->unk_223 = 0;
-    player->unk_D0 = 1.0f;
+    player->playbackRate = 1.0f;
     player->unk_22A[0] = 0;
     player->unk_22A[1] = 1;
     player->unk_22A[2] = 0;
@@ -645,12 +638,12 @@ void func_8004E444(BGMPlayer* arg0) {
     s32 i;
 
     for (i = 0; i < ARRAY_COUNT(arg0->effectIndices); i++) {
-        s8 temp = arg0->effectIndices[i];
+        s8 busId = arg0->effectIndices[i];
 
-        if (temp < 0) {
+        if (busId < 0) {
             return;
         }
-        func_80053A98(temp, mult, arg0->unk_48);
+        au_fade_set_volume(busId, mult, arg0->busVolume);
     }
 }
 
@@ -736,7 +729,7 @@ void au_bgm_player_initialize(BGMPlayer* player) {
         track->isDrumTrack = FALSE;
         track->parentTrackIdx = 0;
         track->unk_5A = 0;
-        track->subtrackReverbType = player->defaultReverbType;
+        track->subtrackBusId = player->busId;
         track->index = i;
     }
 
@@ -751,7 +744,7 @@ void au_bgm_player_initialize(BGMPlayer* player) {
     }
 
     func_80050900(player);
-    player->unk_D0 = 128.0f; // set to 1.0 later om...
+    player->playbackRate = 128.0f; // set to 1.0 later om...
     player->masterTempo = BGM_DEFAULT_TEMPO;
     player->masterTempoBPM = BGM_DEFAULT_TEMPO / 100;
     player->unk_21E = 0x80;
@@ -760,7 +753,7 @@ void au_bgm_player_initialize(BGMPlayer* player) {
     player->unk_74 = 0;
     player->masterTempoTarget = 0;
     player->masterPitchShift = 0;
-    player->unk_20E = 0;
+    player->detune = 0;
     player->masterVolumeTime = 0;
     player->masterVolumeTarget = 0;
     player->masterVolumeStep = 0;
@@ -779,7 +772,7 @@ void au_bgm_player_initialize(BGMPlayer* player) {
     player->bFadeConfigSetsVolume = FALSE;
     player->unk_233 = 1;
     player->unk_211 = 0;
-    player->unk_D0 = 1.0f;
+    player->playbackRate = 1.0f;
 
     for (i = 0; i < ARRAY_COUNT(player->unk_212); i++) {
         func_8004E844(player, i);
@@ -929,7 +922,7 @@ void au_bgm_load_subsegment(BGMPlayer* player, u32 cmd) {
     s32 nextRelativePos;
     s32 bUsesPolyphony;
     s32 i;
-    
+
     nextRelativePos = 0;
     bUsesPolyphony = FALSE;
     player->subSegmentStartPos = AU_FILE_RELATIVE(player->segmentStartPos, (cmd & 0xFFFF) << 2);
@@ -937,7 +930,7 @@ void au_bgm_load_subsegment(BGMPlayer* player, u32 cmd) {
     for (i = 0; i < ARRAY_COUNT(player->tracks); i++) {
         track = &player->tracks[i];
         trackInfo = *trackList++;
-        track->bgmReadPos = trackInfo >> 0x10;
+        track->bgmReadPos = (AuFilePos) (trackInfo >> 0x10);
         if (track->bgmReadPos != NULL) {
             if ((trackInfo & 0x100) == 0) {
                 track->polyphonicIdx = (trackInfo & (0x7 << 0xD)) >> 0xD;
@@ -950,10 +943,10 @@ void au_bgm_load_subsegment(BGMPlayer* player, u32 cmd) {
                         track->unk_51 = parentTrack->unk_51;
                         track->unk_52 = parentTrack->unk_52;
                         track->unk_53 = parentTrack->unk_53;
-                        
+
                         track->bgmReadPos = (track->bgmReadPos + (s32)player->subSegmentStartPos);
                         track->delayTime = 1;
-                        
+
                         track->parentTrackIdx = parentIdx;
                         if (player->unk_233 != 0) {
                             track->unk_5A = 1;
@@ -968,7 +961,7 @@ void au_bgm_load_subsegment(BGMPlayer* player, u32 cmd) {
                     track->unk_52 = nextRelativePos;
                     nextRelativePos += count;
                     track->unk_53 = nextRelativePos;
-                    
+
                     track->bgmReadPos = (track->bgmReadPos + (s32)player->subSegmentStartPos);
                     track->delayTime = 1;
                 }
@@ -1008,12 +1001,12 @@ if (track->detourLength != 0) {\
 }
 
 void au_bgm_player_update_playing(BGMPlayer *player) {
-    s32 bVolumeFading;    // SP + 10
-    u8 sp1F;              // SP + 1F
-    s16 notePitch;        // SP + 26
-    u8 bFinished;         // SP + 28
+    s32 bVolumeFading;
+    u8 sp1F;
+    s16 notePitch;
+    u8 bFinished;
 
-    AlUnkVoice* voice;
+    AuVoice* voice;
     BGMDrumInfo* drumInfo;
     BGMPlayerTrack* track;
     SeqNote* note;
@@ -1197,7 +1190,7 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                         if (!bAcquiredVoiceIdx) {
                                             s32 shortestLength = 0xFFFF;
                                             u8 voice_it;
-                                            AlUnkVoice* curVoice;
+                                            AuVoice* curVoice;
                                             SeqNote* curNote;
                                             for (voice_it = track->unk_52; voice_it < track->unk_53; voice_it++) {
                                                 curVoice = &player->globals->voices[voice_it];
@@ -1245,13 +1238,13 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                     } else {
                                         drumInfo = player->drums[notePitch - 72]; // = 6 * 12
                                     }
-                                    note->ins = au_get_instrument(player->globals, (u16)drumInfo->bankPatch >> 8, (u16)drumInfo->bankPatch & 0xFF, &voice->unk_14);
+                                    note->ins = au_get_instrument(player->globals, (u16)drumInfo->bankPatch >> 8, (u16)drumInfo->bankPatch & 0xFF, &voice->envelope);
                                     if (drumInfo->randVolume != 0) {
                                         note->volume = note->noteVelocity * au_bgm_get_random_vol(player->randomValue1, drumInfo->volume, drumInfo->randVolume);
                                     } else {
                                         note->volume = note->noteVelocity * drumInfo->volume;
                                     }
-                                    voice->adjustedVolume = ((
+                                    voice->clientVolume = ((
                                         ((player->masterVolume >> 0x15) * (track->subTrackVolume >> 0x15) * (track->unkVolume >> 0x15)) >> 0x14)
                                         * (track->segTrackVolume * note->volume)) >> 0x10;
                                     note->adjustedPitch =
@@ -1259,7 +1252,7 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                         + track->subTrackCoarseTune
                                         + track->subTrackFineTune
                                         - note->ins->keyBase;
-                                    temp = (note->adjustedPitch + track->segTrackTune) + player->unk_20E;
+                                    temp = (note->adjustedPitch + track->segTrackTune) + player->detune;
                                     if (drumInfo->randTune != 0) {
                                         note->unk_14 = au_bgm_get_random_pitch(player->randomValue1, temp, drumInfo->randTune);
                                         temp = note->unk_14;
@@ -1271,15 +1264,15 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                         voice->pan = drumInfo->pan;
                                     }
                                     if (drumInfo->randReverb != 0) {
-                                        voice->reverbAmt = au_bgm_get_random_reverb(player->randomValue1, drumInfo->reverb, drumInfo->randReverb);
+                                        voice->reverb = au_bgm_get_random_reverb(player->randomValue1, drumInfo->reverb, drumInfo->randReverb);
                                     } else {
-                                        voice->reverbAmt = drumInfo->reverb;
+                                        voice->reverb = drumInfo->reverb;
                                     }
                                 } else {
                                     note->volume = ((
                                         ((player->masterVolume >> 0x15) * (track->subTrackVolume >> 0x15) * (track->unkVolume >> 0x15)) >> 0x14)
                                         * (track->segTrackVolume * note->noteVelocity)) >> 9;
-                                    voice->adjustedVolume = note->volume;
+                                    voice->clientVolume = note->volume;
                                     note->ins = track->instrument;
                                     note->adjustedPitch =
                                         (notePitch * 100)
@@ -1290,7 +1283,7 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                     note->pitchRatio = au_compute_pitch_ratio(
                                         note->adjustedPitch
                                         + track->segTrackTune
-                                        + player->unk_20E)
+                                        + player->detune)
                                         * track->instrument->pitchRatio;
 
                                     if (track->unk_57 != 0) {
@@ -1298,26 +1291,26 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                     } else {
                                         voice->pan = track->subTrackPan;
                                     }
-                                    voice->reverbAmt = track->subTrackReverb;
+                                    voice->reverb = track->subTrackReverb;
 
                                     if (track->unk_4C != 0) {
-                                        voice->unk_14.unk_00 = (s32*)player->unk_174[track->unk_4C - 1]; //TODO ???
+                                        voice->envelope.cmdListPress = (u8*) player->unk_174[track->unk_4C - 1]; //TODO ???
                                     } else {
-                                        voice->unk_14.unk_00 = track->unk_10.unk_00;
+                                        voice->envelope.cmdListPress = track->envelope.cmdListPress;
                                     }
-                                    voice->unk_14.unk_04 = track->unk_10.unk_04;
+                                    voice->envelope.cmdListRelease = track->envelope.cmdListRelease;
                                 }
                                 voice->instrument = note->ins;
                                 voice->pitchRatio = note->pitchRatio;
-                                voice->reverbType = track->subtrackReverbType;
+                                voice->busId = track->subtrackBusId;
                                 if (note->noteLength >= 2) {
                                     note->unk_note_17 = 1;
                                     note->tremoloTime = track->trackTremoloTime;
                                     note->unk_13 = 0;
                                     note->tremoloAmount = track->trackTremoloAmount;
-                                    voice->unk_flags_43 = AU_VOICE_SYNC_FLAGS_ALL;
+                                    voice->syncFlags = AU_VOICE_SYNC_FLAG_ALL;
                                     voice->priority = player->priority;
-                                    voice->priorityCopy = voice->priority;
+                                    voice->clientPriority = voice->priority;
                                 }
                             }
                         } else {
@@ -1362,24 +1355,24 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                             if (note->noteLength > 0) {
                                 note->noteLength--;
                                 if (note->noteLength == 0) {
-                                    voice->unk_flags_3D |= AU_VOICE_3D_FLAGS_10;
+                                    voice->envelopeFlags |= AU_VOICE_ENV_FLAG_KEY_RELEASED;
                                 }
                             }
                             if (track->isDrumTrack) {
-                                if (track->changed.tune || (player->unk_20E != 0)) {
-                                    note->pitchRatio = au_compute_pitch_ratio(((note->adjustedPitch + note->unk_14) + track->segTrackTune) + player->unk_20E) * note->ins->pitchRatio;
+                                if (track->changed.tune || (player->detune != 0)) {
+                                    note->pitchRatio = au_compute_pitch_ratio(((note->adjustedPitch + note->unk_14) + track->segTrackTune) + player->detune) * note->ins->pitchRatio;
                                     if (voice->pitchRatio != note->pitchRatio) {
                                         voice->pitchRatio = note->pitchRatio;
-                                        voice->unk_flags_43 |= AU_VOICE_SYNC_FLAGS_PITCH;
+                                        voice->syncFlags |= AU_VOICE_SYNC_FLAG_PITCH;
                                     }
                                 }
                                 if (track->changed.volume) {
-                                    voice->adjustedVolume = (
-                                        ((((player->masterVolume >> 0x15) 
-                                        * (track->subTrackVolume >> 0x15)) 
-                                        * (track->unkVolume >> 0x15)) >> 0x14) 
+                                    voice->clientVolume = (
+                                        ((((player->masterVolume >> 0x15)
+                                        * (track->subTrackVolume >> 0x15))
+                                        * (track->unkVolume >> 0x15)) >> 0x14)
                                         * (track->segTrackVolume * note->volume)) >> 0x10;
-                                    voice->unk_flags_3D |= AU_VOICE_3D_FLAGS_VOL_CHANGED;
+                                    voice->envelopeFlags |= AU_VOICE_ENV_FLAG_VOL_CHANGED;
                                 }
                             } else {
                                 if (note->tremoloTime != 0) {
@@ -1405,31 +1398,31 @@ void au_bgm_player_update_playing(BGMPlayer *player) {
                                             var_a1_5 = -var_a1_5;
                                         }
 
-                                        note->pitchRatio = au_compute_pitch_ratio(var_a1_5 + ((note->adjustedPitch + track->segTrackTune) + player->unk_20E)) * note->ins->pitchRatio;
+                                        note->pitchRatio = au_compute_pitch_ratio(var_a1_5 + ((note->adjustedPitch + track->segTrackTune) + player->detune)) * note->ins->pitchRatio;
                                         if (voice->pitchRatio != note->pitchRatio) {
                                             voice->pitchRatio = note->pitchRatio;
-                                            voice->unk_flags_43 |= AU_VOICE_SYNC_FLAGS_PITCH;
+                                            voice->syncFlags |= AU_VOICE_SYNC_FLAG_PITCH;
                                         }
                                     }
-                                } else if (track->changed.tune || (player->unk_20E != 0)) {
+                                } else if (track->changed.tune || (player->detune != 0)) {
 
-                                    note->pitchRatio = au_compute_pitch_ratio((note->adjustedPitch + track->segTrackTune) + player->unk_20E) * note->ins->pitchRatio;
+                                    note->pitchRatio = au_compute_pitch_ratio((note->adjustedPitch + track->segTrackTune) + player->detune) * note->ins->pitchRatio;
                                     if (voice->pitchRatio != note->pitchRatio) {
                                         voice->pitchRatio = note->pitchRatio;
-                                        voice->unk_flags_43 |= AU_VOICE_SYNC_FLAGS_PITCH;
+                                        voice->syncFlags |= AU_VOICE_SYNC_FLAG_PITCH;
                                     }
                                 }
                                 if (track->changed.volume) {
                                     s32 tempVolume = ((player->masterVolume >> 0x15) * (track->subTrackVolume >> 0x15) * (track->unkVolume >> 0x15)) >> 0x14;
                                     note->volume = (tempVolume * (track->segTrackVolume * note->noteVelocity)) >> 9;
-                                    voice->adjustedVolume = note->volume;
-                                    voice->unk_flags_3D |= AU_VOICE_3D_FLAGS_VOL_CHANGED;
+                                    voice->clientVolume = note->volume;
+                                    voice->envelopeFlags |= AU_VOICE_ENV_FLAG_VOL_CHANGED;
                                     voice->pan = track->subTrackPan;
-                                    voice->reverbAmt = track->subTrackReverb;
+                                    voice->reverb = track->subTrackReverb;
                                 } else if (track->changed.pan || track->changed.reverb) {
                                     voice->pan = track->subTrackPan;
-                                    voice->reverbAmt = track->subTrackReverb;
-                                    voice->unk_flags_43 |= AU_VOICE_SYNC_FLAGS_10;
+                                    voice->reverb = track->subTrackReverb;
+                                    voice->syncFlags |= AU_VOICE_SYNC_FLAG_PAN_FXMIX;
                                 }
                             }
                         }
@@ -1464,7 +1457,7 @@ static s32 snd_bpm_to_tempo(BGMPlayer* player, u32 tempo) {
     u32 maxTempo = player->maxTempo;
     u32 ret = tempo;
 
-    ret *= player->unk_D0;
+    ret *= player->playbackRate;
 
     if (maxTempo < ret) {
         ret = maxTempo;
@@ -1495,18 +1488,18 @@ void au_BGMCmd_E2_MasterPitchShift(BGMPlayer* player, BGMPlayerTrack* track) {
 }
 
 void au_BGMCmd_E3(BGMPlayer* player, BGMPlayerTrack* track) {
-    player->globals->effectChanges[player->defaultReverbType].type = player->seqCmdArgs.UnkCmdE3.bank;
-    player->globals->effectChanges[player->defaultReverbType].changed = TRUE;
+    player->globals->effectChanges[player->busId].type = player->seqCmdArgs.UnkCmdE3.effectType;
+    player->globals->effectChanges[player->busId].changed = TRUE;
 }
 
 void au_BGMCmd_E6_MasterEffect(BGMPlayer* player, BGMPlayerTrack* track) {
     u8 index = player->seqCmdArgs.MasterEffect.index;
-    u32 temp_v1 = player->effectIndices[index];
+    u32 busId = player->effectIndices[index];
 
-    if ((index < 4) && (temp_v1 < 0x80)) {
-        if (player->globals->effectChanges[temp_v1].type != player->seqCmdArgs.MasterEffect.value) {
-            player->globals->effectChanges[temp_v1].type = player->seqCmdArgs.MasterEffect.value;
-            player->globals->effectChanges[temp_v1].changed = TRUE;
+    if ((index < 4) && (busId < 0x80)) {
+        if (player->globals->effectChanges[busId].type != player->seqCmdArgs.MasterEffect.value) {
+            player->globals->effectChanges[busId].type = player->seqCmdArgs.MasterEffect.value;
+            player->globals->effectChanges[busId].changed = TRUE;
         }
         player->effectValues[index] = player->seqCmdArgs.MasterEffect.value;
     }
@@ -1544,7 +1537,7 @@ void au_BGMCmd_E5_MasterVolumeFade(BGMPlayer* player, BGMPlayerTrack* track) {
 
 void au_BGMCmd_E8_TrackOverridePatch(BGMPlayer* player, BGMPlayerTrack* track) {
     track->patch = player->seqCmdArgs.TrackOverridePatch.patch;
-    track->instrument = au_get_instrument(player->globals, player->seqCmdArgs.TrackOverridePatch.bank, track->patch, &track->unk_10);
+    track->instrument = au_get_instrument(player->globals, player->seqCmdArgs.TrackOverridePatch.bank, track->patch, &track->envelope);
 }
 
 void au_BGMCmd_E9_SubTrackVolume(BGMPlayer* arg0, BGMPlayerTrack* track) {
@@ -1655,7 +1648,7 @@ void au_BGMCmd_F5_TrackVoice(BGMPlayer* player, BGMPlayerTrack* track) {
     patch = (u8)instrument->bankPatch;
     volume = instrument->volume & 0x7F;
     track->patch = patch;
-    track->instrument = au_get_instrument(player->globals, bank, patch, &track->unk_10);
+    track->instrument = au_get_instrument(player->globals, bank, patch, &track->envelope);
     if (volume != 0) {
         volume <<= 0x18;
     }
@@ -1669,12 +1662,12 @@ void au_BGMCmd_F5_TrackVoice(BGMPlayer* player, BGMPlayerTrack* track) {
 
 void au_BGMCmd_F7_SubTrackReverbType(BGMPlayer* player, BGMPlayerTrack* track) {
     u8 index = player->seqCmdArgs.SubTrackReverbType.index;
-    s8 type = player->effectIndices[index];
+    s8 busId = player->effectIndices[index];
 
-    if ((index < 4) && (type >= 0)) {
-        track->subtrackReverbType = type;
+    if ((index < 4) && (busId >= 0)) {
+        track->subtrackBusId = busId;
     } else {
-        track->subtrackReverbType = player->defaultReverbType;
+        track->subtrackBusId = player->busId;
     }
 }
 
@@ -1710,8 +1703,8 @@ void au_BGMCmd_FC_Jump(BGMPlayer* player, BGMPlayerTrack* track) {
         track->unk_4D = 0;
         track->unkVolume = 0;
         for (i = track->unk_52; i < track->unk_53; i++) {
-            AlUnkVoice* voice = &player->globals->voices[i];
-            if ((voice->priority == player->priority) && (voice->unk_1C != NULL)) {
+            AuVoice* voice = &player->globals->voices[i];
+            if ((voice->priority == player->priority) && (voice->cmdPtr != NULL)) {
                 au_reset_voice(voice, i);
             }
         }
@@ -1727,7 +1720,7 @@ void au_BGMCmd_FC_Jump(BGMPlayer* player, BGMPlayerTrack* track) {
     track->trackTremoloTime = 0;
     track->subTrackVolumeTime = 0;
     track->unk_57 = 0;
-    track->subtrackReverbType = player->defaultReverbType;
+    track->subtrackBusId = player->busId;
 }
 
 void au_BGMCmd_FF(BGMPlayer* player, BGMPlayerTrack* track) {
@@ -1743,19 +1736,19 @@ void au_BGMCmd_FF(BGMPlayer* player, BGMPlayerTrack* track) {
     switch (arg0) {
         case 1:
             if ((arg1 < ARRAY_COUNT(player->effectIndices)) && ((s8)player->effectIndices[arg1] >= 0)) {
-                player->globals->unk_51 = player->effectIndices[arg1];
+                player->globals->channelDelayBusId = player->effectIndices[arg1];
                 if (arg2 != 0) {
                     temp_a3 = arg2 & 0xF;
                     temp_a1 = ((arg2 >> 4) & 1) + 1;
-                    if ((player->globals->unk_52 != temp_a3) || (player->globals->unk_53 != temp_a1)) {
-                        player->globals->unk_52 = temp_a3;
-                        player->globals->unk_53 = temp_a1;
-                        player->globals->unk_50 = 1;
+                    if ((player->globals->channelDelayTime != temp_a3) || (player->globals->channelDelaySide != temp_a1)) {
+                        player->globals->channelDelayTime = temp_a3;
+                        player->globals->channelDelaySide = temp_a1;
+                        player->globals->channelDelayPending = 1;
                     }
                 } else {
-                    if (player->globals->unk_53 != 0) {
-                        player->globals->unk_53 = 0;
-                        player->globals->unk_50 = 1;
+                    if (player->globals->channelDelaySide != 0) {
+                        player->globals->channelDelaySide = 0;
+                        player->globals->channelDelayPending = 1;
                     }
                 }
             }
@@ -1792,10 +1785,10 @@ void au_BGMCmd_FF(BGMPlayer* player, BGMPlayerTrack* track) {
             break;
         case 5:
             if (player->soundManager != NULL) {
-                for (i = 0; i < ARRAY_COUNT(player->soundManager->unk_90); i++) {
-                    if ((player->soundManager->unk_90[i].unk_0) == 0) {
-                        player->soundManager->unk_90[i].unk_0 = arg1;
-                        player->soundManager->unk_90[i].volume = ((player->fadeInfo.currentVolume.u16 * player->fadeInfo.volScale.u16) + 0x7FFF) >> 0x17;
+                for (i = 0; i < ARRAY_COUNT(player->soundManager->bgmSounds); i++) {
+                    if ((player->soundManager->bgmSounds[i].unk_0) == 0) {
+                        player->soundManager->bgmSounds[i].unk_0 = arg1;
+                        player->soundManager->bgmSounds[i].volume = ((player->fadeInfo.currentVolume.u16 * player->fadeInfo.volScale.u16) + 0x7FFF) >> 0x17;
                         break;
                     }
                 }
@@ -1935,14 +1928,14 @@ void au_bgm_set_proximity_mix(s32 songName, u32 mix) {
     }
 }
 
-void func_80050770(BGMPlayer* player, f32 arg1) {
-    if (arg1 > 2.0) {
-        arg1 = 2.0f;
-    } else if (arg1 < 0.25) {
-        arg1 = 0.25f;
+void au_bgm_set_playback_rate(BGMPlayer* player, f32 rate) {
+    if (rate > 2.0) {
+        rate = 2.0f;
+    } else if (rate < 0.25) {
+        rate = 0.25f;
     }
 
-    player->unk_D0 = arg1;
+    player->playbackRate = rate;
     player->masterTempo = snd_bpm_to_tempo(player, player->masterTempoBPM);
     player->nextUpdateStep = player->masterTempo * 10;
     player->masterTempoTime = 0;
@@ -1950,14 +1943,14 @@ void func_80050770(BGMPlayer* player, f32 arg1) {
     player->masterTempoStep = 0;
 }
 
-void func_80050818(BGMPlayer* player, s32 arg1) {
-    if (arg1 > 1200) {
-        arg1 = 1200;
-    } else if (arg1 < -2400) {
-        arg1 = -2400;
+void au_bgm_player_set_detune(BGMPlayer* player, s32 detune) {
+    if (detune > 1200) {
+        detune = 1200;
+    } else if (detune < -2400) {
+        detune = -2400;
     }
 
-    player->unk_20E = arg1;
+    player->detune = detune;
 }
 
 void au_bgm_change_track_volume(BGMPlayer* player, s32 trackIdx, s16 time, u8 volume) {
@@ -1997,7 +1990,7 @@ void func_80050900(BGMPlayer* player) {
     u8 i;
 
     for (i = 0; i < ARRAY_COUNT(player->globals->voices); i++) {
-        AlUnkVoice* voice = &player->globals->voices[i];
+        AuVoice* voice = &player->globals->voices[i];
         if (voice->priority == player->priority) {
             au_reset_voice(voice, i);
         }
@@ -2008,7 +2001,7 @@ AuResult func_80050970(SongUpdateEvent* update) {
     BGMPlayer* player;
     BGMPlayerTrack* track;
     BGMPlayerTrack* parentTrack;
-    AlUnkVoice* voice;
+    AuVoice* voice;
     s32 i;
     s32 j;
     s8 oldVolume;
@@ -2032,8 +2025,8 @@ AuResult func_80050970(SongUpdateEvent* update) {
                                 for (j = parentTrack->unk_52; j < parentTrack->unk_53; j++) {
                                     voice = &player->globals->voices[j];
                                     if (voice->priority == player->priority) {
-                                        voice->unk_14.unk_04 = &D_80078554;
-                                        voice->unk_flags_3D |= AU_VOICE_3D_FLAGS_10;
+                                        voice->envelope.cmdListRelease = EnvelopeReleaseDefaultFast;
+                                        voice->envelopeFlags |= AU_VOICE_ENV_FLAG_KEY_RELEASED;
                                     }
                                 }
                                 oldVolume = track->subTrackVolume >> 24;
@@ -2050,8 +2043,8 @@ AuResult func_80050970(SongUpdateEvent* update) {
                                 for (j = track->unk_52; j < track->unk_53; j++) {
                                     voice = &player->globals->voices[j];
                                     if (voice->priority == player->priority) {
-                                        voice->unk_14.unk_04 = &D_80078554;
-                                        voice->unk_flags_3D |= AU_VOICE_3D_FLAGS_10;
+                                        voice->envelope.cmdListRelease = EnvelopeReleaseDefaultFast;
+                                        voice->envelopeFlags |= AU_VOICE_ENV_FLAG_KEY_RELEASED;
                                     }
                                 }
                                 oldVolume = parentTrack->subTrackVolume >> 24;

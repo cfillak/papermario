@@ -191,7 +191,7 @@ void entity_BombableRock_setupGfx(s32 entityIndex) {
     f32 x_inv;
     f32 y_inv;
     f32 z_inv;
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     BombableRockData* data = entity->dataBuf.bombableRock;
     Gfx* fragmentDlist;
@@ -225,7 +225,7 @@ void entity_BombableRock_setupGfx(s32 entityIndex) {
         gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
     }
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_BombableRock_idle(Entity* entity) {
@@ -240,10 +240,10 @@ EntityModelScript Entity_BombableRock_RenderScript = STANDARD_ENTITY_MODEL_SCRIP
 
 EntityScript Entity_BombableRock_Script = {
     es_SetCallback(entity_BombableRock_idle, 0)
-    es_SetFlags(ENTITY_FLAGS_DISABLE_COLLISION)
+    es_SetFlags(ENTITY_FLAG_DISABLE_COLLISION)
     es_SetCallback(entity_BombableRock_update_fragments, 0)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 
@@ -272,3 +272,5 @@ EntityBlueprint Entity_BombableRock2 = {
     .entityType = ENTITY_TYPE_BOMBABLE_ROCK,
     .aabbSize = { 50, 50, 100 }
 };
+
+MATCHING_BSS(0x100);

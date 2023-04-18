@@ -2,22 +2,28 @@
 #include "../partners.h"
 #include "twink.h"
 
-void world_twink_init(Npc* twink) {
+#define NAMESPACE world_twink
+
+void N(init)(Npc* twink) {
     twink->collisionHeight = 20;
-    twink->collisionRadius = 20;
+    twink->collisionDiameter = 20;
 }
 
-ApiStatus TwinkTakeOut(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(TakeOut)) {
     Npc* twink = script->owner2.npc;
 
     if (isInitialCall) {
         partner_init_get_out(twink);
     }
 
-    return partner_get_out(twink) ? ApiStatus_DONE1 : ApiStatus_BLOCK;
+    if(partner_get_out(twink)) {
+        return ApiStatus_DONE1;
+    } else {
+        return ApiStatus_BLOCK;
+    }
 }
 
-ApiStatus TwinkUpdate(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(Update)) {
     PlayerData* playerData = &gPlayerData;
     Npc* twink = script->owner2.npc;
 
@@ -32,40 +38,44 @@ ApiStatus TwinkUpdate(Evt* script, s32 isInitialCall) {
     return ApiStatus_BLOCK;
 }
 
-ApiStatus TwinkUseAbility(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(UseAbility)) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus TwinkPutAway(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(PutAway)) {
     Npc* twink = script->owner2.npc;
 
     if (isInitialCall) {
         partner_init_put_away(twink);
     }
 
-    return partner_put_away(twink) ? ApiStatus_DONE1 : ApiStatus_BLOCK;
+    if(partner_put_away(twink)) {
+        return ApiStatus_DONE1;
+    } else {
+        return ApiStatus_BLOCK;
+    }
 }
 
-EvtScript world_twink_take_out = {
-    EVT_CALL(TwinkTakeOut)
+EvtScript EVS_WorldTwink_TakeOut = {
+    EVT_CALL(N(TakeOut))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_twink_update = {
-    EVT_CALL(TwinkUpdate)
+EvtScript EVS_WorldTwink_Update = {
+    EVT_CALL(N(Update))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_twink_use_ability = {
-    EVT_CALL(TwinkUseAbility)
+EvtScript EVS_WorldTwink_UseAbility = {
+    EVT_CALL(N(UseAbility))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_twink_put_away = {
-    EVT_CALL(TwinkPutAway)
+EvtScript EVS_WorldTwink_PutAway = {
+    EVT_CALL(N(PutAway))
     EVT_RETURN
     EVT_END
 };

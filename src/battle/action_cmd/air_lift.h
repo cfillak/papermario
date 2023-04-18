@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9278_428CE8(void);
+API_CALLABLE(action_command_air_lift_init);
+API_CALLABLE(action_command_air_lift_start);
+void action_command_air_lift_update(void);
+void action_command_air_lift_draw(void);
+void action_command_air_lift_free(void);
 
 #endif

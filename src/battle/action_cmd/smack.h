@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9298_42E638(void);
+API_CALLABLE(action_command_smack_init);
+API_CALLABLE(action_command_smack_start);
+void action_command_smack_update(void);
+void action_command_smack_draw(void);
+void action_command_smack_free(void);
 
 #endif

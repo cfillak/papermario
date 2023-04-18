@@ -27,12 +27,12 @@ void entity_HiddenPanel_setupGfx(s32 entityIndex) {
         guTranslateF(tempMtx, entity->position.x, data->initialY + 1.0f, entity->position.z);
         guMtxCatF(tempMtx, rotMtx, tempMtx);
         guMtxF2L(tempMtx, &gDisplayContext->matrixStack[gMatrixListPos]);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-        gSPDisplayList(gMasterGfxPos++, ENTITY_ADDR(entity, Gfx*, Gfx_HiddenPanel_RenderHole));
-        gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPDisplayList(gMainGfxPos++, ENTITY_ADDR(entity, Gfx*, Gfx_HiddenPanel_RenderHole));
+        gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     }
     mdl_project_tex_coords(data->modelID, data->renderDList, data->entityMatrix, entity->gfxBaseAddr);
-    mdl_draw_hidden_panel_surface(&gMasterGfxPos, data->modelID);
+    mdl_draw_hidden_panel_surface(&gMainGfxPos, data->modelID);
 }
 
 void entity_HiddenPanel_set_ispy_notification(Entity* entity) {
@@ -44,8 +44,8 @@ void entity_HiddenPanel_set_ispy_notification(Entity* entity) {
 }
 
 void entity_HiddenPanel_hide(Entity* entity) {
-    entity->flags &= ~ENTITY_FLAGS_DISABLE_COLLISION;
-    entity->flags |= ENTITY_FLAGS_HIDDEN;
+    entity->flags &= ~ENTITY_FLAG_DISABLE_COLLISION;
+    entity->flags |= ENTITY_FLAG_HIDDEN;
 }
 
 void entity_HiddenPanel_idle(Entity* entity) {
@@ -80,13 +80,13 @@ void entity_HiddenPanel_idle(Entity* entity) {
                     Npc* npc = get_npc_by_index(npcIndex);
                     dist2D(entity->position.x, entity->position.z, npc->pos.x, npc->pos.z);
                     data->standingNpcIndex = npcIndex;
-                    data->npcFlags = npc->flags & (NPC_FLAG_GRAVITY | NPC_FLAG_ENABLE_HIT_SCRIPT);
-                    npc->flags &= ~NPC_FLAG_ENABLE_HIT_SCRIPT;
+                    data->npcFlags = npc->flags & (NPC_FLAG_GRAVITY | NPC_FLAG_8);
+                    npc->flags &= ~NPC_FLAG_8;
                     npc->flags |= NPC_FLAG_GRAVITY;
                     data->riseVelocity = 0.5f;
                     exec_entity_commandlist(entity);
                 } else {
-                    entity->flags |= ENTITY_FLAGS_DISABLE_COLLISION;
+                    entity->flags |= ENTITY_FLAG_DISABLE_COLLISION;
                     if (distToPlayer > 60) {
                         data->riseVelocity = 0.5f;
                         exec_entity_commandlist(entity);
@@ -125,12 +125,14 @@ void entity_HiddenPanel_flip_over(Entity* entity) {
             data->rotationSpeed = 65.0f;
             set_time_freeze_mode(TIME_FREEZE_PARTIAL);
             disable_player_static_collisions();
-            gPlayerStatusPtr->animFlags |= PA_FLAGS_800;
+            gPlayerStatusPtr->animFlags |= PA_FLAG_OPENED_HIDDEN_PANEL;
             if (data->needSpawnItem) {
                 data->needSpawnItem = FALSE;
-                data->spawnedItemIndex = make_item_entity_nodelay(data->itemID, entity->position.x, entity->position.y + 2.0, entity->position.z, ITEM_SPAWN_MODE_TOSS_NEVER_VANISH, data->pickupVar);
+                data->spawnedItemIndex = make_item_entity_nodelay(data->itemID,
+                    entity->position.x, entity->position.y + 2.0, entity->position.z,
+                    ITEM_SPAWN_MODE_TOSS_NEVER_VANISH, data->pickupVar);
             }
-            entity->flags &= ~ENTITY_FLAGS_HIDDEN;
+            entity->flags &= ~ENTITY_FLAG_HIDDEN;
             break;
         case 1:
             entity->position.y += data->riseVelocity * sin_rad(DEG_TO_RAD(data->riseInterpPhase));
@@ -208,7 +210,7 @@ void entity_HiddenPanel_flip_over(Entity* entity) {
             entity->position.y += 2.0f;
             break;
         case 10:
-            entity->flags &= ~ENTITY_FLAGS_HIDDEN;
+            entity->flags &= ~ENTITY_FLAG_HIDDEN;
             data->unk_02 = FALSE;
             data->state++;
             entity->position.y += 6.0f;
@@ -219,7 +221,7 @@ void entity_HiddenPanel_flip_over(Entity* entity) {
                 entity->position.y = data->initialY;
                 data->timer = 1;
                 data->state++;
-                entity->flags |= ENTITY_FLAGS_HIDDEN | ENTITY_FLAGS_DISABLE_COLLISION;
+                entity->flags |= ENTITY_FLAG_HIDDEN | ENTITY_FLAG_DISABLE_COLLISION;
                 if (data->unk_02) {
                     enable_player_static_collisions();
                 }
@@ -232,12 +234,12 @@ void entity_HiddenPanel_flip_over(Entity* entity) {
                 exec_entity_commandlist(entity);
                 if (data->unk_02) {
                     set_time_freeze_mode(TIME_FREEZE_NORMAL);
-                    gPlayerStatusPtr->animFlags &= ~PA_FLAGS_800;
+                    gPlayerStatusPtr->animFlags &= ~PA_FLAG_OPENED_HIDDEN_PANEL;
                 }
-                entity->flags &= ~ENTITY_FLAGS_DISABLE_COLLISION;
+                entity->flags &= ~ENTITY_FLAG_DISABLE_COLLISION;
                 if (data->standingNpcIndex >= 0) {
                     Npc* npc = get_npc_by_index(data->standingNpcIndex);
-                    npc->flags &= ~(NPC_FLAG_GRAVITY | NPC_FLAG_ENABLE_HIT_SCRIPT);
+                    npc->flags &= ~(NPC_FLAG_GRAVITY | NPC_FLAG_8);
                     npc->flags |= data->npcFlags;
                 }
             }
@@ -253,7 +255,7 @@ void entity_HiddenPanel_flip_over(Entity* entity) {
     if (data->spawnedItemIndex >= 0) {
         ItemEntity* itemEntity = get_item_entity(data->spawnedItemIndex);
         if (itemEntity != NULL) {
-            if (itemEntity->flags & ITEM_ENTITY_FLAGS_10) {
+            if (itemEntity->flags & ITEM_ENTITY_FLAG_10) {
                 data->spawnedItemPos.x = itemEntity->position.x;
                 data->spawnedItemPos.y = itemEntity->position.y;
                 data->spawnedItemPos.z = itemEntity->position.z;
@@ -274,7 +276,7 @@ s32 entity_HiddenPanel_is_item_on_top(Entity* entity) {
     if (data->spawnedItemIndex >= 0) {
         ItemEntity* itemEntity = get_item_entity(data->spawnedItemIndex);
         if (itemEntity != NULL) {
-            if (itemEntity->flags & ITEM_ENTITY_FLAGS_10) {
+            if (itemEntity->flags & ITEM_ENTITY_FLAG_10) {
                 if (fabs(entity->position.x - data->spawnedItemPos.x) <= 34.0)  {
                     if (fabs(entity->position.z - data->spawnedItemPos.z) <= 34.0) {
                         return TRUE;
@@ -319,7 +321,7 @@ void entity_HiddenPanel_init(Entity* entity) {
 
     if (gCurrentHiddenPanels.panelsCount & 1) {
         dlist = Gfx_AltHiddenPanel_RenderTop;
-        entity_set_render_script(entity, ERS_AltHiddenPanel);
+        entity_set_render_script(entity, &ERS_AltHiddenPanel);
     } else {
         dlist = Gfx_HiddenPanel_RenderTop;
     }
@@ -341,7 +343,7 @@ EntityScript Entity_HiddenPanel_Script = {
 
 EntityModelScript ERS_HiddenPanel = {
     ems_SetRenderMode(RENDER_MODE_SURFACE_OPA)
-    ems_SetFlags(ENTITY_MODEL_FLAGS_10000)
+    ems_SetFlags(ENTITY_MODEL_FLAG_10000)
     ems_Draw(Gfx_HiddenPanel_Render, 60)
     ems_Restart
     ems_End
@@ -349,14 +351,14 @@ EntityModelScript ERS_HiddenPanel = {
 
 EntityModelScript ERS_AltHiddenPanel = {
     ems_SetRenderMode(RENDER_MODE_SURFACE_OPA)
-    ems_SetFlags(ENTITY_MODEL_FLAGS_10000)
+    ems_SetFlags(ENTITY_MODEL_FLAG_10000)
     ems_Draw(Gfx_HiddenPanel_Render2, 60)
     ems_Restart
     ems_End
 };
 
 EntityBlueprint Entity_HiddenPanel = {
-    .flags = ENTITY_FLAGS_HIDDEN,
+    .flags = ENTITY_FLAG_HIDDEN,
     .typeDataSize = sizeof(HiddenPanelData),
     .renderCommandList = ERS_HiddenPanel,
     .modelAnimationNodes = 0,

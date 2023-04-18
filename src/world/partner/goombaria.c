@@ -2,12 +2,14 @@
 #include "goombaria.h"
 #include "../partners.h"
 
-void world_goombaria_init(Npc* goombaria) {
+#define NAMESPACE world_goombaria
+
+void N(init)(Npc* goombaria) {
     goombaria->collisionHeight = 24;
-    goombaria->collisionRadius = 20;
+    goombaria->collisionDiameter = 20;
 }
 
-ApiStatus GoombariaTakeOut(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(TakeOut)) {
     Npc* goombaria = script->owner2.npc;
 
     if (isInitialCall) {
@@ -17,7 +19,7 @@ ApiStatus GoombariaTakeOut(Evt* script, s32 isInitialCall) {
     return partner_get_out(goombaria) ? ApiStatus_DONE1 : ApiStatus_BLOCK;
 }
 
-ApiStatus GoombariaUpdate(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(Update)) {
     PlayerData* playerData = &gPlayerData;
     Npc* goombaria = script->owner2.npc;
 
@@ -32,11 +34,11 @@ ApiStatus GoombariaUpdate(Evt* script, s32 isInitialCall) {
     return ApiStatus_BLOCK;
 }
 
-ApiStatus GoombariaUseAbility(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(UseAbility)) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus GoombariaPutAway(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(PutAway)) {
     Npc* goombaria = script->owner2.npc;
 
     if (isInitialCall) {
@@ -46,26 +48,26 @@ ApiStatus GoombariaPutAway(Evt* script, s32 isInitialCall) {
     return partner_put_away(goombaria) ? ApiStatus_DONE1 : ApiStatus_BLOCK;
 }
 
-EvtScript world_goombaria_take_out = {
-    EVT_CALL(GoombariaTakeOut)
+EvtScript EVS_WorldGoombaria_TakeOut = {
+    EVT_CALL(N(TakeOut))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_goombaria_update = {
-    EVT_CALL(GoombariaUpdate)
+EvtScript EVS_WorldGoombaria_Update = {
+    EVT_CALL(N(Update))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_goombaria_use_ability = {
-    EVT_CALL(GoombariaUseAbility)
+EvtScript EVS_WorldGoombaria_UseAbility = {
+    EVT_CALL(N(UseAbility))
     EVT_RETURN
     EVT_END
 };
 
-EvtScript world_goombaria_put_away = {
-    EVT_CALL(GoombariaPutAway)
+EvtScript EVS_WorldGoombaria_PutAway = {
+    EVT_CALL(N(PutAway))
     EVT_RETURN
     EVT_END
 };

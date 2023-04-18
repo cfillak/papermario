@@ -3,6 +3,7 @@
 #include "ld_addrs.h"
 #include "animation_script.h"
 #include "entity.h"
+#include "model.h"
 
 extern Gfx Entity_YellowBlock_Render[];
 extern Gfx Entity_RedBlock_Render[];
@@ -18,6 +19,8 @@ extern EntityBlueprint Entity_HitGroundedYellowBlock;
 extern EntityBlueprint Entity_HitFloatingYellowBlock;
 extern EntityBlueprint Entity_HitRedBlock;
 
+BSS EffectInstance* TriggerBlockVanishEffect;
+
 f32 player_get_camera_facing_angle(void);
 void entity_inactive_block_hit_init(Entity*);
 void entity_inactive_block_hit_anim(Entity*);
@@ -30,7 +33,7 @@ void entity_ItemBlock_idle(Entity* entity) {
 void entity_HiddenItemBlock_idle(Entity* entity) {
     s32 alpha = entity->alpha;
 
-    if (gPlayerStatus.animFlags & PA_FLAGS_HOLDING_WATT) {
+    if (gPlayerStatus.animFlags & PA_FLAG_USING_WATT) {
         alpha += 32;
         if (alpha > 192) {
             alpha = 192;
@@ -55,21 +58,21 @@ void entity_ItemBlock_spawn_item(Entity* entity) {
     BlockData* data = entity->dataBuf.block;
     s32 facingAngle;
 
-    if (data->item == 0 || (entity->flags & ENTITY_FLAGS_100000)) {
+    if (data->item == 0 || (entity->flags & ENTITY_FLAG_100000)) {
         return;
     }
 
     facingAngle = player_get_camera_facing_angle();
-    entity->flags |= ENTITY_FLAGS_100000;
+    entity->flags |= ENTITY_FLAG_100000;
 
     if (data->item == ITEM_COIN) {
         make_item_entity(ITEM_COIN, entity->position.x, entity->position.y + 28.0, entity->position.z,
-                         ITEM_SPAWN_MODE_ITEM_BLOCK_COIN, 0, facingAngle, data->gameFlagIndex);
+            ITEM_SPAWN_MODE_ITEM_BLOCK_COIN, 0, facingAngle, data->gameFlagIndex);
     } else {
         facingAngle += 360;
         make_item_entity(data->item, entity->position.x, entity->position.y + 20.0, entity->position.z,
-                         (gItemTable[data->item].typeFlags & ITEM_TYPE_FLAG_BADGE) ? ITEM_SPAWN_MODE_ITEM_BLOCK_BADGE : ITEM_SPAWN_MODE_ITEM_BLOCK_ITEM,
-                         0, facingAngle, data->gameFlagIndex);
+            (gItemTable[data->item].typeFlags & ITEM_TYPE_FLAG_BADGE) ? ITEM_SPAWN_MODE_ITEM_BLOCK_BADGE : ITEM_SPAWN_MODE_ITEM_BLOCK_ITEM,
+            0, facingAngle, data->gameFlagIndex);
     }
 
 }
@@ -98,9 +101,9 @@ void entity_HitItemBlock_show_inactive(Entity* entity) {
     BlockData* data = entity->dataBuf.block;
 
     inertEntity = get_entity_by_index(data->childEntityIndex);
-    inertEntity->flags &= ~ENTITY_FLAGS_HIDDEN;
+    inertEntity->flags &= ~ENTITY_FLAG_HIDDEN;
     inertShadow = get_shadow_by_index(inertEntity->shadowIndex);
-    inertShadow->flags &= ~ENTITY_FLAGS_HIDDEN;
+    inertShadow->flags &= ~ENTITY_FLAG_HIDDEN;
 }
 
 void entity_ItemBlock_check_if_inactive(Entity* entity) {
@@ -143,18 +146,18 @@ void entity_ItemBlock_replace_with_inactive(Entity* entity) {
     // this child entity is the inert block
     childEntityIndex = create_entity(bp, (s32)entity->position.x, (s32)entity->position.y, (s32)entity->position.z, (s32)entity->rotation.y, MAKE_ENTITY_END);
     childEntity = get_entity_by_index(childEntityIndex);
-    childEntity->flags |= ENTITY_FLAGS_HIDDEN;
+    childEntity->flags |= ENTITY_FLAG_HIDDEN;
 
-    if (entity->flags & ENTITY_FLAGS_DRAW_IF_CLOSE_HIDE_MODE2) {
-        childEntity->flags |= ENTITY_FLAGS_DRAW_IF_CLOSE_HIDE_MODE2;
+    if (entity->flags & ENTITY_FLAG_DRAW_IF_CLOSE_HIDE_MODE2) {
+        childEntity->flags |= ENTITY_FLAG_DRAW_IF_CLOSE_HIDE_MODE2;
     }
 
-    if (entity->flags & ENTITY_FLAGS_HAS_DYNAMIC_SHADOW) {
-        childEntity->flags |= ENTITY_FLAGS_HAS_DYNAMIC_SHADOW;
+    if (entity->flags & ENTITY_FLAG_HAS_DYNAMIC_SHADOW) {
+        childEntity->flags |= ENTITY_FLAG_HAS_DYNAMIC_SHADOW;
     }
 
     shadow = get_shadow_by_index(childEntity->shadowIndex);
-    shadow->flags |= (ENTITY_FLAGS_SHADOW_POS_DIRTY | ENTITY_FLAGS_HIDDEN);
+    shadow->flags |= (ENTITY_FLAG_SHADOW_POS_DIRTY | ENTITY_FLAG_HIDDEN);
     isBlockOnGround = is_block_on_ground(entity);
 
     parentEntityType = get_entity_type(entity->listIndex);
@@ -169,37 +172,37 @@ void entity_ItemBlock_replace_with_inactive(Entity* entity) {
     // child entity is now the animated block which appears before it turns inert
     childEntity = get_entity_by_index(create_entity(bp, (s32)entity->position.x, (s32)entity->position.y, (s32)entity->position.z, (s32)entity->rotation.y, MAKE_ENTITY_END));
     childEntity->alpha = entity->alpha;
-    if ((entity->flags & ENTITY_FLAGS_HIDDEN) || (entity->alpha < 255)) {
+    if ((entity->flags & ENTITY_FLAG_HIDDEN) || (entity->alpha < 255)) {
         childEntity->alpha = 32;
     }
 
-    if (entity->flags & ENTITY_FLAGS_DRAW_IF_CLOSE_HIDE_MODE2) {
-        childEntity->flags |= ENTITY_FLAGS_DRAW_IF_CLOSE_HIDE_MODE2;
+    if (entity->flags & ENTITY_FLAG_DRAW_IF_CLOSE_HIDE_MODE2) {
+        childEntity->flags |= ENTITY_FLAG_DRAW_IF_CLOSE_HIDE_MODE2;
     }
 
     childData = childEntity->dataBuf.block;
     childData->childEntityIndex = childEntityIndex;
 
-    if (entity->flags & ENTITY_FLAGS_HAS_DYNAMIC_SHADOW) {
-        childEntity->flags |= ENTITY_FLAGS_HAS_DYNAMIC_SHADOW;
+    if (entity->flags & ENTITY_FLAG_HAS_DYNAMIC_SHADOW) {
+        childEntity->flags |= ENTITY_FLAG_HAS_DYNAMIC_SHADOW;
     }
 
-    entity->flags &= ~ENTITY_FLAGS_HAS_SHADOW;
+    entity->flags &= ~ENTITY_FLAG_HAS_SHADOW;
     shadow = get_shadow_by_index(entity->shadowIndex);
-    shadow->flags |= (ENTITY_FLAGS_FADING_AWAY | ENTITY_FLAGS_HIDDEN);
+    shadow->flags |= (ENTITY_FLAG_FADING_AWAY | ENTITY_FLAG_HIDDEN);
     shadow = get_shadow_by_index(childEntity->shadowIndex);
-    shadow->flags |= ENTITY_FLAGS_SHADOW_POS_DIRTY;
+    shadow->flags |= ENTITY_FLAG_SHADOW_POS_DIRTY;
 }
 
 void entity_HitItemBlock_hide(Entity* entity) {
-    entity->flags |= ENTITY_FLAGS_HIDDEN;
-    entity->flags &= ~ENTITY_FLAGS_HAS_SHADOW;
-    get_shadow_by_index(entity->shadowIndex)->flags |= (ENTITY_FLAGS_HIDDEN | ENTITY_FLAGS_FADING_AWAY);
+    entity->flags |= ENTITY_FLAG_HIDDEN;
+    entity->flags &= ~ENTITY_FLAG_HAS_SHADOW;
+    get_shadow_by_index(entity->shadowIndex)->flags |= (ENTITY_FLAG_HIDDEN | ENTITY_FLAG_FADING_AWAY);
 }
 
 s32 entity_TriggerBlock_start_bound_script(Entity* entity) {
     if (entity->boundScriptBytecode != NULL) {
-        entity->flags |= ENTITY_FLAGS_BOUND_SCRIPT_DIRTY;
+        entity->flags |= ENTITY_FLAG_BOUND_SCRIPT_DIRTY;
         return TRUE;
     }
     return FALSE;
@@ -208,7 +211,7 @@ s32 entity_TriggerBlock_start_bound_script(Entity* entity) {
 void entity_TriggerBlock_disable_player_input(void) {
     disable_player_input();
     gPlayerStatus.currentSpeed = 0.0f;
-    gPlayerStatus.flags |= PS_FLAGS_800000;
+    gPlayerStatus.flags |= PS_FLAG_SCRIPTED_FALL;
     set_action_state(ACTION_STATE_FALLING);
     gravity_use_fall_parms();
 }
@@ -218,7 +221,7 @@ void entity_TriggerBlock_enable_player_input(void) {
 }
 
 void entity_ItemBlock_setupGfx(s32 entityIndex) {
-    Gfx* gfx = gMasterGfxPos;
+    Gfx* gfx = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
 
     gDPSetTextureLUT(gfx++, G_TT_NONE);
@@ -232,7 +235,7 @@ void entity_ItemBlock_setupGfx(s32 entityIndex) {
         gDPSetPrimColor(gfx++, 0, 0, 0, 0, 0, entity->alpha);
     }
 
-    gMasterGfxPos = gfx;
+    gMainGfxPos = gfx;
 }
 
 void entity_ItemBlock_init(Entity* entity) {
@@ -262,7 +265,7 @@ void entity_ItemlessBlock_init(Entity* entity) {
 
 EntityScript D_802EA310 = {
     es_SetCallback(NULL, 2)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 
@@ -274,9 +277,9 @@ EntityScript Entity_ItemBlock_Script = {
     es_Call(entity_ItemBlock_spawn_item)
     es_Call(entity_ItemBlock_replace_with_inactive)
     es_SetCallback(NULL, 1)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
     es_SetCallback(NULL, 2)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 EntityScript Entity_HiddenItemBlock_Script = {
@@ -287,9 +290,9 @@ EntityScript Entity_HiddenItemBlock_Script = {
     es_Call(entity_ItemBlock_spawn_item)
     es_Call(entity_ItemBlock_replace_with_inactive)
     es_SetCallback(NULL, 1)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
     es_SetCallback(NULL, 2)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 EntityScript Entity_HitBlock_Script = {
@@ -299,8 +302,8 @@ EntityScript Entity_HitBlock_Script = {
     es_Call(entity_HitItemBlock_hide)
     es_Call(entity_HitItemBlock_show_inactive)
     es_SetCallback(NULL, 1)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
-    es_SetFlags(ENTITY_FLAGS_PENDING_FULL_DELETE)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_PENDING_FULL_DELETE)
     es_End
 };
 EntityScript Entity_TriggerBlock_Script = {
@@ -313,11 +316,11 @@ EntityScript Entity_TriggerBlock_Script = {
     es_SetCallback(entity_inactive_block_recoil_anim, 0)
     es_Call(entity_TriggerBlock_start_bound_script)
     es_Call(entity_TriggerBlock_enable_player_input)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
-    es_SetFlags(ENTITY_FLAGS_DISABLE_COLLISION)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_DISABLE_COLLISION)
     es_Call(entity_TriggerBlock_start_bound_script_2)
     es_SetCallback(NULL, 2)
-    es_SetFlags(ENTITY_FLAGS_PENDING_FULL_DELETE)
+    es_SetFlags(ENTITY_FLAG_PENDING_FULL_DELETE)
     es_End
 };
 
@@ -331,7 +334,7 @@ EntityModelScript Entity_RedBlock_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(En
 EntityModelScript Entity_HiddenRedBlock_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_RedBlock_Render, RENDER_MODE_SURFACE_XLU_LAYER2);
 
 EntityBlueprint Entity_YellowBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_YellowBlock_RenderScript,
     .modelAnimationNodes = 0,
@@ -344,7 +347,7 @@ EntityBlueprint Entity_YellowBlock = {
 };
 
 EntityBlueprint Entity_HiddenYellowBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HiddenYellowBlock_RenderScript,
     .modelAnimationNodes = 0,
@@ -357,7 +360,7 @@ EntityBlueprint Entity_HiddenYellowBlock = {
 };
 
 EntityBlueprint Entity_RedBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_RedBlock_RenderScript,
     .modelAnimationNodes = 0,
@@ -370,7 +373,7 @@ EntityBlueprint Entity_RedBlock = {
 };
 
 EntityBlueprint Entity_HiddenRedBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HiddenRedBlock_RenderScript,
     .modelAnimationNodes = 0,
@@ -383,7 +386,7 @@ EntityBlueprint Entity_HiddenRedBlock = {
 };
 
 EntityBlueprint Entity_TriggerBlock = {
-    .flags = ENTITY_FLAGS_8000 | ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_8000 | ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HitYellowBlock_AnimationIdle,
     .modelAnimationNodes = Entity_HitYellowBlock_Mesh,
@@ -396,7 +399,7 @@ EntityBlueprint Entity_TriggerBlock = {
 };
 
 EntityBlueprint Entity_HitGroundedYellowBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HitYellowBlock_AnimationIdle,
     .modelAnimationNodes = Entity_HitYellowBlock_Mesh,
@@ -409,7 +412,7 @@ EntityBlueprint Entity_HitGroundedYellowBlock = {
 };
 
 EntityBlueprint Entity_HitFloatingYellowBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HitFloatingYellowBlock_AnimationIdle,
     .modelAnimationNodes = Entity_HitFloatingYellowBlock_Mesh,
@@ -422,7 +425,7 @@ EntityBlueprint Entity_HitFloatingYellowBlock = {
 };
 
 EntityBlueprint Entity_HitRedBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE | ENTITY_FLAGS_HAS_ANIMATED_MODEL,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE | ENTITY_FLAG_HAS_ANIMATED_MODEL,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HitRedBlock_AnimationHit,
     .modelAnimationNodes = Entity_HitRedBlock_Mesh,

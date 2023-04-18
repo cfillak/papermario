@@ -21,9 +21,9 @@ ApiStatus SetCamEnabled(Evt* script, s32 isInitialCall) {
     s32 enabled = evt_get_variable(script, *args++);
 
     if (!enabled) {
-        gCameras[id].flags |= CAM_FLAG_ENABLED;
+        gCameras[id].flags |= CAMERA_FLAG_ENABLED;
     } else {
-        gCameras[id].flags &= ~CAM_FLAG_ENABLED;
+        gCameras[id].flags &= ~CAMERA_FLAG_ENABLED;
     }
     return ApiStatus_DONE2;
 }
@@ -34,9 +34,9 @@ ApiStatus SetCamFlag80(Evt* script, s32 isInitialCall) {
     s32 enabled = evt_get_variable(script, *args++);
 
     if (!enabled) {
-        gCameras[id].flags |= CAM_FLAG_80;
+        gCameras[id].flags |= CAMERA_FLAG_80;
     } else {
-        gCameras[id].flags &= ~CAM_FLAG_80;
+        gCameras[id].flags &= ~CAMERA_FLAG_80;
     }
     return ApiStatus_DONE2;
 }
@@ -50,11 +50,12 @@ ApiStatus SetCamPerspective(Evt* script, s32 isInitialCall) {
     s16 farClip = evt_get_variable(script, *args++);
     Camera* camera = &gCameras[id];
 
-    camera->farClip = farClip;
     camera->updateMode = mode;
-    camera->unk_06 = 1;
-    camera->changingMap = TRUE;
+    camera->unk_06 = TRUE;
+    camera->isChangingMap = TRUE;
+
     camera->vfov = vfov;
+    camera->farClip = farClip;
     camera->nearClip = nearClip;
     return ApiStatus_DONE2;
 }
@@ -66,7 +67,7 @@ ApiStatus func_802CA90C(Evt* script, s32 isInitialCall) {
     Camera* camera = &gCameras[id];
 
     camera->updateMode = mode;
-    camera->unk_06 = 0;
+    camera->unk_06 = FALSE;
     return ApiStatus_DONE2;
 }
 
@@ -79,24 +80,24 @@ ApiStatus func_802CA988(Evt* script, s32 isInitialCall) {
     Bytecode outVar4 = *args++;
     f32 dx, dy, dz;
 
-    gCameras[id].updateMode = 2;
-    gCameras[id].unk_06 = 0;
-    gCameras[id].unk_1C = -round(gCameras[id].currentPitch);
+    gCameras[id].updateMode = CAM_UPDATE_MODE_2;
+    gCameras[id].unk_06 = FALSE;
+    gCameras[id].auxPitch = -round(gCameras[id].currentPitch);
     gCameras[id].auxBoomLength = -gCameras[id].currentBlendedYawNegated;
 
     dx = gCameras[id].lookAt_obj.x - gCameras[id].lookAt_eye.x;
     dy = gCameras[id].lookAt_obj.y - gCameras[id].lookAt_eye.y;
     dz = gCameras[id].lookAt_obj.z - gCameras[id].lookAt_eye.z;
 
-    gCameras[id].unk_20 = round(sqrtf(SQ(dx) + SQ(dy) + SQ(dz)));
+    gCameras[id].lookAt_dist = round(sqrtf(SQ(dx) + SQ(dy) + SQ(dz)));
     gCameras[id].auxBoomPitch = 0;
-    gCameras[id].auxPos.x = gCameras[id].lookAt_obj.x;
-    gCameras[id].auxPos.y = gCameras[id].lookAt_obj.y;
-    gCameras[id].auxPos.z = gCameras[id].lookAt_obj.z;
+    gCameras[id].lookAt_obj_target.x = gCameras[id].lookAt_obj.x;
+    gCameras[id].lookAt_obj_target.y = gCameras[id].lookAt_obj.y;
+    gCameras[id].lookAt_obj_target.z = gCameras[id].lookAt_obj.z;
 
-    evt_set_variable(script, outVar1, gCameras[id].unk_1C);
+    evt_set_variable(script, outVar1, gCameras[id].auxPitch);
     evt_set_variable(script, outVar2, gCameras[id].auxBoomLength);
-    evt_set_variable(script, outVar3, gCameras[id].unk_20);
+    evt_set_variable(script, outVar3, gCameras[id].lookAt_dist);
     evt_set_variable(script, outVar4, gCameras[id].auxBoomPitch);
     return ApiStatus_DONE2;
 }
@@ -123,9 +124,9 @@ ApiStatus func_802CABE8(Evt* script, s32 isInitialCall) {
     Camera* camera = &gCameras[id];
 
     camera->auxBoomPitch = value4;
-    camera->unk_1C = value1;
+    camera->auxPitch = value1;
     camera->auxBoomLength = value2;
-    camera->unk_20 = value3;
+    camera->lookAt_dist = value3;
     return ApiStatus_DONE2;
 }
 
@@ -167,9 +168,9 @@ ApiStatus func_802CAE50(Evt* script, s32 isInitialCall) {
     s32 value3 = evt_get_variable(script, *args++);
     Camera* camera = &gCameras[id];
 
-    camera->auxPos.x = value1;
-    camera->auxPos.y = value2;
-    camera->auxPos.z = value3;
+    camera->lookAt_obj_target.x = value1;
+    camera->lookAt_obj_target.y = value2;
+    camera->lookAt_obj_target.z = value3;
     return ApiStatus_DONE2;
 }
 
@@ -194,7 +195,7 @@ ApiStatus InterpCamTargetPos(Evt* script, s32 isInitialCall) {
         /* 0x08 */ Vec3f vel;
         /* 0x14 */ s32 time;
     } CamInterpData; // size = 0x18
-    
+
     Bytecode* args = script->ptrReadPos;
     CamInterpData* data;
     Camera* cam;
@@ -206,19 +207,19 @@ ApiStatus InterpCamTargetPos(Evt* script, s32 isInitialCall) {
         s32 posY = evt_get_variable(script, *args++);
         s32 posZ = evt_get_variable(script, *args++);
         s32 time = evt_get_variable(script, *args++);
-        
+
         data = heap_malloc(sizeof(*data));
         script->userData = data;
         cam = &gCameras[camID];
         data->cam = cam;
         data->useTarget = useTarget;
         data->time = time;
-        
+
         switch (data->useTarget) {
             case 0:
-                data->vel.x = (posX - cam->auxPos.x) / data->time;
-                data->vel.y = (posY - cam->auxPos.y) / data->time;
-                data->vel.z = (posZ - cam->auxPos.z) / data->time;
+                data->vel.x = (posX - cam->lookAt_obj_target.x) / data->time;
+                data->vel.y = (posY - cam->lookAt_obj_target.y) / data->time;
+                data->vel.z = (posZ - cam->lookAt_obj_target.z) / data->time;
                 break;
             case 1:
                 data->vel.x = (posX - cam->targetPos.x) / data->time;
@@ -227,14 +228,14 @@ ApiStatus InterpCamTargetPos(Evt* script, s32 isInitialCall) {
                 break;
         }
     }
-    
+
     data = script->userData;
     cam = data->cam;
     switch (data->useTarget) {
         case 0:
-            cam->auxPos.x += data->vel.x;
-            cam->auxPos.y += data->vel.y;
-            cam->auxPos.z += data->vel.z;
+            cam->lookAt_obj_target.x += data->vel.x;
+            cam->lookAt_obj_target.y += data->vel.y;
+            cam->lookAt_obj_target.z += data->vel.z;
             break;
         case 1:
             cam->targetPos.x += data->vel.x;
@@ -242,7 +243,7 @@ ApiStatus InterpCamTargetPos(Evt* script, s32 isInitialCall) {
             cam->targetPos.z += data->vel.z;
             break;
     }
-    
+
     data->time--;
     if (data->time == 0) {
         heap_free(script->userData);
@@ -296,7 +297,7 @@ ApiStatus ShakeCam(Evt* script, s32 isInitialCall) {
         }
     }
 
-    camera->flags |= CAM_FLAG_SHAKING;
+    camera->flags |= CAMERA_FLAG_SHAKING;
     scale = script->functionTempF[3];
     switch (shakeMode) {
         case CAM_SHAKE_CONSTANT_VERTICAL:
@@ -318,7 +319,7 @@ ApiStatus ShakeCam(Evt* script, s32 isInitialCall) {
     }
 
     if (script->functionTemp[1] == 0) {
-        camera->flags &= ~CAM_FLAG_SHAKING;
+        camera->flags &= ~CAMERA_FLAG_SHAKING;
         return ApiStatus_DONE2;
     }
     script->functionTemp[1]--;
@@ -351,9 +352,9 @@ ApiStatus SetCamLeadPlayer(Evt* script, s32 isInitialCall) {
     Camera* camera = &gCameras[id];
 
     if (enabled) {
-        camera->flags |= CAM_FLAG_LEAD_PLAYER;
+        camera->flags |= CAMERA_FLAG_LEAD_PLAYER;
     } else {
-        camera->flags &= ~CAM_FLAG_LEAD_PLAYER;
+        camera->flags &= ~CAMERA_FLAG_LEAD_PLAYER;
     }
     return ApiStatus_DONE2;
 }
@@ -375,7 +376,7 @@ ApiStatus PanToTarget(Evt* script, s32 isInitialCall) {
     s32 targetType = evt_get_variable(script, *args++);
     Camera* camera = &gCameras[id];
 
-    camera->unk_506 = 1;
+    camera->panActive = TRUE;
     if (targetType != 0) {
         camera->followPlayer = TRUE;
         camera->panPhase = panPhase;
@@ -410,7 +411,7 @@ ApiStatus LoadSettings(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 id = evt_get_variable(script, *args++);
     Camera* camera = &gCameras[id];
-    CameraControlSettings* settings = evt_get_variable(script, *args++);
+    CameraControlSettings* settings = (CameraControlSettings*) evt_get_variable(script, *args++);
 
     camera->controlSettings = *settings;
     return ApiStatus_DONE2;
@@ -457,8 +458,8 @@ ApiStatus SetCamPosA(Evt* script, s32 isInitialCall) {
     f32 x = evt_get_float_variable(script, *args++);
     f32 z = evt_get_float_variable(script, *args++);
 
-    camera->controlSettings.posA.x = x;
-    camera->controlSettings.posA.z = z;
+    camera->controlSettings.points.two.Ax = x;
+    camera->controlSettings.points.two.Az = z;
     return ApiStatus_DONE2;
 }
 
@@ -469,8 +470,8 @@ ApiStatus SetCamPosB(Evt* script, s32 isInitialCall) {
     f32 x = evt_get_float_variable(script, *args++);
     f32 z = evt_get_float_variable(script, *args++);
 
-    camera->controlSettings.posB.x = x;
-    camera->controlSettings.posB.z = z;
+    camera->controlSettings.points.two.Bx = x;
+    camera->controlSettings.points.two.Bz = z;
     return ApiStatus_DONE2;
 }
 
@@ -481,8 +482,8 @@ ApiStatus SetCamPosC(Evt* script, s32 isInitialCall) {
     f32 y1 = evt_get_float_variable(script, *args++);
     f32 y2 = evt_get_float_variable(script, *args++);
 
-    camera->controlSettings.posA.y = y1;
-    camera->controlSettings.posB.y = y2;
+    camera->controlSettings.points.two.Ay = y1;
+    camera->controlSettings.points.two.By = y2;
     return ApiStatus_DONE2;
 }
 
@@ -497,7 +498,7 @@ ApiStatus SetPanTarget(Evt* script, s32 isInitialCall) {
     camera->movePos.x = x;
     camera->movePos.y = y;
     camera->movePos.z = z;
-    camera->unk_506 = 1;
+    camera->panActive = TRUE;
     return ApiStatus_DONE2;
 }
 
@@ -552,8 +553,8 @@ ApiStatus GetCamPosA(Evt* script, s32 isInitialCall) {
     Bytecode outVar2 = *args++;
     Camera* camera = &gCameras[id];
 
-    evt_set_float_variable(script, outVar1, camera->controlSettings.posA.x);
-    evt_set_float_variable(script, outVar2, camera->controlSettings.posA.z);
+    evt_set_float_variable(script, outVar1, camera->controlSettings.points.two.Ax);
+    evt_set_float_variable(script, outVar2, camera->controlSettings.points.two.Az);
     return ApiStatus_DONE2;
 }
 
@@ -564,8 +565,8 @@ ApiStatus GetCamPosB(Evt* script, s32 isInitialCall) {
     Bytecode outVar2 = *args++;
     Camera* camera = &gCameras[id];
 
-    evt_set_float_variable(script, outVar1, camera->controlSettings.posB.x);
-    evt_set_float_variable(script, outVar2, camera->controlSettings.posB.z);
+    evt_set_float_variable(script, outVar1, camera->controlSettings.points.two.Bx);
+    evt_set_float_variable(script, outVar2, camera->controlSettings.points.two.Bz);
     return ApiStatus_DONE2;
 }
 
@@ -576,8 +577,8 @@ ApiStatus GetCamPosC(Evt* script, s32 isInitialCall) {
     Bytecode outVar2 = *args++;
     Camera* camera = &gCameras[id];
 
-    evt_set_float_variable(script, outVar1, camera->controlSettings.posA.y);
-    evt_set_float_variable(script, outVar2, camera->controlSettings.posB.y);
+    evt_set_float_variable(script, outVar1, camera->controlSettings.points.two.Ay);
+    evt_set_float_variable(script, outVar2, camera->controlSettings.points.two.By);
     return ApiStatus_DONE2;
 }
 
@@ -634,7 +635,7 @@ ApiStatus SetCamProperties(Evt* script, s32 isInitialCall) {
         camera->controlSettings.boomPitch = boomPitch;
         camera->controlSettings.viewPitch = viewPitch;
         camera->moveSpeed = moveSpeed;
-        camera->unk_506 = 1;
+        camera->panActive = TRUE;
         camera->followPlayer = TRUE;
         camera->panPhase = 0.0f;
         return ApiStatus_BLOCK;
@@ -677,7 +678,7 @@ ApiStatus AdjustCam(Evt* script, s32 isInitialCall) {
         camera->controlSettings.boomPitch = boomPitch;
         camera->controlSettings.viewPitch = viewPitch;
         camera->moveSpeed = moveSpeed;
-        camera->unk_506 = 1;
+        camera->panActive = TRUE;
         camera->followPlayer = TRUE;
         camera->panPhase = 0.0f;
         return ApiStatus_BLOCK;
@@ -717,14 +718,14 @@ ApiStatus ResetCam(Evt* script, s32 isInitialCall) {
         camera->movePos.y = y;
         camera->movePos.z = z;
         camera->moveSpeed = moveSpeed;
-        camera->unk_506 = 1;
+        camera->panActive = TRUE;
         camera->followPlayer = TRUE;
         camera->panPhase = 0.0f;
         return ApiStatus_BLOCK;
     }
 
     if (camera->interpAlpha >= 1.0f) {
-        camera->unk_506 = 1;
+        camera->panActive = TRUE;
         camera->followPlayer = FALSE;
         camera->moveSpeed = 1.0f;
         camera->panPhase = 0.0f;

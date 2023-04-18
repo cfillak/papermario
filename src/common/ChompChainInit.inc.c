@@ -1,6 +1,6 @@
 #include "common.h"
 
-ApiStatus N(ChompChainInit)(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(ChompChainInit)) {
     Actor* actor = get_actor(script->owner1.actorID);
     ActorPart* actorPart;
     ChompChainAnimationState* it;
@@ -9,7 +9,7 @@ ApiStatus N(ChompChainInit)(Evt* script, s32 isInitialCall) {
     s32 i;
 
     it = heap_malloc(8 * sizeof(ChompChainAnimationState));
-    actor->state.unk_6C = it;
+    actor->state.functionTempPtr[0] = it;
 
     x = actor->currentPos.x + 12.0;
     y = actor->currentPos.y + 5.0;

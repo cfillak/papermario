@@ -30,7 +30,7 @@ u8 D_802BCAA0_E313F0[] = {
 };
 
 void entity_StarBoxLauncher_setupGfx(s32 entityIndex) {
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     StarBoxLauncherData* data = entity->dataBuf.starBoxLauncher;
     Matrix4f sp10;
@@ -56,7 +56,7 @@ void entity_StarBoxLauncher_setupGfx(s32 entityIndex) {
     gDPSetTextureFilter(gfxPos++, G_TF_BILERP);
     gDPSetTileSize(gfxPos++, G_TX_RENDERTILE, data->faceTexOffset * 4, 0, (data->faceTexOffset + 124) * 4, 31 * 4);
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_StarBoxLauncher_check_launch(Entity* entity) {
@@ -74,9 +74,9 @@ void entity_StarBoxLauncher_check_launch(Entity* entity) {
         hitDepth = 10.0f;
 
         add_vec2D_polar(&x, &z, 10.0f, func_800E5348());
-        if (npc_raycast_down_sides(0x10000, &x, &y, &z, &hitDepth) != 0) {
-            if (D_8010C978 & COLLISION_WITH_ENTITY_BIT) {
-                result = get_entity_type(D_8010C978) == ENTITY_TYPE_STAR_BOX_LAUCHER;
+        if (npc_raycast_down_sides(COLLISION_CHANNEL_10000, &x, &y, &z, &hitDepth) != 0) {
+            if (NpcHitQueryColliderID & COLLISION_WITH_ENTITY_BIT) {
+                result = get_entity_type(NpcHitQueryColliderID) == ENTITY_TYPE_STAR_BOX_LAUCHER;
             }
         }
     } else if ((entity->collisionFlags & ENTITY_COLLISION_PLAYER_TOUCH_FLOOR) && (actionState == ACTION_STATE_SPIN_POUND || actionState == ACTION_STATE_TORNADO_POUND)) {
@@ -139,7 +139,7 @@ void entity_StarBoxLauncher_launch(Entity* entity) {
             data->faceTexOffset = D_802BCAA0_E313F0[0];
             data->faceAnimTimer = D_802BCAA0_E313F0[1];
             sfx_play_sound(SOUND_2085);
-            /* fallthrough */
+            // fallthrough
         case 1:
             temp = entity->position.y;
             entity->position.y = temp + 8.0 * sin_rad(DEG_TO_RAD(data->riseSpeedPhase));
@@ -225,7 +225,7 @@ void entity_StarBoxLauncher_launch(Entity* entity) {
 }
 
 void func_802BC99C_E312EC(Entity* entity) {
-    if (!(entity->flags & ENTITY_FLAGS_2000000)) {
+    if (!(entity->flags & ENTITY_FLAG_2000000)) {
         exec_entity_commandlist(entity);
     }
 }
@@ -245,8 +245,6 @@ void entity_StarBoxLauncher_init(Entity* entity) {
     data->basePosZ = entity->position.z;
 }
 
-
-
 EntityScript Entity_StarBoxLauncher_Script = {
     es_SetCallback(entity_StarBoxLauncher_check_launch, 0)
     es_SetCallback(entity_StarBoxLauncher_shake_box, 4)
@@ -263,7 +261,7 @@ EntityScript Entity_StarBoxLauncher_Script = {
 EntityModelScript Entity_StarBoxLauncher_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_StarBoxLauncher_RenderTop, RENDER_MODE_SURFACE_OPA);
 
 EntityBlueprint Entity_StarBoxLauncher = {
-    .flags = ENTITY_FLAGS_8000,
+    .flags = ENTITY_FLAG_8000,
     .typeDataSize = sizeof(StarBoxLauncherData),
     .renderCommandList = Entity_StarBoxLauncher_RenderScript,
     .modelAnimationNodes = 0,

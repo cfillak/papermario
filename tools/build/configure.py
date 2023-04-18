@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-from typing import List, Dict, Set, Union
+import os
+import shutil
+from typing import TYPE_CHECKING, List, Dict, Set, Union
 from pathlib import Path
 import subprocess
 import sys
@@ -8,38 +10,26 @@ import ninja_syntax
 from glob import glob
 
 # Configuration:
-VERSIONS = ["us", "jp"]
+VERSIONS = ["us", "jp", "ique", "pal"]
 DO_SHA1_CHECK = True
 
 # Paths:
 ROOT = Path(__file__).parent.parent.parent
-BUILD_TOOLS = (ROOT / "tools" / "build").relative_to(ROOT)
+TOOLS = (ROOT / "tools").relative_to(ROOT)
+BUILD_TOOLS = TOOLS / "build"
 YAY0_COMPRESS_TOOL = f"{BUILD_TOOLS}/yay0/Yay0compress"
 CRC_TOOL = f"{BUILD_TOOLS}/rom/n64crc"
 
-def rm_recursive(path: Path):
-    if path.exists():
-        if path.is_dir():
-            for f in path.iterdir():
-                rm_recursive(f)
-
-            path.rmdir()
-        else:
-            path.unlink()
+# if TYPE_CHECKING:
+#     from
 
 def exec_shell(command: List[str]) -> str:
     ret = subprocess.run(command, stdout=subprocess.PIPE, text=True)
     return ret.stdout
 
-def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra_cflags: str, use_ccache: bool,
-                      non_matching: bool, debug: bool):
+def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, extra_cppflags: str, extra_cflags: str, use_ccache: bool, shift: bool, debug: bool):
     # platform-specific
-    if sys.platform  == "darwin":
-        iconv = "tools/iconv.py UTF-8 SHIFT-JIS"
-    elif sys.platform == "linux":
-        iconv = "iconv --from UTF-8 --to SHIFT-JIS"
-    else:
-        raise Exception(f"unsupported platform {sys.platform}")
+    iconv = "iconv --from UTF-8 --to $encoding"
 
     ccache = ""
 
@@ -52,41 +42,55 @@ def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra
 
     cross = "mips-linux-gnu-"
     cc = f"{BUILD_TOOLS}/cc/gcc/gcc"
+    cc_modern = f"mips-linux-gnu-gcc"
     cc_ido = f"{BUILD_TOOLS}/cc/ido5.3/cc"
     cc_272_dir = f"{BUILD_TOOLS}/cc/gcc2.7.2/"
     cc_272 = f"{cc_272_dir}/gcc"
     cxx = f"{BUILD_TOOLS}/cc/gcc/g++"
 
-    CPPFLAGS_COMMON = "-Iver/$version/build/include -Iinclude -Isrc -Iassets/$version -D_LANGUAGE_C -D_FINALROM " \
+    CPPFLAGS_COMMON = "-Iver/$version/include -Iver/$version/build/include -Iinclude -Isrc -Iassets/$version -D_LANGUAGE_C -D_FINALROM " \
                "-DVERSION=$version -DF3DEX_GBI_2 -D_MIPS_SZLONG=32"
 
     CPPFLAGS = "-w " + CPPFLAGS_COMMON + " -nostdinc"
 
-    CPPFLAGS_272 = "-Iver/$version/build/include -Iinclude -Isrc -Iassets/$version -D_LANGUAGE_C -D_FINALROM " \
+    CPPFLAGS_272 = "-Iver/$version/include -Iver/$version/build/include -Iinclude -Isrc -Iassets/$version -D_LANGUAGE_C -D_FINALROM " \
                "-DVERSION=$version -DF3DEX_GBI_2 -D_MIPS_SZLONG=32 -nostdinc"
 
-    cflags = f"-c -G0 -O2 -x c -fno-common -B {BUILD_TOOLS}/cc/gcc/ {extra_cflags}"
+    cflags = f"-c -G0 -O2 -gdwarf-2 -x c -B {BUILD_TOOLS}/cc/gcc/ {extra_cflags}"
+
+    cflags_modern = f"-c -G0 -O2 -gdwarf-2 -fno-builtin-bcopy -fno-tree-loop-distribute-patterns -funsigned-char -mgp32 -mfp32 -mabi=32 -mfix4300 -march=vr4300 -mno-gpopt -fno-toplevel-reorder -mno-abicalls -fno-pic -fno-exceptions -fno-stack-protector -fno-zero-initialized-in-bss -Wno-builtin-declaration-mismatch -x c {extra_cflags}"
+
     cflags_272 = f"-c -G0 -mgp32 -mfp32 -mips3 {extra_cflags}"
     cflags_272 = cflags_272.replace("-ggdb3","-g1")
 
     ninja.variable("python", sys.executable)
 
-    ninja.rule("ld",
-        description="link($version) $out",
-        command=f"{cross}ld -T ver/$version/build/undefined_syms.txt -T ver/$version/undefined_syms_auto.txt -T ver/$version/undefined_funcs_auto.txt -Map $mapfile --no-check-sections -T $in -o $out",
-    )
+    ld_args = f"-T ver/$version/build/undefined_syms.txt -T ver/$version/undefined_syms_auto.txt -T ver/$version/undefined_funcs_auto.txt -Map $mapfile --no-check-sections -T $in -o $out"
 
-    objcopy_sections = ""
-    if debug:
-        ninja.rule("genobjcopy",
-            description="generate $out",
-            command=f"$python {BUILD_TOOLS}/genobjcopy.py $in $out",
+    if shift:
+        # For the shiftable build, we link twice to resolve some addresses that gnu ld can't figure out all in one go.
+        ninja.rule("ld",
+            description="link($version) $out",
+            command=f"{cross}ld $$(tools/build/ld/multilink_calc.py $version hardcode) {ld_args} && \
+                      {cross}ld $$(tools/build/ld/multilink_calc.py $version calc) {ld_args}",
         )
-        objcopy_sections = "@ver/$version/build/objcopy_sections.txt "
+    else:
+        ninja.rule("ld",
+            description="link($version) $out",
+            command=f"{cross}ld {ld_args}",
+        )
 
+    Z64_DEBUG = ""
+    if debug:
+        Z64_DEBUG = "-gS -R .data -R .note -R .eh_frame -R .gnu.attributes -R .comment -R .options"
     ninja.rule("z64",
         description="rom $out",
-        command=f"{cross}objcopy {objcopy_sections} $in $out -O binary && {BUILD_TOOLS}/rom/n64crc $out",
+        command=f"{cross}objcopy $in $out -O binary {Z64_DEBUG} && {BUILD_TOOLS}/rom/n64crc $out",
+    )
+
+    ninja.rule("z64_ique",
+        description="rom $out",
+        command=f"{cross}objcopy $in $out -O binary {Z64_DEBUG}",
     )
 
     ninja.rule("sha1sum",
@@ -96,31 +100,43 @@ def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra
 
     ninja.rule("cpp",
         description="cpp $in",
-        command=f"{cpp} $in {cppflags} -P -o $out"
+        command=f"{cpp} $in {extra_cppflags} -P -o $out"
     )
 
     ninja.rule("cc",
         description="gcc $in",
-        command=f"bash -o pipefail -c '{cpp} {CPPFLAGS} {cppflags} $cppflags -MD -MF $out.d $in -o - | {iconv} | {ccache}{cc} {cflags} $cflags - -o $out'",
+        command=f"bash -o pipefail -c '{cpp} {CPPFLAGS} {extra_cppflags} -DOLD_GCC $cppflags -MD -MF $out.d $in -o - | {iconv} | {ccache}{cc} {cflags} $cflags - -o $out'",
+        depfile="$out.d",
+        deps="gcc",
+    )
+
+    ninja.rule("cc_modern",
+        description="gcc $in",
+        command=f"bash -o pipefail -c '{cpp} {CPPFLAGS} {extra_cppflags} $cppflags -MD -MF $out.d $in -o - | {iconv} | {ccache}{cc_modern} {cflags_modern} $cflags - -o $out'",
         depfile="$out.d",
         deps="gcc",
     )
 
     ninja.rule("cc_ido",
         description="ido $in",
-        command=f"{ccache}{cc_ido} -w {CPPFLAGS_COMMON} {cppflags} $cppflags -c -mips1 -O0 -G0 -non_shared -Xfullwarn -Xcpluscomm -o $out $in",
+        command=f"{ccache}{cc_ido} -w {CPPFLAGS_COMMON} {extra_cppflags} $cppflags -c -mips1 -O0 -G0 -non_shared -Xfullwarn -Xcpluscomm -o $out $in",
     )
 
     ninja.rule("cc_272",
         description="cc_272 $in",
-        command=f"bash -o pipefail -c 'COMPILER_PATH={cc_272_dir} {cc_272} {CPPFLAGS_272} {cppflags} $cppflags {cflags_272} $cflags $in -o $out && mips-linux-gnu-objcopy -N $in $out'",
+        command=f"bash -o pipefail -c 'COMPILER_PATH={cc_272_dir} {cc_272} {CPPFLAGS_272} {extra_cppflags} $cppflags {cflags_272} $cflags $in -o $out && mips-linux-gnu-objcopy -N $in $out'",
     )
 
     ninja.rule("cxx",
         description="cxx $in",
-        command=f"bash -o pipefail -c '{cpp} {CPPFLAGS} {cppflags} $cppflags -MD -MF $out.d $in -o - | {iconv} | {ccache}{cxx} {cflags} $cflags - -o $out'",
+        command=f"bash -o pipefail -c '{cpp} {CPPFLAGS} {extra_cppflags} $cppflags -MD -MF $out.d $in -o - | {iconv} | {ccache}{cxx} {cflags} $cflags - -o $out'",
         depfile="$out.d",
         deps="gcc",
+    )
+
+    ninja.rule("dead_cc",
+        description="dead_cc $in",
+        command=f"mips-linux-gnu-objcopy --redefine-sym sqrtf=dead_sqrtf $in $out",
     )
 
     ninja.rule("bin",
@@ -140,17 +156,17 @@ def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra
 
     ninja.rule("img_header",
         description="img_header $in",
-        command=f"$python {BUILD_TOOLS}/img/header.py $in $out $c_name",
+        command=f"$python {BUILD_TOOLS}/img/header.py $in $out \"$c_name\"",
     )
 
     ninja.rule("bin_inc_c",
         description="bin_inc_c $out",
-        command=f"$python {BUILD_TOOLS}/bin_inc_c.py $in $out $c_name",
+        command=f"$python {BUILD_TOOLS}/bin_inc_c.py $in $out \"$c_name\"",
     )
 
     ninja.rule("pal_inc_c",
         description="pal_inc_c $out",
-        command=f"$python {BUILD_TOOLS}/pal_inc_c.py $in $out $c_name",
+        command=f"$python {BUILD_TOOLS}/pal_inc_c.py $in $out \"$c_name\"",
     )
 
     ninja.rule("yay0",
@@ -160,17 +176,17 @@ def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra
 
     ninja.rule("sprite",
         description="sprite $sprite_name",
-        command=f"$python {BUILD_TOOLS}/sprites/sprite.py $out $sprite_dir",
+        command=f"$python {BUILD_TOOLS}/sprite/sprite.py $out $sprite_dir",
     )
 
     ninja.rule("sprite_combine",
         description="sprite_combine $in",
-        command=f"$python {BUILD_TOOLS}/sprites/combine.py $out $in",
+        command=f"$python {BUILD_TOOLS}/sprite/combine.py $out $in",
     )
 
     ninja.rule("sprite_header",
         description="sprite_header $sprite_name",
-        command=f"$python {BUILD_TOOLS}/sprites/header.py $out $sprite_dir $sprite_id",
+        command=f"$python {BUILD_TOOLS}/sprite/header.py $out $sprite_dir $sprite_id",
     )
 
     ninja.rule("msg",
@@ -198,6 +214,8 @@ def write_ninja_rules(ninja: ninja_syntax.Writer, cpp: str, cppflags: str, extra
     ninja.rule("pm_charset", command=f"$python {BUILD_TOOLS}/pm_charset.py $out $in")
 
     ninja.rule("pm_charset_palettes", command=f"$python {BUILD_TOOLS}/pm_charset_palettes.py $out $in")
+
+    ninja.rule("pm_sprite_shading_profiles", command=f"$python {BUILD_TOOLS}/sprite/sprite_shading_profiles.py $in $out $header_path")
 
     with Path("tools/permuter_settings.toml").open("w") as f:
         f.write(f"compiler_command = \"{cc} {CPPFLAGS.replace('$version', 'us')} {cflags} -DPERMUTER -fforce-addr\"\n")
@@ -232,35 +250,34 @@ class Configure:
         self.version_path = ROOT / f"ver/{version}"
         self.linker_entries = None
 
-    def split(self, assets: bool, code: bool, debug: bool):
+    def split(self, assets: bool, code: bool, shift: bool, debug: bool):
         import split
 
         modes = ["ld"]
         if assets:
-            modes.extend(["bin", "Yay0", "img", "vtx", "gfx", "pm_map_data", "pm_msg", "pm_npc_sprites", "pm_charset",
-                          "pm_charset_palettes", "pm_effect_loads", "pm_effect_shims"])
+            modes.extend(["bin", "yay0", "img", "vtx", "vtx_common", "gfx", "gfx_common", "pm_map_data", "pm_msg",
+                          "pm_npc_sprites", "pm_charset","pm_charset_palettes", "pm_effect_loads", "pm_effect_shims",
+                          "pm_sprite_shading_profiles"])
         if code:
             modes.extend(["code", "c", "data", "rodata"])
 
-        splat_file = [str(self.version_path / "splat.yaml")]
+        splat_files = [str(self.version_path / "splat.yaml")]
         if debug:
-            splat_file += [str(self.version_path / "splat-debug.yaml")]
+            splat_files += [str(self.version_path / "splat-debug.yaml")]
+
+        if shift:
+            splat_files += [str(self.version_path / "splat-shift.yaml")]
 
         split.main(
-            splat_file,
-            None,
-            str(self.version_path / "baserom.z64"),
+            splat_files,
             modes,
             verbose=False,
         )
-        self.linker_entries = split.linker_writer.entries[:]
+        self.linker_entries = split.linker_writer.entries
         self.asset_stack = split.config["asset_stack"]
 
     def build_path(self) -> Path:
         return Path(f"ver/{self.version}/build")
-
-    def objcopy_sections_path(self) -> Path:
-        return self.build_path() / "objcopy_sections.txt"
 
     def undefined_syms_path(self) -> Path:
         return self.build_path() / "undefined_syms.txt"
@@ -308,17 +325,19 @@ class Configure:
         # ¯\_(ツ)_/¯
         return path
 
-    def write_ninja(self, ninja: ninja_syntax.Writer, skip_outputs: Set[str], non_matching: bool, debug: bool):
+    def write_ninja(self, ninja: ninja_syntax.Writer, skip_outputs: Set[str], non_matching: bool, modern_gcc: bool):
         import segtypes
         import segtypes.common.data
-        import segtypes.n64.Yay0
+        import segtypes.common.asm
+        import segtypes.n64.yay0
 
         assert self.linker_entries is not None
 
         built_objects = set()
         generated_headers = []
 
-        def build(object_paths: Union[Path, List[Path]], src_paths: List[Path], task: str, variables: Dict[str, str] = {}):
+        def build(object_paths: Union[Path, List[Path]], src_paths: List[Path], task: str,
+                  variables: Dict[str, str] = {}, implicit_outputs: List[str] = []):
             if not isinstance(object_paths, list):
                 object_paths = [object_paths]
 
@@ -343,7 +362,7 @@ class Configure:
 
                 if task == "yay0":
                     implicit.append(YAY0_COMPRESS_TOOL)
-                elif task in ["cc", "cxx"]:
+                elif task in ["cc", "cxx", "cc_modern"]:
                     order_only.append("generated_headers_" + self.version)
 
                 ninja.build(
@@ -353,6 +372,7 @@ class Configure:
                     variables={ "version": self.version, **variables },
                     implicit=implicit,
                     order_only=order_only,
+                    implicit_outputs=implicit_outputs
                 )
 
         # Build objects
@@ -384,26 +404,51 @@ class Configure:
                 if entry.src_paths[0].suffixes[-1] == ".cpp":
                     task = "cxx"
 
+                if modern_gcc:
+                    task = "cc_modern"
+
                 if seg.name.endswith("osFlash"):
                     task = "cc_ido"
                 elif "gcc_272" in cflags:
                     task = "cc_272"
+                    cflags = cflags.replace("gcc_272", "")
 
-                cflags = cflags.replace("gcc_272", "")
+                encoding = "CP932" # similar to SHIFT-JIS, but includes backslash and tilde
+                if version == "ique":
+                    encoding = "EUC-JP"
 
-                build(entry.object_path, entry.src_paths, task, variables={
-                    "cflags": cflags,
-                    "cppflags": f"-DVERSION_{self.version.upper()}",
-                })
+                # Dead cod
+                if isinstance(seg, segtypes.common.c.CommonSegC) and isinstance(seg.rom_start, int) and seg.rom_start >= 0xEA0900:
+                    obj_path = str(entry.object_path)
+                    init_obj_path = Path(obj_path + ".dead")
+                    build(init_obj_path, entry.src_paths, task, variables={
+                        "cflags": cflags,
+                        "cppflags": f"-DVERSION_{self.version.upper()}",
+                        "encoding": encoding,
+                    })
+                    build(
+                        entry.object_path,
+                        [init_obj_path],
+                        "dead_cc",
+                    )
+                # Not dead cod
+                else:
+                    if seg.get_most_parent().name not in ["main", "engine1", "engine2"]:
+                        cflags += " -fno-common"
+                    build(entry.object_path, entry.src_paths, task, variables={
+                        "cflags": cflags,
+                        "cppflags": f"-DVERSION_{self.version.upper()}",
+                        "encoding": encoding,
+                    })
 
                 # images embedded inside data aren't linked, but they do need to be built into .inc.c files
                 if isinstance(seg, segtypes.common.group.CommonSegGroup):
                     for seg in seg.subsegments:
                         if isinstance(seg, segtypes.n64.img.N64SegImg):
                             flags = ""
-                            if seg.flip_horizontal:
+                            if seg.n64img.flip_h:
                                 flags += "--flip-x "
-                            if seg.flip_vertical:
+                            if seg.n64img.flip_v:
                                 flags += "--flip-y "
 
                             src_paths = [seg.out_path().relative_to(ROOT)]
@@ -418,7 +463,10 @@ class Configure:
                             c_sym = seg.create_symbol(
                                 addr=seg.vram_start, in_segment=True, type="data", define=True
                             )
-                            vars = {"c_name": c_sym.name}
+                            name = c_sym.name
+                            if "namespaced" in seg.args:
+                                name = f"N({name[7:]})"
+                            vars = {"c_name": name}
                             build(inc_dir / (seg.name + ".png.h"), src_paths, "img_header", vars)
                             build(inc_dir / (seg.name + ".png.inc.c"), [bin_path], "bin_inc_c", vars)
                         elif isinstance(seg, segtypes.n64.palette.N64SegPalette):
@@ -438,15 +486,15 @@ class Configure:
                             build(inc_dir / (seg.name + ".pal.inc.c"), [bin_path], "pal_inc_c", vars)
             elif isinstance(seg, segtypes.common.bin.CommonSegBin):
                 build(entry.object_path, entry.src_paths, "bin")
-            elif isinstance(seg, segtypes.n64.Yay0.N64SegYay0):
+            elif isinstance(seg, segtypes.n64.yay0.N64SegYay0):
                 compressed_path = entry.object_path.with_suffix("") # remove .o
                 build(compressed_path, entry.src_paths, "yay0")
                 build(entry.object_path, [compressed_path], "bin")
             elif isinstance(seg, segtypes.n64.img.N64SegImg):
                 flags = ""
-                if seg.flip_horizontal:
+                if seg.n64img.flip_h:
                     flags += "--flip-x "
-                if seg.flip_vertical:
+                if seg.n64img.flip_v:
                     flags += "--flip-y "
 
                 bin_path = entry.object_path.with_suffix(".bin")
@@ -634,18 +682,16 @@ class Configure:
                 build(entry.object_path, [entry.object_path.with_suffix("")], "bin")
             elif seg.type in ["pm_effect_loads", "pm_effect_shims"]:
                 build(entry.object_path, entry.src_paths, "as")
+            elif seg.type == "pm_sprite_shading_profiles":
+                header_path = str(self.build_path() / "include/sprite/sprite_shading_profiles.h")
+                build(entry.object_path.with_suffix(""), entry.src_paths, "pm_sprite_shading_profiles", implicit_outputs=[header_path], variables={
+                    "header_path": header_path,
+                })
+                build(entry.object_path, [entry.object_path.with_suffix("")], "bin")
             elif seg.type == "linker" or seg.type == "linker_offset":
                 pass
             else:
                 raise Exception(f"don't know how to build {seg.__class__.__name__} '{seg.name}'")
-
-        # Create objcopy section list
-        if debug:
-            ninja.build(
-                str(self.objcopy_sections_path()),
-                "genobjcopy",
-                str(self.build_path() / "elf_sections.txt"),
-            )
 
         # Run undefined_syms through cpp
         ninja.build(
@@ -656,8 +702,6 @@ class Configure:
 
         # Build elf, z64, ok
         additional_objects = [str(self.undefined_syms_path())]
-        if debug:
-            additional_objects += [str(self.objcopy_sections_path())]
 
         ninja.build(
             str(self.elf_path()),
@@ -666,19 +710,30 @@ class Configure:
             implicit=[str(obj) for obj in built_objects] +  additional_objects,
             variables={ "version": self.version, "mapfile": str(self.map_path()) },
         )
-        ninja.build(
-            str(self.rom_path()),
-            "z64",
-            str(self.elf_path()),
-            implicit=[CRC_TOOL],
-            variables={ "version": self.version },
-        )
-        ninja.build(
-            str(self.rom_ok_path()),
-            "sha1sum",
-            f"ver/{self.version}/checksum.sha1",
-            implicit=[str(self.rom_path())],
-        )
+
+        if self.version == "ique":
+            ninja.build(
+                str(self.rom_path()),
+                "z64_ique",
+                str(self.elf_path()),
+                variables={ "version": self.version },
+            )
+        else:
+            ninja.build(
+                str(self.rom_path()),
+                "z64",
+                str(self.elf_path()),
+                implicit=[CRC_TOOL],
+                variables={ "version": self.version },
+            )
+
+        if not non_matching:
+            ninja.build(
+                str(self.rom_ok_path()),
+                "sha1sum",
+                f"ver/{self.version}/checksum.sha1",
+                implicit=[str(self.rom_path())],
+            )
 
         ninja.build("generated_headers_" + self.version, "phony", generated_headers)
 
@@ -706,7 +761,8 @@ if __name__ == "__main__":
     parser.add_argument("--no-split-assets", action="store_true", help="Don't split assets from the baserom(s)")
     parser.add_argument("-d", "--debug", action="store_true", help="Generate debugging information")
     parser.add_argument("-n", "--non-matching", action="store_true", help="Compile nonmatching code. Combine with --debug for more detailed debug info")
-    parser.add_argument("-w", "--no-warn", action="store_true", help="Inhibit compiler warnings")
+    parser.add_argument("--shift", action="store_true", help="Build a shiftable version of the game (non-matching)")
+    parser.add_argument("--modern-gcc", action="store_true", help="Use modern GCC instead of the original compiler")
     parser.add_argument("--ccache", action="store_true", help="Use ccache")
     args = parser.parse_args()
 
@@ -750,32 +806,39 @@ if __name__ == "__main__":
         exec_shell(["ninja", "-t", "clean"])
 
         for version in versions:
-            rm_recursive(ROOT / f"assets/{version}")
-            rm_recursive(ROOT / f"ver/{version}/assets")
-            rm_recursive(ROOT / f"ver/{version}/build")
-            rm_recursive(ROOT / f"ver/{version}/.splat_cache")
+            shutil.rmtree(ROOT / f"assets/{version}", ignore_errors=True)
+            shutil.rmtree(ROOT / f"ver/{version}/assets", ignore_errors=True)
+            shutil.rmtree(ROOT / f"ver/{version}/build", ignore_errors=True)
+            try:
+                os.remove(ROOT / f"ver/{version}/.splat_cache")
+            except OSError:
+                pass
 
-    cflags = ""
-    cppflags = ""
+    extra_cflags = ""
+    extra_cppflags = ""
     if args.non_matching:
-        cppflags += " -DNON_MATCHING"
+        extra_cppflags += " -DNON_MATCHING"
 
         if args.debug:
-            cflags += " -ggdb3" # we can generate more accurate debug info in non-matching mode
-            cppflags += " -DDEBUG" # e.g. affects ASSERT macro
+            extra_cflags += " -ggdb3" # we can generate more accurate debug info in non-matching mode
+            extra_cppflags += " -DDEBUG" # e.g. affects ASSERT macro
     elif args.debug:
         # g1 doesn't affect codegen
-        cflags += " -ggdb3"
+        extra_cflags += " -ggdb3"
 
-    if not args.no_warn:
-        cflags += " -Wuninitialized -Wmissing-braces -Wimplicit -Wredundant-decls -Wstrict-prototypes"
+    if args.shift:
+        extra_cppflags += " -DSHIFT"
+
+    extra_cflags += " -Wmissing-braces -Wimplicit -Wredundant-decls -Wstrict-prototypes"
 
     # add splat to python import path
     sys.path.append(str((ROOT / args.splat).resolve()))
 
     ninja = ninja_syntax.Writer(open(str(ROOT / "build.ninja"), "w"), width=9999)
 
-    write_ninja_rules(ninja, args.cpp or "cpp", cppflags, cflags, args.ccache, args.non_matching, args.debug)
+    non_matching = args.non_matching or args.modern_gcc or args.shift
+
+    write_ninja_rules(ninja, args.cpp or "cpp", extra_cppflags, extra_cflags, args.ccache, args.shift, args.debug)
     write_ninja_for_tools(ninja)
 
     skip_files = set()
@@ -790,12 +853,16 @@ if __name__ == "__main__":
         if not first_configure:
             first_configure = configure
 
-        configure.split(not args.no_split_assets, args.split_code, args.debug)
-        configure.write_ninja(ninja, skip_files, args.non_matching, args.debug)
+        configure.split(not args.no_split_assets, args.split_code, args.shift, args.debug)
+        configure.write_ninja(ninja, skip_files, non_matching, args.modern_gcc)
 
         all_rom_oks.append(str(configure.rom_ok_path()))
 
+    assert(first_configure)
     first_configure.make_current(ninja)
 
-    ninja.build("all", "phony", all_rom_oks)
+    if non_matching:
+        ninja.build("all", "phony", [str(first_configure.rom_path())])
+    else:
+        ninja.build("all", "phony", all_rom_oks)
     ninja.default("all")

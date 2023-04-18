@@ -1,5 +1,6 @@
 #include "fio.h"
 #include "PR/os_flash.h"
+#include "gcc/string.h"
 
 extern SaveData D_8009A6B0;
 extern s32 logicalSaveInfo[4][2];
@@ -218,7 +219,7 @@ void fio_deserialize_state(void) {
     }
 
 
-    gGameStatusPtr->debugEnemyContact = 0;
+    gGameStatusPtr->debugEnemyContact = DEBUG_CONTACT_NONE;
     gGameStatusPtr->unk_76 = 0;
     gGameStatusPtr->unk_77 = 0;
     gGameStatusPtr->musicEnabled = TRUE;

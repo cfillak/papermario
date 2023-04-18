@@ -3,8 +3,8 @@
 
 #include "common.h"
 
-typedef s32 EntityScript[0];
-typedef s32 EntityModelScript[0];
+typedef s32 EntityScript[];
+typedef s32 EntityModelScript[];
 
 enum {
     ENTITY_SCRIPT_OP_End,
@@ -61,6 +61,11 @@ enum {
 
 #define ENTITY_ADDR(entity, type, data) (type)((s32)(entity->gfxBaseAddr) + ((s32)(data) & 0xFFFF))
 #define ENTITY_ROM(name) { entity_model_##name##_ROM_START, entity_model_##name##_ROM_END }
+
+#define BLOCK_GRID_SIZE 25
+
+#define TWEESTER_PATH_STOP 0x80000000
+#define TWEESTER_PATH_LOOP 0x80000001
 
 typedef struct SaveBlockData {
     /* 0x000 */ char unk_0[4];
@@ -155,7 +160,7 @@ typedef struct HeartBlockContentData {
     /* 0x01C */ f32 sparkleTrailRadius;
     /* 0x020 */ f32 bouncePhase;
     /* 0x024 */ u16 yawBufferPos;
-    /* 0x024 */ s16 unk_26;
+    /* 0x026 */ s16 unk_26;
     /* 0x028 */ f32 yawBuffer[10];
     /* 0x050 */ f32 unk_50;
     /* 0x054 */ f32 rotationRate;
@@ -197,7 +202,7 @@ typedef struct ChestData {
     /* 0x24 */ f32 giveItemRadiusInterpPhase;
     /* 0x28 */ f32 giveItemHeightInterpPhase;
     /* 0x2C */ f32 itemVelY;
-    /* 0x30 */ s8 unk_30;
+    /* 0x30 */ s8 gotItemDone;
     /* 0x31 */ char unk_31[3];
     /* 0x34 */ struct EffectInstance* gotItemEffect;
 } ChestData; // size = 0x38
@@ -285,6 +290,8 @@ typedef struct BombableRockData {
     /* 0x70 */ f32 fragmentPosZ[6];
     /* 0x88 */ f32 fragmentFallSpeed[6];
 } BombableRockData; // size = 0xA0
+
+typedef s32 TweesterPath[];
 
 typedef struct TweesterData {
     /* 0x00 */ s8 unk_00;
@@ -390,15 +397,16 @@ extern EntityBlueprint Entity_InertRedBlock;
 extern EntityBlueprint Entity_BrickBlock;
 extern EntityBlueprint Entity_MulticoinBlock;
 extern EntityBlueprint Entity_Hammer1Block;
-extern EntityBlueprint Entity_Hammer1Block_WideHitbox;
-extern EntityBlueprint Entity_Hammer1Block_TallHitbox;
+extern EntityBlueprint Entity_Hammer1Block_WideX;
+extern EntityBlueprint Entity_Hammer1Block_WideZ;
 extern EntityBlueprint Entity_Hammer1BlockTiny;
 extern EntityBlueprint Entity_Hammer2Block;
-extern EntityBlueprint Entity_Hammer2Block_WideHitbox;
-extern EntityBlueprint Entity_Hammer2Block_TallHitbox;
+extern EntityBlueprint Entity_Hammer2Block_WideX;
+extern EntityBlueprint Entity_Hammer2Block_WideZ;
 extern EntityBlueprint Entity_Hammer2BlockTiny;
-extern EntityBlueprint Entity_Hammer3Block_WideHitbox;
-extern EntityBlueprint Entity_Hammer3Block_TallHitbox;
+extern EntityBlueprint Entity_Hammer3Block;
+extern EntityBlueprint Entity_Hammer3Block_WideX;
+extern EntityBlueprint Entity_Hammer3Block_WideZ;
 extern EntityBlueprint Entity_Hammer3BlockTiny;
 extern EntityBlueprint Entity_PushBlock;
 extern EntityBlueprint Entity_PowBlock;
@@ -433,5 +441,36 @@ extern EntityBlueprint Entity_BellbellPlant;
 extern EntityBlueprint Entity_TrumpetPlant;
 extern EntityBlueprint Entity_Munchlesia;
 extern EntityBlueprint Entity_ArrowSign;
+
+typedef struct EntityModel {
+    /* 0x00 */ s32 flags;
+    /* 0x04 */ s8 renderMode;
+    /* 0x05 */ u8 unk_05;
+    /* 0x06 */ u8 unk_06;
+    /* 0x07 */ u8 unk_07;
+    /* 0x08 */ f32 nextFrameTime; ///< Set to 1.0 after each update
+    /* 0x0C */ f32 timeScale; ///< Default is 1.0
+    /* 0x10 */ EntityModelScript* cmdListReadPos;
+    /* 0x14 */ union {
+                    Gfx* displayList;
+                    SpriteRasterInfo* imageData;
+               } gfx;
+    /* 0x18 */ Mtx transform;
+    /* 0x58 */ EntityModelScript* cmdListSavedPos;
+    /* 0x5C */ Vec3s* vertexArray;
+    /* 0x60 */ void (*fpSetupGfxCallback)(void*);
+    /* 0x64 */ void* setupGfxCallbackArg0;
+} EntityModel; // size = 0x68
+
+typedef EntityModel* EntityModelList[MAX_ENTITY_MODELS];
+
+EntityModel* get_entity_model(s32 idx);
+s32 load_entity_model(EntityModelScript* cmdList);
+s32 ALT_load_entity_model(EntityModelScript* cmdList);
+void entity_set_render_script(Entity* entity, EntityModelScript* cmdList);
+void set_entity_model_render_command_list(s32 idx, EntityModelScript* cmdList);
+
+void virtual_entity_list_render_world(void);
+void virtual_entity_list_render_UI(void);
 
 #endif

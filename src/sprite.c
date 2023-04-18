@@ -1,5 +1,8 @@
 #include "sprite.h"
 
+extern HeapNode heap_generalHead;
+extern HeapNode heap_spriteHead;
+
 BSS s32 D_802DF520; // unused?
 BSS s32 spr_allocateBtlComponentsOnWorldHeap;
 BSS s32 D_802DF528[2]; // unused?
@@ -87,23 +90,45 @@ Gfx D_802DF490[] = {
 
 f32 spr_animUpdateTimeScale = 1.0f;
 
+#define MARIO_SPRITE_COMMON_BITS \
+      1 << SPR_Mario1 \
+    | 1 << SPR_Mario1_Back \
+
+#define MARIO_SPRITE_WORLD_BITS \
+    MARIO_SPRITE_COMMON_BITS \
+    | 1 << SPR_MarioW1 \
+    | 1 << SPR_MarioW1_Back \
+    | 1 << SPR_MarioW2 \
+    | 1 << SPR_MarioW3
+
+#define MARIO_SPRITE_BATTLE_BITS \
+    MARIO_SPRITE_COMMON_BITS \
+    | 1 << SPR_MarioB1 \
+    | 1 << SPR_MarioB2 \
+    | 1 << SPR_MarioB3
+
+#define PEACH_SPRITE_BITS \
+      1 << SPR_Peach1 \
+    | 1 << SPR_Peach1_Back \
+    | 1 << SPR_Peach2 \
+    | 1 << SPR_Peach3 \
+
 // TODO(player raster splat header generation):
 // - macroify rasterSize based on the biggest raster
-// - OR values of a generated player raster name enum together for initiallyLoaded bits
 PlayerSpriteSet spr_playerSpriteSets[] = {
-    /* Mario */ {  6, 0x700, 0x000003C6 },
-    /* Mario */ { 18, 0x700, 0x000003C6 },
-    /* Mario */ { 10, 0x900, 0x00003FC6 },
-    /* Mario */ {  3, 0x700, 0x00000006 },
-    /* Peach */ {  6, 0x900, 0x00003C00 },
-    /* Peach */ {  6, 0x700, 0x0000003E },
-    /* Peach */ {  6, 0x900, 0x00003C00 },
+    [PLAYER_SPRITES_MARIO_WORLD]            {  6, 0x700, MARIO_SPRITE_WORLD_BITS },
+    [PLAYER_SPRITES_MARIO_REFLECT_FLOOR]    { 18, 0x700, MARIO_SPRITE_WORLD_BITS },
+    [PLAYER_SPRITES_COMBINED_EPILOGUE]      { 10, 0x900, MARIO_SPRITE_WORLD_BITS | PEACH_SPRITE_BITS },
+    [PLAYER_SPRITES_MARIO_PARADE]           {  3, 0x700, MARIO_SPRITE_COMMON_BITS },
+    [PLAYER_SPRITES_PEACH_WORLD]            {  6, 0x900, PEACH_SPRITE_BITS },
+    [PLAYER_SPRITES_MARIO_BATTLE]           {  6, 0x700, MARIO_SPRITE_BATTLE_BITS },
+    [PLAYER_SPRITES_PEACH_BATTLE]           {  6, 0x900, PEACH_SPRITE_BITS},
 };
 
 void spr_init_quad_cache(void) {
     s32 i;
 
-    D_802DFE44 = _heap_malloc(&gSpriteHeapPtr, ARRAY_COUNT(D_802DFE48) * sizeof(*D_802DFE44));
+    D_802DFE44 = _heap_malloc(&heap_spriteHead, ARRAY_COUNT(D_802DFE48) * sizeof(*D_802DFE44));
 
     for (i = 0; i < ARRAY_COUNT(D_802DFE48); i++) {
         D_802DFE48[i] = -1;
@@ -202,10 +227,95 @@ void spr_appendGfx_component_flat(
     f32 arg5,
     Matrix4f mtx,
     s32 alpha
-);
+) {
+    gDPLoadTLUT_pal16(gMainGfxPos++, 0, palette);
+    if (gSpriteShadingProfile->flags & 1) {
+        gDPScrollMultiTile2_4b(gMainGfxPos++, raster, G_IM_FMT_CI, width, height,
+                              0, 0, width - 1, height - 1, 0,
+                              G_TX_CLAMP, G_TX_CLAMP, 8, 8, G_TX_NOLOD, G_TX_NOLOD,
+                              256, 256);
+        gDPSetTile(gMainGfxPos++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0x0100, 2, 0, G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD, G_TX_WRAP, G_TX_NOMASK, G_TX_NOLOD);
+        gDPSetTileSize(gMainGfxPos++, 2, 0, 0, 63 << 2, 0);
+        if (gSpriteShadingProfile->flags & 2) {
+            Camera* camera = &gCameras[gCurrentCamID];
+            if (gGameStatusPtr->isBattle == 2) {
+                gSPViewport(gMainGfxPos++, &D_802DF3E0);
+            } else {
+                gSPViewport(gMainGfxPos++, &camera->vpAlt);
+            }
 
+            if (alpha == 255) {
+                gDPSetRenderMode(gMainGfxPos++, AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA |
+                                 G_RM_PASS, AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA |
+                                 GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_A_MEM));
+            } else {
+                gDPSetRenderMode(gMainGfxPos++, G_RM_PASS, G_RM_ZB_CLD_SURF2);
+            }
 
-INCLUDE_ASM(s32, "sprite", spr_appendGfx_component_flat);
+            gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, alpha);
+            gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL1, 0, 0, 0, 0, 0, 0, 0, 0, COMBINED);
+            gSPVertex(gMainGfxPos++, vertices, 4, 0);
+            gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 0, 3, 2, 0);
+            gDPPipeSync(gMainGfxPos++);
+        }
+        create_shading_palette(mtx, 0, 0, width, height, alpha, alpha == 255 ? 0x111238 : 0x104B50); // TODO make macro for render mode
+    } else {
+        gDPScrollTextureBlock_4b(gMainGfxPos++, raster, G_IM_FMT_CI, width, height, 0,
+                                 G_TX_CLAMP, G_TX_CLAMP, 8, 8, G_TX_NOLOD, G_TX_NOLOD,
+                                 256, 256);
+        if (gSpriteShadingProfile->flags & 2) {
+            Camera* camera =  &gCameras[gCurrentCamID];
+            if (gGameStatusPtr->isBattle == 2) {
+                gSPViewport(gMainGfxPos++, &D_802DF3E0);
+            } else {
+                gSPViewport(gMainGfxPos++, &camera->vpAlt);
+            }
+            if (alpha == 255) {
+                gDPSetRenderMode(gMainGfxPos++, AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA | ALPHA_CVG_SEL | GBL_c1(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_A_MEM), AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA | ALPHA_CVG_SEL | GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_A_MEM));
+            } else {
+                gDPSetRenderMode(gMainGfxPos++, G_RM_ZB_CLD_SURF, G_RM_ZB_CLD_SURF2);
+            }
+
+            gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, alpha);
+            gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, 0, ENVIRONMENT, 0, TEXEL0, 0, 0, 0, 0, 0, ENVIRONMENT, 0,
+                              TEXEL0, 0);
+            gSPVertex(gMainGfxPos++, vertices, 4, 0);
+            gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 0, 3, 2, 0);
+            gDPPipeSync(gMainGfxPos++);
+
+            if (alpha == 255) {
+                gDPSetRenderMode(gMainGfxPos++, AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA |
+                                 GBL_c1(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_A_MEM),
+                                 AA_EN | Z_CMP | Z_UPD | CVG_DST_FULL | ZMODE_OPA | CVG_X_ALPHA |
+                                 GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_A_MEM));
+            } else {
+                gDPSetRenderMode(gMainGfxPos++, G_RM_ZB_CLD_SURF, G_RM_ZB_CLD_SURF2);
+            }
+
+            gDPSetEnvColor(gMainGfxPos++, 100, 100, 100, 255);
+            gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, alpha);
+            gDPSetCombineLERP(gMainGfxPos++, SHADE, ENVIRONMENT, TEXEL0, TEXEL0, PRIMITIVE, 0, TEXEL0, 0, SHADE,
+                              ENVIRONMENT, TEXEL0, TEXEL0, PRIMITIVE, 0, TEXEL0, 0);
+            gDPSetColorDither(gMainGfxPos++, G_CD_MAGICSQ);
+        }
+    }
+
+    if (gSpriteShadingProfile->flags & 2) {
+        Camera* camera =  &gCameras[gCurrentCamID];
+
+        if (gGameStatusPtr->isBattle == 2) {
+            gSPViewport(gMainGfxPos++, &D_802DF3D0);
+            D_802DF3E0.vp.vtrans[0] = D_802DF3D0.vp.vtrans[0] + gGameStatusPtr->unk_82;
+            D_802DF3E0.vp.vtrans[1] = D_802DF3D0.vp.vtrans[1] + gGameStatusPtr->unk_83;
+        } else {
+            gSPViewport(gMainGfxPos++, &camera->vp);
+        }
+    }
+
+    gSPVertex(gMainGfxPos++, vertices, 4, 0);
+    gSP2Triangles(gMainGfxPos++, 0, 2, 1, 0, 0, 3, 2, 0);
+    gDPPipeSync(gMainGfxPos++);
+}
 
 void spr_appendGfx_component(
     SpriteRasterCacheEntry* cache,
@@ -244,21 +354,21 @@ void spr_appendGfx_component(
     }
 
     guMtxF2L(mtxTransform, &gDisplayContext->matrixStack[gMatrixListPos]);
-    gSPMatrix(gMasterGfxPos++, VIRTUAL_TO_PHYSICAL(&gDisplayContext->matrixStack[gMatrixListPos++]),
+    gSPMatrix(gMainGfxPos++, VIRTUAL_TO_PHYSICAL(&gDisplayContext->matrixStack[gMatrixListPos++]),
               G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
-    if (D_80151328->flags & 1) {
+    if (gSpriteShadingProfile->flags & 1) {
         if ((u8) opacity == 255) {
-            gSPDisplayList(gMasterGfxPos++, D_802DF460);
+            gSPDisplayList(gMainGfxPos++, D_802DF460);
         } else {
-            gSPDisplayList(gMasterGfxPos++, D_802DF490);
+            gSPDisplayList(gMainGfxPos++, D_802DF490);
         }
     } else {
         if ((u8) opacity == 255) {
-            gSPDisplayList(gMasterGfxPos++, D_802DF3F0);
+            gSPDisplayList(gMainGfxPos++, D_802DF3F0);
         } else {
-            gDPSetPrimColor(gMasterGfxPos++, 0, 0, 0, 0, 0, (u8) opacity);
-            gSPDisplayList(gMasterGfxPos++, D_802DF428);
+            gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, (u8) opacity);
+            gSPDisplayList(gMainGfxPos++, D_802DF428);
         }
     }
 
@@ -281,11 +391,11 @@ void spr_appendGfx_component(
         foldImg.xOffset = -(width / 2);
         foldImg.yOffset = height;
         foldImg.opacity = opacity;
-        if (fold_appendGfx_component((u8) (u16) D_802DF540, &foldImg, 0x80000, mtxTransform) == 1) { // todo bitfield?
+        if (fold_appendGfx_component((u8) (u16) D_802DF540, &foldImg, FOLD_STATE_FLAG_80000, mtxTransform) == 1) { // todo bitfield?
             D_802DF540 &= ~(0x80000000 | 0x40000000 | 0x20000000 | 0x10000000);
         }
     }
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
 
 void spr_transform_point(s32 rotX, s32 rotY, s32 rotZ, f32 inX, f32 inY, f32 inZ, f32* outX, f32* outY, f32* outZ) {
@@ -339,7 +449,7 @@ void spr_draw_component(s32 drawOpts, SpriteComponent* component, SpriteAnimComp
         spr_transform_point(rotX, rotY, rotZ, inX, inY, inZ * zscale, &dx, &dy, &dz);
         cacheEntry = cache[component->currentRaster];
         paletteIdx = component->currentPalette;
-        if (drawOpts & 0x08000000) {
+        if (drawOpts & DRAW_SPRITE_USE_PLAYER_RASTERS) {
             cacheEntry->image = spr_get_player_raster(component->currentRaster & 0xFFF, D_802DF57C);
         }
         D_802DF540 = component->unk_4C;
@@ -663,7 +773,7 @@ void spr_init_sprites(s32 playerSpriteSet) {
     s32 i;
 
     spr_allocateBtlComponentsOnWorldHeap = FALSE;
-    _heap_create(&gSpriteHeapPtr, 0x40000);
+    _heap_create(&heap_spriteHead, 0x40000);
     fold_init();
 
     for (i = 0; i < ARRAY_COUNT(spr_playerSprites); i++) {
@@ -673,15 +783,15 @@ void spr_init_sprites(s32 playerSpriteSet) {
 
     spr_playerMaxComponents = 0;
 
-    if (gGameStatusPtr->peachFlags & 1) {
-        playerSpriteSet = 4;
+    if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH) {
+        playerSpriteSet = PLAYER_SPRITES_PEACH_WORLD;
     }
 
     loadedFlags = (&spr_playerSpriteSets[playerSpriteSet])->initiallyLoaded;
     spr_init_player_raster_cache((&spr_playerSpriteSets[playerSpriteSet])->cacheSize,
                   (&spr_playerSpriteSets[playerSpriteSet])->rasterSize);
 
-    for (i = 1; i <= SPR_Peach_D; i++) {
+    for (i = 1; i <= SPR_Peach3; i++) {
         if ((loadedFlags >> i) & 1) {
             spr_load_player_sprite(i);
         }
@@ -717,120 +827,166 @@ s32 func_802DDA84(void) {
     return 0;
 }
 
-INCLUDE_ASM(void, "sprite", spr_update_player_sprite, s32 arg0, s32 arg1, f32 arg2);
-
-#ifdef NON_EQUIVALENT
-s32 spr_draw_player_sprite(s32 spriteInstanceID, s32 yaw, s32 arg2, u16** paletteList, Matrix4f mtx) {
-    PlayerCurrentAnimInfo* animInfo;
+s32 spr_update_player_sprite(s32 spriteInstanceID, s32 animID, f32 timeScale) {
+    u32* spriteData;
     SpriteComponent** compList;
+    SpriteComponent* component;
     SpriteAnimComponent** animList;
     SpriteRasterCacheEntry** rasterList;
-    s32 spriteIndex;
-    s32 animIndex;
-    s32 spriteAnimIndex;
-    s32 animID;
-    s32 camRelativeYaw;
-    s32 alpha;
+    s32 spriteId = ((animID >> 16) & 0xFF) - 1;
+    s32 instanceIdx = spriteInstanceID & 0xFF;
+    s32 animIndex = animID & 0xFF;
+    D_802DF57C = spriteId;
+
+    if (spr_playerCurrentAnimInfo[instanceIdx].componentList == NULL) {
+        compList = spr_allocate_components(spr_playerMaxComponents);
+        spr_playerCurrentAnimInfo[instanceIdx].componentList = compList;
+        while (*compList != PTR_LIST_END) {
+            component = *compList;
+            component->unk_4C = func_8013A704(1);
+            compList++;
+        }
+    }
+
+    spriteData = (u32*)spr_playerSprites[spriteId];
+    compList = spr_playerCurrentAnimInfo[instanceIdx].componentList;
+
+    if (spriteData == NULL) {
+        return 0;
+    }
+
+    rasterList = (SpriteRasterCacheEntry**)*spriteData;
+    spriteData += 4 + animIndex;
+    animList = (SpriteAnimComponent**)*spriteData;
+
+    spr_set_anim_timescale(timeScale);
+    if ((spriteInstanceID & DRAW_SPRITE_OVERRIDE_ALPHA) ||
+        (animID & ~SPRITE_ID_BACK_FACING) != (spr_playerCurrentAnimInfo[instanceIdx].animID & ~SPRITE_ID_BACK_FACING))
+    {
+        spr_init_anim_state(compList, animList);
+        spr_playerCurrentAnimInfo[instanceIdx].notifyValue = 0;
+    }
+
+    spr_playerCurrentAnimInfo[instanceIdx].animID = animID;
+
+    if (!(spriteInstanceID & DRAW_SPRITE_OVERRIDE_YAW)) {
+        spr_playerCurrentAnimInfo[instanceIdx].notifyValue = spr_component_update(spr_playerCurrentAnimInfo[instanceIdx].notifyValue,
+                compList, animList, rasterList, 0);
+    }
+    return spr_playerCurrentAnimInfo[instanceIdx].notifyValue;
+}
+
+s32 spr_draw_player_sprite(s32 spriteInstanceID, s32 yaw, s32 alphaIn, PAL_PTR* paletteList, Matrix4f mtx) {
+    s32 instanceIdx = spriteInstanceID & 0xFF;
+    s32 animID = spr_playerCurrentAnimInfo[instanceIdx].animID;
+    SpriteRasterCacheEntry** rasters;
+    PAL_PTR* palettes;
+    SpriteAnimComponent** animComponents;
+    SpriteComponent** components;
     f32 zscale;
-    PAL_PTR* drawPalettes;
+    u32 alpha;
+    u32* spriteData;
+    s32 spriteId;
+    s32 spriteIdBackFacing;
 
-    camRelativeYaw = yaw;
-    spriteAnimIndex = spriteInstanceID & 0xFF;
-
-    animID = spr_playerCurrentAnimInfo[spriteAnimIndex].animID;
-
-    if (animID == -1) {
-        return 0;
+    if (animID == ANIM_LIST_END) {
+        return FALSE;
     }
 
-    spriteIndex = ((animID >> 0x10) & 0xFF) - 1;
-    D_802DF57C = spriteIndex;
-    if (spr_playerSprites[spriteIndex] == NULL) {
-        return 0;
+    D_802DF57C = spriteId = ((animID >> 0x10) & 0xFF) - 1;
+    spriteData = (u32*)spr_playerSprites[spriteId];
+    if (spriteData == NULL) {
+        return FALSE;
     }
-    rasterList = spr_playerSprites[spriteIndex]->rastersOffset;
-    animList = &spr_playerSprites[spriteIndex]->animListStart[animID & 0xFF];
-    drawPalettes = spr_playerSprites[spriteIndex]->palettesOffset;
-    if (animID & 0x01000000) {
-        switch (spriteIndex) {
+
+    // TODO: fake match or not?
+    rasters = (SpriteRasterCacheEntry**)*spriteData++;
+    palettes = (PAL_PTR*)*spriteData++;
+    spriteData++;
+    spriteData++;
+    animComponents = (SpriteAnimComponent**)spriteData[animID & 0xFF];
+
+    if (animID & SPRITE_ID_BACK_FACING) {
+        switch (spriteId) {
             case 0:
             case 5:
             case 9:
-                spriteIndex++;
-                D_802DF57C = spriteIndex;
-                rasterList = spr_playerSprites[spriteIndex]->rastersOffset;
+                spriteIdBackFacing = spriteId + 1;
+                // TODO find better match
+                rasters = (SpriteRasterCacheEntry**)spr_playerSprites[spriteIdBackFacing];
+                D_802DF57C = spriteIdBackFacing;
+                rasters = (SpriteRasterCacheEntry**)*rasters;
                 break;
         }
     }
 
-    if (!(spriteInstanceID & 0x40000000)) {
-        camRelativeYaw += (s32) -gCameras[gCurrentCamID].currentYaw;
-        if (camRelativeYaw > 360) {
-            camRelativeYaw -= 360;
+    if (!(spriteInstanceID & DRAW_SPRITE_OVERRIDE_YAW)) {
+        yaw += (s32)-gCameras[gCurrentCamID].currentYaw;
+        if (yaw > 360) {
+            yaw -= 360;
         }
-        if (camRelativeYaw < -360) {
-            camRelativeYaw += 360;
+        if (yaw < -360) {
+            yaw += 360;
         }
     }
-    if ((camRelativeYaw - 91) < 180U || (camRelativeYaw + 270) < 180U) {
+
+    if (yaw > 90 && yaw <= 270 || yaw >= -270 && yaw < -90) {
         zscale = -1.5f;
     } else {
         zscale = 1.5f;
     }
 
-    if (spriteInstanceID & 0x10000000) {
+    if (spriteInstanceID & DRAW_SPRITE_UPSIDE_DOWN) {
         zscale = 0.0f - zscale;
     }
 
     D_802DFEA0[0] = 0;
-    D_802DFEA0[1] = camRelativeYaw;
+    D_802DFEA0[1] = yaw;
     D_802DFEA0[2] = 0;
 
-    if (spriteInstanceID & 0x80000000) {
-        if (arg2 == 0) {
-            return 0;
+
+    if (spriteInstanceID & DRAW_SPRITE_OVERRIDE_ALPHA) {
+        alpha = alphaIn & 0xFF;
+        if (alphaIn == 0) {
+            return FALSE;
         }
-        alpha = arg2 & 0xFF;
     } else {
         alpha = 255;
     }
 
-    compList = spr_playerCurrentAnimInfo[spriteAnimIndex].componentList;
-    if (spriteInstanceID & 0x20000000) {
-        drawPalettes = paletteList;
+    components = spr_playerCurrentAnimInfo[instanceIdx].componentList;
+    if (spriteInstanceID & DRAW_SPRITE_OVERRIDE_PALETTES) {
+        palettes = paletteList;
     }
-    while (*compList != PTR_LIST_END) {
-        SpriteComponent* comp = *compList;
-        spr_draw_component(alpha | 0x08000000, comp, *animList, rasterList, drawPalettes, zscale, mtx);
-        compList++;
-        if (*animList != PTR_LIST_END) {
-            animList++;
+
+    while (*components != PTR_LIST_END) {
+        spr_draw_component(alpha | DRAW_SPRITE_USE_PLAYER_RASTERS, *components++, *animComponents, rasters, palettes, zscale, mtx);
+        if (*animComponents != PTR_LIST_END) {
+            animComponents++;
         }
     }
-    return 1;
+
+    return TRUE;
 }
-#else
-INCLUDE_ASM(void, "sprite", spr_draw_player_sprite, s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4);
-#endif
 
 s32 func_802DDEC4(s32 arg0) {
     return spr_playerCurrentAnimInfo[arg0].notifyValue;
 }
 
-void func_802DDEE4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7) {
+void func_802DDEE4(s32 spriteIdx, s32 compIdx, FoldType foldType, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7) {
     SpriteComponent* component;
     SpriteComponent** componentListIt;
     s32 i;
 
-    if (spr_playerCurrentAnimInfo[arg0].componentList != NULL) {
-        componentListIt = spr_playerCurrentAnimInfo[arg0].componentList;
+    if (spr_playerCurrentAnimInfo[spriteIdx].componentList != NULL) {
+        componentListIt = spr_playerCurrentAnimInfo[spriteIdx].componentList;
         i = 0;
 
         while (*componentListIt != PTR_LIST_END) {
             component = *componentListIt;
-            if (arg1 == -1 || i == arg1) {
-                fold_update(component->unk_4C & 0xFF, arg2, arg3, arg4, arg5, arg6, arg7);
-                if (arg2 != 0) {
+            if (compIdx == -1 || i == compIdx) {
+                fold_update(component->unk_4C & 0xFF, foldType, arg3, arg4, arg5, arg6, arg7);
+                if (foldType != 0) {
                     component->unk_4C |= 0x10000000;
                 } else {
                     component->unk_4C &= ~0xF0000000;
@@ -842,8 +998,8 @@ void func_802DDEE4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s
     }
 }
 
-void func_802DDFF8(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6) {
-    func_802DDEE4(0, -1, arg1, arg2, arg3, arg4, arg5, arg6);
+void func_802DDFF8(s32 animID, FoldType foldType, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6) {
+    func_802DDEE4(PLAYER_SPRITE_MAIN, -1, foldType, arg2, arg3, arg4, arg5, arg6);
 }
 
 void spr_get_player_raster_info(SpriteRasterInfo* out, s32 playerSpriteID, s32 rasterIndex) {
@@ -874,7 +1030,7 @@ PAL_PTR* spr_get_player_palettes(s32 spriteIndex) {
 }
 
 s32 spr_load_npc_sprite(s32 animID, u32* extraAnimList) {
-    SpriteAnimData* animData;
+    SpriteAnimData* header;
     SpriteComponent** compList;
     s32 listIndex;
     s32 i;
@@ -896,18 +1052,18 @@ s32 spr_load_npc_sprite(s32 animID, u32* extraAnimList) {
     listIndex = i;
     if (NpcSpriteData[spriteIndex] != NULL) {
         NpcSpriteInstanceCount[spriteIndex]++;
-        animData = NpcSpriteData[spriteIndex];
-        SpriteInstances[listIndex].spriteData = animData;
+        header = NpcSpriteData[spriteIndex];
+        SpriteInstances[listIndex].spriteData = header;
     } else {
         NpcSpriteInstanceCount[spriteIndex] = 1;
-        animData = spr_load_sprite(spriteIndex - 1, FALSE, useTailAlloc);
-        SpriteInstances[listIndex].spriteData = animData;
-        NpcSpriteData[spriteIndex] = animData;
+        header = spr_load_sprite(spriteIndex - 1, FALSE, useTailAlloc);
+        SpriteInstances[listIndex].spriteData = header;
+        NpcSpriteData[spriteIndex] = header;
         if (extraAnimList != NULL) {
-            spr_load_npc_extra_anims(animData, extraAnimList);
+            spr_load_npc_extra_anims(header, extraAnimList);
         }
     }
-    compList = spr_allocate_components(animData->maxComponents);
+    compList = spr_allocate_components(header->maxComponents);
     SpriteInstances[listIndex].componentList = compList;
     while (*compList != PTR_LIST_END) {
         SpriteComponent* comp = *compList;
@@ -919,10 +1075,8 @@ s32 spr_load_npc_sprite(s32 animID, u32* extraAnimList) {
     return listIndex;
 }
 
-// animList being odd
-#ifdef NON_MATCHING
 s32 spr_update_sprite(s32 spriteInstanceID, s32 animID, f32 timeScale) {
-    SpriteAnimData* animData;
+    u32* spriteData;
     SpriteComponent** compList;
     SpriteAnimComponent** animList;
     SpriteRasterCacheEntry** rasterList;
@@ -931,29 +1085,94 @@ s32 spr_update_sprite(s32 spriteInstanceID, s32 animID, f32 timeScale) {
     s32 i = spriteInstanceID & 0xFF;
     s32 animIndex = animID & 0xFF;
 
-    animData = SpriteInstances[i].spriteData;
     compList = SpriteInstances[i].componentList;
-    animList = &animData->animListStart[animIndex];
-    rasterList = animData->rastersOffset;
+    spriteData = (u32*)SpriteInstances[i].spriteData;
+
+    rasterList = (SpriteRasterCacheEntry**)*spriteData;
+    spriteData += 4 + animIndex;
+    animList = (SpriteAnimComponent**)*spriteData;
 
     palID = (animID >> 8) & 0xFF;
     spr_set_anim_timescale(timeScale);
-    if ((spriteInstanceID < 0) || ((SpriteInstances[i].currentAnimID & 0xFF) != animIndex)) {
+    if ((spriteInstanceID & DRAW_SPRITE_OVERRIDE_ALPHA) || ((SpriteInstances[i].currentAnimID & 0xFF) != animIndex)) {
         spr_init_anim_state(compList, animList);
         SpriteInstances[i].currentAnimID = (palID << 8) | animIndex;
         SpriteInstances[i].notifyValue = 0;
     }
-    if (!(spriteInstanceID & 0x40000000)) {
+    if (!(spriteInstanceID & DRAW_SPRITE_OVERRIDE_YAW)) {
         SpriteInstances[i].notifyValue = spr_component_update(SpriteInstances[i].notifyValue,
             compList, animList, rasterList, palID);
     }
     return SpriteInstances[i].notifyValue;
 }
-#else
-INCLUDE_ASM(s32, "sprite", spr_update_sprite, s32 arg0, s32 arg1, f32 arg2);
-#endif
 
-INCLUDE_ASM(void, "sprite", spr_draw_npc_sprite, s32 arg0, s32 arg1, s32 arg2, s32 arg3, Matrix4f* arg4);
+s32 spr_draw_npc_sprite(s32 spriteInstanceID, s32 yaw, s32 arg2, PAL_PTR* paletteList, Matrix4f mtx) {
+    s32 i = spriteInstanceID & 0xFF;
+    s32 animID = SpriteInstances[i].currentAnimID;
+    SpriteRasterCacheEntry** rasters;
+    PAL_PTR* palettes;
+    SpriteAnimComponent** animComponents;
+    SpriteComponent** components;
+    f32 zscale;
+    u32 alpha;
+    u32* spriteData;
+
+    if (animID == ANIM_LIST_END) {
+        return FALSE;
+    }
+
+    spriteData = (u32*)SpriteInstances[i].spriteData;
+
+    // TODO: fake match or not?
+    rasters = (SpriteRasterCacheEntry**)*spriteData++;
+    palettes = (PAL_PTR*)*spriteData++;
+    spriteData++;
+    spriteData++;
+    animComponents = (SpriteAnimComponent**)spriteData[animID & 0xFF];
+
+    D_802DFEA0[0] = 0;
+    D_802DFEA0[1] = yaw;
+    D_802DFEA0[2] = 0;
+
+    if (!(spriteInstanceID & DRAW_SPRITE_OVERRIDE_YAW)) {
+        yaw += gCameras[gCurrentCamID].currentYaw;
+        if (yaw > 360) {
+            yaw -= 360;
+        }
+        if (yaw < -360) {
+            yaw += 360;
+        }
+    }
+
+    if (yaw > 90 && yaw <= 270 || yaw >= -270 && yaw < -90) {
+        zscale = -1.5f;
+    } else {
+        zscale = 1.5f;
+    }
+
+    if (spriteInstanceID & DRAW_SPRITE_OVERRIDE_ALPHA) {
+        alpha = arg2 & 0xFF;
+        if (arg2 == 0) {
+            return FALSE;
+        }
+    } else {
+        alpha = 255;
+    }
+
+    components = SpriteInstances[i].componentList;
+    if (spriteInstanceID & DRAW_SPRITE_OVERRIDE_PALETTES) {
+        palettes = paletteList;
+    }
+
+    while (*components != PTR_LIST_END) {
+        spr_draw_component(alpha, *components++, *animComponents, rasters, palettes, zscale, mtx);
+        if (*animComponents != PTR_LIST_END) {
+            animComponents++;
+        }
+    }
+
+    return TRUE;
+}
 
 s32 spr_get_notify_value(s32 spriteIndex) {
     return SpriteInstances[spriteIndex].notifyValue;
@@ -983,13 +1202,13 @@ s32 spr_free_sprite(s32 spriteInstanceID) {
 
     if (NpcSpriteInstanceCount[spriteIndex] == 0) {
         NpcSpriteData[spriteIndex] = NULL;
-        _heap_free(&gSpriteHeapPtr, spriteData);
+        _heap_free(&heap_spriteHead, spriteData);
     }
 
     if (spr_allocateBtlComponentsOnWorldHeap) {
         _heap_free(&heap_generalHead, compList);
     } else {
-        _heap_free(&gSpriteHeapPtr, compList);
+        _heap_free(&heap_spriteHead, compList);
     }
 
     SpriteInstances[spriteInstanceID].spriteIndex = 0;
@@ -1009,7 +1228,7 @@ s32 func_802DE748(s32 spriteIdx, s32 compIdx) {
     }
 }
 
-void func_802DE780(s32 spriteIdx, s32 compIdx, s32 foldType, s32 foldArg0, s32 foldArg1, s32 foldArg2, s32 foldArg3, s32 foldArg4) {
+void func_802DE780(s32 spriteIdx, s32 compIdx, FoldType foldType, s32 foldArg1, s32 foldArg2, s32 foldArg3, s32 foldArg4, s32 foldArg5) {
     SpriteInstance* sprite = &SpriteInstances[spriteIdx];
     SpriteComponent** componentList;
     s32 i;
@@ -1022,8 +1241,8 @@ void func_802DE780(s32 spriteIdx, s32 compIdx, s32 foldType, s32 foldArg0, s32 f
             SpriteComponent* comp = *componentList;
 
             if (compIdx == -1 || i == compIdx) {
-                fold_update((u8)comp->unk_4C, foldType, foldArg0, foldArg1, foldArg2, foldArg3, foldArg4);
-                if (foldType != FOLD_TYPE_NONE) {
+                fold_update((u8)comp->unk_4C, foldType, foldArg1, foldArg2, foldArg3, foldArg4, foldArg5);
+                if (foldType != FOLD_UPD_CLEAR) {
                     comp->unk_4C |= 0x10000000;
                 } else {
                     comp->unk_4C &= ~0xF0000000;
@@ -1035,55 +1254,53 @@ void func_802DE780(s32 spriteIdx, s32 compIdx, s32 foldType, s32 foldArg0, s32 f
     }
 }
 
-void func_802DE894(s32 spriteIdx, s32 foldType, s32 foldArg0, s32 foldArg1, s32 foldArg2, s32 foldArg3, s32 foldArg4) {
-    func_802DE780(spriteIdx, -1, foldType, foldArg0, foldArg1, foldArg2, foldArg3, foldArg4);
+void func_802DE894(s32 spriteIdx, FoldType foldType, s32 foldArg1, s32 foldArg2, s32 foldArg3, s32 foldArg4, s32 foldArg5) {
+    func_802DE780(spriteIdx, -1, foldType, foldArg1, foldArg2, foldArg3, foldArg4, foldArg5);
 }
 
-// animList issue
-#ifdef NON_MATCHING
 s32 func_802DE8DC(s32 spriteIdx, s32 compListIdx, s32* outX, s32* outY, s32* outZ) {
     SpriteInstance* sprite = &SpriteInstances[spriteIdx];
-    SpriteAnimComponent** animList;
-    SpriteComponent** compList;
+    SpriteAnimComponent** animCompList;
     SpriteAnimComponent* anim;
+    SpriteComponent** compList;
     SpriteComponent* comp;
     u8 animID;
     s32 i;
+    u32* spriteData;
 
     if (sprite->componentList == NULL) {
-        return spriteIdx * 20;
+        return; // bug: does not return a value
     }
 
     animID = sprite->currentAnimID;
-    if (animID == 0xFF) {
-        return 0xFF;
-    }
-
-    animList = sprite->spriteData[animID].animListStart;
-    compList = sprite->componentList;
-    i = 0;
-    while (*compList != PTR_LIST_END) {
-        if (i == compListIdx) {
-            do {
-                anim = *animList;
+    if (animID != 255) {
+        // following 3 lines equivalent to:
+        // animCompList = sprite->spriteData->animListStart[animID];
+        spriteData = (u32*)sprite->spriteData;
+        spriteData += 4 + animID;
+        animCompList = (SpriteAnimComponent**)*spriteData;
+        compList = sprite->componentList;
+        i = 0;
+        while (*compList != PTR_LIST_END) {
+            if (i == compListIdx) {
+                anim = *animCompList;
                 comp = *compList;
-            } while (0); // TODO required to match
-            *outX = comp->compPos.x + anim->compOffset.x;
-            *outY = comp->compPos.y + anim->compOffset.y;
-            *outZ = comp->compPos.z + anim->compOffset.z;
-            return 0;
+                *outX = comp->compPos.x + anim->compOffset.x;
+                *outY = comp->compPos.y + anim->compOffset.y;
+                *outZ = comp->compPos.z + anim->compOffset.z;
+                return 0;
+            }
+            i++;
+            compList++;
+            if (*animCompList != PTR_LIST_END) {
+                animCompList++;
+            }
         }
-        i++;
-        compList++;
-        if (*animList != PTR_LIST_END) {
-            animList++;
-        }
+    } else {
+        return; // bug: does not return a value
     }
     return -1;
 }
-#else
-INCLUDE_ASM(s32, "sprite", func_802DE8DC);
-#endif
 
 s32 spr_get_npc_raster_info(SpriteRasterInfo* out, s32 npcSpriteID, s32 rasterIndex) {
     SpriteAnimData* sprite = NpcSpriteData[npcSpriteID];

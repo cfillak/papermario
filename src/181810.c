@@ -1,13 +1,114 @@
 #include "common.h"
 #include "battle/battle.h"
 
-extern MessagePrintState* gSpeakingActorPrintCtx;
-extern MessagePrintState* D_8029FA64;
-extern s32 gSpeakingActorPrintIsDone; // unk_08
-extern s32 gSpeakingActorTalkAnim;
-extern s32 gSpeakingActorIdleAnim;
-extern Actor* gSpeakingActor;
-extern ActorPart* gSpeakingActorPart;
+BSS char D_8029F660[0x400]; // unused?
+
+BSS MessagePrintState* gSpeakingActorPrintCtx;
+BSS MessagePrintState* D_8029FA64;
+BSS s32 gSpeakingActorPrintIsDone; // unk_08
+BSS s32 gSpeakingActorTalkAnim;
+BSS s32 gSpeakingActorIdleAnim;
+BSS Actor* gSpeakingActor;
+BSS ActorPart* gSpeakingActorPart;
+
+u8* gBattleDmaDest = NULL;
+
+u8 ActorTypesGhost[] = {
+    ACTOR_TYPE_DUPLIGHOST,
+    ACTOR_TYPE_GHOST_GOOMBARIO,
+    ACTOR_TYPE_GHOST_KOOPER,
+    ACTOR_TYPE_GHOST_BOMBETTE,
+    ACTOR_TYPE_GHOST_PARAKARRY,
+    ACTOR_TYPE_GHOST_BOW,
+    ACTOR_TYPE_GHOST_WATT,
+    ACTOR_TYPE_GHOST_SUSHIE,
+    ACTOR_TYPE_GHOST_LAKILESTER,
+    0xFF
+};
+
+u8 ActorTypesLee[] = {
+    ACTOR_TYPE_LEE,
+    ACTOR_TYPE_LEE_GOOMBARIO,
+    ACTOR_TYPE_LEE_KOOPER,
+    ACTOR_TYPE_LEE_BOMBETTE,
+    ACTOR_TYPE_LEE_PARAKARRY,
+    ACTOR_TYPE_LEE_BOW,
+    ACTOR_TYPE_LEE_WATT,
+    ACTOR_TYPE_LEE_SUSHIE,
+    ACTOR_TYPE_LEE_LAKILESTER,
+    0xFF
+};
+
+u8 ActorTypesCrystalKing[] = {
+    ACTOR_TYPE_CRYSTAL_KING,
+    ACTOR_TYPE_CRYSTAL_CLONE,
+    0xFF
+};
+
+u8 ActorTypesShyGuyBoss[] = {
+    ACTOR_TYPE_TOY_TANK,
+    ACTOR_TYPE_LIGHT_BULB,
+    0xFF
+};
+
+u8 ActorTypesBowser[] = {
+    ACTOR_TYPE_BOWSER_PHASE_2,
+    ACTOR_TYPE_BOWSER_PHASE_3,
+    0xFF
+};
+
+u8 ActorTypesMagikoopa[] = {
+    ACTOR_TYPE_MAGIKOOPA,
+    ACTOR_TYPE_MAGICLONE,
+    ACTOR_TYPE_FLYING_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_MAGICLONE,
+    0xFF
+};
+
+u8 ActorTypesRedMagikoopa[] = {
+    ACTOR_TYPE_RED_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_RED_MAGIKOOPA,
+    0xFF
+};
+
+u8 ActorTypesGreenMagikoopa[] = {
+    ACTOR_TYPE_GREEN_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_GREEN_MAGIKOOPA,
+    0xFF
+};
+
+u8 ActorTypesGrayMagikoopa[] = {
+    ACTOR_TYPE_GRAY_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_GRAY_MAGIKOOPA,
+    0xFF
+};
+
+u8 ActorTypesYellowMagikoopa[] = {
+    ACTOR_TYPE_YELLOW_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_YELLOW_MAGIKOOPA,
+    0xFF
+};
+
+u8 ActorTypesWhiteMagikoopa[] = {
+    ACTOR_TYPE_WHITE_MAGIKOOPA,
+    ACTOR_TYPE_FLYING_WHITE_MAGIKOOPA,
+    0xFF
+};
+
+u8* ActorTypesLists[] = {
+    ActorTypesGhost,
+    ActorTypesLee,
+    ActorTypesCrystalKing,
+    ActorTypesShyGuyBoss,
+    ActorTypesBowser,
+    ActorTypesMagikoopa,
+    ActorTypesRedMagikoopa,
+    ActorTypesGreenMagikoopa,
+    ActorTypesGrayMagikoopa,
+    ActorTypesYellowMagikoopa,
+    ActorTypesWhiteMagikoopa,
+    NULL,
+};
 
 ApiStatus ActorSpeak(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
@@ -15,7 +116,7 @@ ApiStatus ActorSpeak(Evt* script, s32 isInitialCall) {
     ActorPart* part;
     s32 msgID;
     s32 actorID;
-    s32 partIndex;
+    s32 partID;
     s32 anim;
 
     f32 headX, headY, headZ;
@@ -25,7 +126,7 @@ ApiStatus ActorSpeak(Evt* script, s32 isInitialCall) {
     if (isInitialCall) {
         msgID = evt_get_variable(script, *args++);
         actorID = evt_get_variable(script, *args++);
-        partIndex = evt_get_variable(script, *args++);
+        partID = evt_get_variable(script, *args++);
         gSpeakingActorTalkAnim = evt_get_variable(script, *args++);
         gSpeakingActorIdleAnim = evt_get_variable(script, *args++);
         msgID2 = msgID;
@@ -35,7 +136,7 @@ ApiStatus ActorSpeak(Evt* script, s32 isInitialCall) {
         }
 
         actor = get_actor(actorID);
-        part = get_actor_part(actor, partIndex);
+        part = get_actor_part(actor, partID);
         gSpeakingActor = actor;
         gSpeakingActorPart = part;
 
@@ -78,12 +179,12 @@ ApiStatus ActorSpeak(Evt* script, s32 isInitialCall) {
 
         msg_printer_set_origin_pos(gSpeakingActorPrintCtx, screenX, screenY);
 
-        if (gSpeakingActorPrintCtx->stateFlags & 0x40) {
+        if (gSpeakingActorPrintCtx->stateFlags & MSG_STATE_FLAG_40) {
             decrement_status_menu_disabled();
             return ApiStatus_DONE1;
         }
 
-        if (gSpeakingActorPrintCtx->stateFlags & 0x80) { // "is talking" flag
+        if (gSpeakingActorPrintCtx->stateFlags & MSG_STATE_FLAG_80) { // "is talking" flag
             anim = gSpeakingActorTalkAnim;
         } else {
             anim = gSpeakingActorIdleAnim;
@@ -111,7 +212,7 @@ ApiStatus EndActorSpeech(Evt* script, s32 isInitialCall) {
 
     if (isInitialCall) {
         s32 actor = evt_get_variable(script, *args++);
-        s32 partIndex = evt_get_variable(script, *args++);
+        s32 partID = evt_get_variable(script, *args++);
         ActorPart* actorPart;
 
         gSpeakingActorTalkAnim = evt_get_variable(script, *args++);
@@ -121,7 +222,7 @@ ApiStatus EndActorSpeech(Evt* script, s32 isInitialCall) {
             actor = script->owner1.actorID;
         }
         actor = (s32) get_actor(actor);
-        actorPart = get_actor_part((Actor*)actor, partIndex);
+        actorPart = get_actor_part((Actor*)actor, partID);
         gSpeakingActor = (Actor*) actor;
         gSpeakingActorPart = actorPart;
         close_message(gSpeakingActorPrintCtx);
@@ -201,35 +302,38 @@ ApiStatus func_802535B4(Evt* script, s32 isInitialCall) {
 }
 
 ApiStatus OverrideBattleDmaDest(Evt* script, s32 isInitialCall) {
-    gBattleDmaDest = evt_get_variable(script, *script->ptrReadPos);
+    gBattleDmaDest = (u8*) evt_get_variable(script, *script->ptrReadPos);
     return ApiStatus_DONE2;
 }
 
 ApiStatus LoadBattleDmaData(Evt* script, s32 isInitialCall) {
-    DmaTable* moveScript = &gBattleAreas[gCurrentBattleSection].dmaTable[evt_get_variable(script, *script->ptrReadPos)];
+    s32 dmaIndex = evt_get_variable(script, *script->ptrReadPos);
+    BattleArea* battleArea = &gBattleAreas[UNPACK_BTL_AREA(gCurrentBattleID)];
+    DmaTable* dmaEntry = &battleArea->dmaTable[dmaIndex];
 
-    if (moveScript == NULL) {
+    if (dmaEntry == NULL) {
         return ApiStatus_DONE2;
     }
 
-    if (gBattleDmaDest == 0) {
-            dma_copy(moveScript->dmaStart, moveScript->dmaEnd, moveScript->dmaDest);
+    if (gBattleDmaDest == NULL) {
+            dma_copy(dmaEntry->start, dmaEntry->end, dmaEntry->dest);
         } else {
-            dma_copy(moveScript->dmaStart, moveScript->dmaEnd, gBattleDmaDest);
+            dma_copy(dmaEntry->start, dmaEntry->end, gBattleDmaDest);
     }
 
     return ApiStatus_DONE2;
 }
 
-ApiStatus func_802536A8(Evt* script, s32 isInitialCall) {
+ApiStatus EnableBattleFloorReflections(Evt* script, s32 isInitialCall) {
     BattleStatus* battleStatus = &gBattleStatus;
+    Bytecode* args = script->ptrReadPos;
 
-    if (evt_get_variable(script, *script->ptrReadPos) != 0) {
-        battleStatus->unk_92 |= 1;
-        gOverrideFlags |= GLOBAL_OVERRIDES_80;
+    if (evt_get_variable(script, *args++)) {
+        battleStatus->reflectFlags |= BS_REFLECT_FLOOR;
+        gOverrideFlags |= GLOBAL_OVERRIDES_ENABLE_FLOOR_REFLECTION;
     } else {
-        battleStatus->unk_92 &= ~1;
-        gOverrideFlags &= ~GLOBAL_OVERRIDES_80;
+        battleStatus->reflectFlags &= ~BS_REFLECT_FLOOR;
+        gOverrideFlags &= ~GLOBAL_OVERRIDES_ENABLE_FLOOR_REFLECTION;
     }
 
     return ApiStatus_DONE2;
@@ -238,20 +342,21 @@ ApiStatus func_802536A8(Evt* script, s32 isInitialCall) {
 
 ApiStatus func_80253734(Evt* script, s32 isInitialCall) {
     BattleStatus* battleStatus = &gBattleStatus;
-    s32 val = evt_get_variable(script, *script->ptrReadPos);
+    Bytecode* args = script->ptrReadPos;
+    s32 val = evt_get_variable(script, *args++);
 
     switch (val) {
-        case 0:
-            battleStatus->unk_432 = -1;
+        case BTL_DARKNESS_MODE_0:
+            battleStatus->darknessMode = BTL_DARKNESS_STATE_DARK;
             break;
-        case 1:
-            battleStatus->unk_432 = 1;
+        case BTL_DARKNESS_MODE_1:
+            battleStatus->darknessMode = BTL_DARKNESS_STATE_WATT_BASED;
             break;
-        case 2:
-            battleStatus->unk_432 = -2;
+        case BTL_DARKNESS_MODE_2:
+            battleStatus->darknessMode = BTL_DARKNESS_STATE_LOCKED;
             break;
-        case 3:
-            battleStatus->unk_432 = 1;
+        case BTL_DARKNESS_MODE_3:
+            battleStatus->darknessMode = BTL_DARKNESS_STATE_WATT_BASED;
             break;
     }
 
@@ -292,7 +397,7 @@ ApiStatus PlaySoundAtActor(Evt* script, s32 isInitialCall) {
     }
 
     actor = get_actor(actorID);
-    sfx_play_sound_at_position(soundID, 0, actor->currentPos.x, actor->currentPos.y, actor->currentPos.z);
+    sfx_play_sound_at_position(soundID, SOUND_SPACE_MODE_0, actor->currentPos.x, actor->currentPos.y, actor->currentPos.z);
 
     return ApiStatus_DONE2;
 }
@@ -300,7 +405,7 @@ ApiStatus PlaySoundAtActor(Evt* script, s32 isInitialCall) {
 ApiStatus PlaySoundAtPart(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 actorID = evt_get_variable(script, *args++);
-    s32 partIndex = evt_get_variable(script, *args++);
+    s32 partID = evt_get_variable(script, *args++);
     Bytecode soundID = *args++;
     ActorPart* part;
 
@@ -308,8 +413,8 @@ ApiStatus PlaySoundAtPart(Evt* script, s32 isInitialCall) {
         actorID = script->owner1.actorID;
     }
 
-    part = get_actor_part(get_actor(actorID), partIndex);
-    sfx_play_sound_at_position(soundID, 0, part->currentPos.x, part->currentPos.y, part->currentPos.z);
+    part = get_actor_part(get_actor(actorID), partID);
+    sfx_play_sound_at_position(soundID, SOUND_SPACE_MODE_0, part->currentPos.x, part->currentPos.y, part->currentPos.z);
 
     return ApiStatus_DONE2;
 }
@@ -327,7 +432,7 @@ ApiStatus PlayLoopingSoundAtActor(Evt* script, s32 isInitialCall) {
 
     actor = get_actor(actorID);
     actor->loopingSoundID[idx] = soundID;
-    sfx_play_sound_at_position(soundID, 0, actor->currentPos.x, actor->currentPos.y, actor->currentPos.z);
+    sfx_play_sound_at_position(soundID, SOUND_SPACE_MODE_0, actor->currentPos.x, actor->currentPos.y, actor->currentPos.z);
 
     return ApiStatus_DONE2;
 }
@@ -401,7 +506,7 @@ s32 is_actor_hp_bar_visible(Actor* actor) {
     }
 
     flags = get_global_byte((actor->actorType >> 3) + 365);
-    if (actor->flags & ACTOR_FLAG_1000) {
+    if (actor->flags & ACTOR_FLAG_TYPE_CHANGED) {
         flags |= battleStatus->tattleFlags[actor->actorType >> 3];
     }
     return (flags >> (actor->actorType & 7)) & 1;
@@ -419,12 +524,78 @@ s32 is_actortype_hpbar_visible(s32 actorType) {
     return ((get_global_byte(idx + 365) | battleStatus->tattleFlags[idx]) >> (actorType - (idx * 8))) & 1;
 }
 
-INCLUDE_ASM(s32, "181810", save_tattle_flags);
+void save_tattle_flags(s32 actorType) {
+    BattleStatus* battleStatus = &gBattleStatus;
+    u8* list;
+    s32 gb;
+    s32 i = 0;
+    s32 j;
+    s32 k;
 
-INCLUDE_ASM(s32, "181810", load_tattle_flags);
+    while (TRUE) {
+        list = ActorTypesLists[i];
+        if (list == NULL) {
+            break;
+        }
+
+        for (j = 0; list[j] != 0xFF; j++) {
+            if (actorType == list[j]) {
+                for (k = 0; list[k] != 0xFF; k++) {
+                    actorType = list[k];
+
+                    gb = get_global_byte((actorType / 8) + 0x16D); // GameByte(0x16D) is GB_Tattles_00 (first tattle)
+                    gb |= 1 << (actorType % 8);
+                    set_global_byte((actorType / 8) + 0x16D, gb);
+                    battleStatus->tattleFlags[actorType / 8] |= gb;
+                }
+                return;
+            }
+        }
+        i++;
+    }
+
+    gb = get_global_byte((actorType / 8) + 0x16D);
+    gb |= 1 << (actorType % 8);
+    set_global_byte((actorType / 8) + 0x16D, gb);
+    battleStatus->tattleFlags[actorType / 8] |= gb;
+}
+
+void load_tattle_flags(s32 actorType) {
+    BattleStatus* battleStatus = &gBattleStatus;
+    u8* list;
+    s32 gb;
+    s32 i = 0;
+    s32 j;
+    s32 k;
+
+    while (TRUE) {
+        list = ActorTypesLists[i];
+        if (list == NULL) {
+            break;
+        }
+
+        for (j = 0; list[j] != 0xFF; j++) {
+            if (actorType == list[j]) {
+                for (k = 0; list[k] != 0xFF; k++) {
+                    actorType = list[k];
+
+                    gb = get_global_byte((actorType / 8) + 0x16D); // GameByte(0x16D) is GB_Tattles_00 (first tattle)
+                    gb |= 1 << (actorType % 8);
+                    battleStatus->tattleFlags[actorType / 8] |= gb;
+                }
+                return;
+            }
+        }
+        i++;
+    }
+
+    gb = get_global_byte((actorType / 8) + 0x16D);
+    gb |= 1 << (actorType % 8);
+    battleStatus->tattleFlags[actorType / 8] |= gb;
+}
 
 ApiStatus func_80253FB0(Evt* script, s32 isInitialCall) {
-    gCurrentEncounter.battleOutcome = 3;
+    gCurrentEncounter.battleOutcome = OUTCOME_ENEMY_FLED;
     btl_set_state(BATTLE_STATE_END_BATTLE);
 
     return ApiStatus_DONE2;
@@ -468,7 +639,7 @@ ApiStatus ApplyShrinkFromOwner(Evt* script, s32 isInitialCall) {
         amt /= 2;
     }
 
-    evt_set_variable(script, *args, amt);
+    evt_set_variable(script, *args++, amt);
     return ApiStatus_DONE2;
 }
 

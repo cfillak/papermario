@@ -28,11 +28,11 @@ void action_update_hit_lava(void) {
     static f32 ReturnAngle;
     static f32 InitialPosY;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        playerStatus->flags |= (PS_FLAGS_800000 | PS_FLAGS_FLYING);
-        playerStatus->animFlags |= PA_FLAGS_4;
-        playerStatus->flags |= PS_FLAGS_800;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+        playerStatus->flags |= (PS_FLAG_SCRIPTED_FALL | PS_FLAG_FLYING);
+        playerStatus->animFlags |= PA_FLAG_INTERRUPT_USE_PARTNER;
+        playerStatus->flags |= PS_FLAG_HIT_FIRE;
         if (playerStatus->hazardType == HAZARD_TYPE_LAVA) {
             playerStatus->actionSubstate = SUBSTATE_DELAY_INIT_SINK;
             playerStatus->currentStateTime = 2;
@@ -43,12 +43,12 @@ void action_update_hit_lava(void) {
         playerStatus->currentSpeed = 0.0f;
         LaunchVelocity = 0.0f;
 
-        gCameras[CAM_DEFAULT].moveFlags |= (CAMERA_MOVE_FLAGS_1 | CAMERA_MOVE_FLAGS_2);
+        gCameras[CAM_DEFAULT].moveFlags |= (CAMERA_MOVE_IGNORE_PLAYER_Y | CAMERA_MOVE_FLAG_2);
         LaunchInterpPhase = 90.0f;
         subtract_hp(1);
         open_status_menu_long();
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
-        sfx_play_sound_at_player(SOUND_E8, 0);
+        sfx_play_sound_at_player(SOUND_E8, SOUND_SPACE_MODE_0);
     }
 
     switch (playerStatus->actionSubstate) {
@@ -67,10 +67,10 @@ void action_update_hit_lava(void) {
             if (playerStatus->hazardType == HAZARD_TYPE_LAVA) {
                 fx_smoke_burst(0, playerStatus->position.x, playerStatus->position.y, playerStatus->position.z, 1.0f, 40);
             }
-            suggest_player_anim_setUnkFlag(ANIM_Mario_80002);
+            suggest_player_anim_always_forward(ANIM_MarioW2_TouchedLava);
             playerStatus->gravityIntegrator[1] = 0.0f;
             playerStatus->timeInAir = 0;
-            playerStatus->unk_C2 = 0;
+            playerStatus->peakJumpTime = 0;
             playerStatus->actionSubstate = SUBSTATE_LAUNCH;
             playerStatus->currentStateTime = 1;
             playerStatus->gravityIntegrator[0] = 20.0f;
@@ -79,7 +79,7 @@ void action_update_hit_lava(void) {
             playerStatus->jumpFromPos.x = playerStatus->position.x;
             playerStatus->jumpFromPos.z = playerStatus->position.z;
             playerStatus->jumpFromHeight = playerStatus->position.y;
-            playerStatus->flags |= PS_FLAGS_JUMPING;
+            playerStatus->flags |= PS_FLAG_JUMPING;
             break;
         case SUBSTATE_DELAY_LAUNCH:
             if (--playerStatus->currentStateTime <= 0) {
@@ -167,16 +167,16 @@ void action_update_hit_lava(void) {
             if (playerStatus->hazardType == HAZARD_TYPE_LAVA && (playerStatus->timeInAir % 2) == 0) {
                 fx_smoke_burst(0, playerStatus->position.x, playerStatus->position.y, playerStatus->position.z, 0.7f, 18);
             }
-            playerStatus->position.y = player_check_collision_below(func_800E34D8(), &completeAxes);
+            playerStatus->position.y = player_check_collision_below(player_fall_distance(), &completeAxes);
             if (completeAxes >= 0) {
                 exec_ShakeCamX(0, 2, 1, 0.8f);
                 start_rumble(256, 50);
                 phys_adjust_cam_on_landing();
-                gCameras[CAM_DEFAULT].moveFlags &= ~CAMERA_MOVE_FLAGS_2;
-                sfx_play_sound_at_player(SOUND_3FB, 0);
-                suggest_player_anim_setUnkFlag(ANIM_Mario_8001A);
-                playerStatus->flags &= ~PS_FLAGS_800;
-                playerStatus->flags &= ~PS_FLAGS_FLYING;
+                gCameras[CAM_DEFAULT].moveFlags &= ~CAMERA_MOVE_FLAG_2;
+                sfx_play_sound_at_player(SOUND_3FB, SOUND_SPACE_MODE_0);
+                suggest_player_anim_always_forward(ANIM_MarioW2_Thrown);
+                playerStatus->flags &= ~PS_FLAG_HIT_FIRE;
+                playerStatus->flags &= ~PS_FLAG_FLYING;
                 playerStatus->hazardType = HAZARD_TYPE_NONE;
                 playerStatus->gravityIntegrator[0] = 6.0f;
                 playerStatus->position.y += 6.0f;
@@ -194,7 +194,7 @@ void action_update_hit_lava(void) {
         case SUBSTATE_DELAY_DONE:
             if (--playerStatus->currentStateTime <= 0) {
                 set_action_state(ACTION_STATE_LAND);
-                playerStatus->flags &= ~PS_FLAGS_800000;
+                playerStatus->flags &= ~PS_FLAG_SCRIPTED_FALL;
                 gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
             }
             break;

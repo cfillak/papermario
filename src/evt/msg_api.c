@@ -1,125 +1,138 @@
 #include "common.h"
 
-extern s32 D_802DAE50;
-extern s32 D_802DAE54;
+extern s32 ShowMessageScreenOffsetX;
+extern s32 ShowMessageScreenOffsetY;
+extern s32 D_802DAE58[2]; // unused?
+extern char D_802DAE60[0x400]; // unused?
+extern MessagePrintState* gCurrentPrintContext;
+extern s32 D_802DB264;
+extern MessagePrintState* D_802DB268;
 
 ApiStatus _show_message(Evt* script, s32 isInitialCall, s32 arg2);
 
+enum {
+    SHOW_MESSAGE_SPEAK_TO_PLAYER    = 0,
+    SHOW_MESSAGE_END_SPEECH         = 1,
+    SHOW_MESSAGE_CONTINUE_SPEECH    = 2,
+    SHOW_MESSAGE_SPEAK_TO_NPC       = 3,
+};
+
 ApiStatus SpeakToPlayer(Evt* script, s32 isInitialCall) {
-    return _show_message(script, isInitialCall, 0);
+    return _show_message(script, isInitialCall, SHOW_MESSAGE_SPEAK_TO_PLAYER);
 }
 
 ApiStatus EndSpeech(Evt* script, s32 isInitialCall) {
-    return _show_message(script, isInitialCall, 1);
+    return _show_message(script, isInitialCall, SHOW_MESSAGE_END_SPEECH);
 }
 
 ApiStatus ContinueSpeech(Evt* script, s32 isInitialCall) {
-    return _show_message(script, isInitialCall, 2);
+    return _show_message(script, isInitialCall, SHOW_MESSAGE_CONTINUE_SPEECH);
 }
 
 ApiStatus SpeakToNpc(Evt* script, s32 isInitialCall) {
-    return _show_message(script, isInitialCall, 3);
+    return _show_message(script, isInitialCall, SHOW_MESSAGE_SPEAK_TO_NPC);
 }
 
-s32 _show_message(Evt* script, s32 isInitialCall, s32 arg2) {
+s32 _show_message(Evt* script, s32 isInitialCall, s32 mode) {
     PlayerStatus* playerStatus = &gPlayerStatus;
     Bytecode* args = script->ptrReadPos;
     s32 screenX, screenY, screenZ;
-    Npc* npc;
-    Npc* npc2;
-    f32 yaw;
+    Npc* speakerNpc;
+    Npc* targetNpc;
+    f32 reverseAngle;
     f32 angle;
-    f32 x, z;
-    f32* yawPtr;
-    s32 temp_fp;
-    s32 npcID;
+    f32* listenerYaw;
+    s32 speakerNpcID;
+    s32 targetNpcID;
     s32 msgID;
     s32 animID;
     s32 ret;
 
-    npc2 = NULL;
+    targetNpc = NULL;
 
     if (isInitialCall) {
         D_802DB264 = 0;
-        temp_fp = evt_get_variable(script, *args++);
+        speakerNpcID = evt_get_variable(script, *args++);
         script->varTable[13] = evt_get_variable(script, *args++);
         script->varTable[14] = evt_get_variable(script, *args++);
         script->functionTemp[1] = evt_get_variable(script, *args++);
-        D_802DAE54 = 0;
-        D_802DAE50 = 0;
+        ShowMessageScreenOffsetY = 0;
+        ShowMessageScreenOffsetX = 0;
 
-        if (script->functionTemp[1] & 0x100) {
-            D_802DAE50 = evt_get_variable(script, *args++);
-            D_802DAE54 = evt_get_variable(script, *args++);
+        if (script->functionTemp[1] & SPEECH_FLAG_HAS_OFFSET) {
+            ShowMessageScreenOffsetX = evt_get_variable(script, *args++);
+            ShowMessageScreenOffsetY = evt_get_variable(script, *args++);
         }
 
-        switch (arg2) {
-            case 0:
+        switch (mode) {
+            case SHOW_MESSAGE_SPEAK_TO_PLAYER:
                 msgID = evt_get_variable(script, *args++);
                 gCurrentPrintContext = msg_get_printer_for_msg(msgID, &D_802DB264);
                 break;
-            case 1:
+            case SHOW_MESSAGE_END_SPEECH:
                 close_message(gCurrentPrintContext);
                 break;
-            case 2:
+            case SHOW_MESSAGE_CONTINUE_SPEECH:
                 msgID = evt_get_variable(script, *args++);
                 msg_printer_load_msg(msgID, gCurrentPrintContext);
                 break;
-            case 3:
-                npcID = evt_get_variable(script, *args++);
+            case SHOW_MESSAGE_SPEAK_TO_NPC:
+                targetNpcID = evt_get_variable(script, *args++);
                 msgID = evt_get_variable(script, *args++);
-                npc2 = resolve_npc(script, npcID);
+                targetNpc = resolve_npc(script, targetNpcID);
                 gCurrentPrintContext = msg_get_printer_for_msg(msgID, &D_802DB264);
                 break;
         }
 
-        if (temp_fp == NPC_PLAYER) {
+        if (speakerNpcID == NPC_PLAYER) {
             get_screen_coords(gCurrentCameraID, playerStatus->position.x,
                               playerStatus->position.y + playerStatus->colliderHeight, playerStatus->position.z,
                               &screenX, &screenY, &screenZ);
             script->functionTemp[3] = playerStatus->anim;
-            npc = (Npc*) NPC_PLAYER;
+            speakerNpc = (Npc*) NPC_PLAYER;
             script->varTable[15] = playerStatus->targetYaw;
         } else {
-            npc = resolve_npc(script, temp_fp);
-            get_screen_coords(gCurrentCameraID, npc->pos.x, npc->pos.y + npc->collisionHeight, npc->pos.z,
+            speakerNpc = resolve_npc(script, speakerNpcID);
+            get_screen_coords(gCurrentCameraID, speakerNpc->pos.x, speakerNpc->pos.y + speakerNpc->collisionHeight, speakerNpc->pos.z,
                               &screenX, &screenY, &screenZ);
-            script->functionTemp[3] = npc->currentAnim;
-            script->varTable[15] = npc->yaw;
+            script->functionTemp[3] = speakerNpc->currentAnim;
+            script->varTable[15] = speakerNpc->yaw;
         }
 
-        msg_printer_set_origin_pos(gCurrentPrintContext, screenX + D_802DAE50, screenY + D_802DAE54);
-        script->varTablePtr[12] = npc;
+        msg_printer_set_origin_pos(gCurrentPrintContext,
+            screenX + ShowMessageScreenOffsetX,
+            screenY + ShowMessageScreenOffsetY);
+        script->varTablePtr[12] = speakerNpc;
 
-        if (npc != (Npc*) NPC_PLAYER) {
-            if (arg2 == 3) {
-                yawPtr = &npc2->yaw;
-                angle = atan2(npc->pos.x, npc->pos.z, npc2->pos.x, npc2->pos.z);
+        if (speakerNpc != (Npc*) NPC_PLAYER) {
+            if (mode == SHOW_MESSAGE_SPEAK_TO_NPC) {
+                listenerYaw = &targetNpc->yaw;
+                angle = atan2(speakerNpc->pos.x, speakerNpc->pos.z, targetNpc->pos.x, targetNpc->pos.z);
             } else {
-                yawPtr = &playerStatus->targetYaw;
-                angle = atan2(npc->pos.x, npc->pos.z, playerStatus->position.x, playerStatus->position.z);
+                listenerYaw = &playerStatus->targetYaw;
+                angle = atan2(speakerNpc->pos.x, speakerNpc->pos.z, playerStatus->position.x, playerStatus->position.z);
             }
 
-            yaw = clamp_angle(angle + 180.0f);
-            switch (script->functionTemp[1] & 0xF) {
-                case 0:
-                    npc->yaw = angle;
-                    *yawPtr = yaw;
+            reverseAngle = clamp_angle(angle + 180.0f);
+            switch (script->functionTemp[1] & SPEECH_ORIENTATION_MASK) {
+                case SPEECH_FACE_EACH_OTHER:
+                    speakerNpc->yaw = angle;
+                    *listenerYaw = reverseAngle;
                     break;
-                case 1:
-                    npc->yaw = yaw;
-                    *yawPtr = yaw;
+                case SPEECH_FACE_LIKE_LISTENER:
+                    speakerNpc->yaw = reverseAngle;
+                    *listenerYaw = reverseAngle;
                     break;
-                case 2:
-                    npc->yaw = angle;
-                    *yawPtr = angle;
+                case SPEECH_FACE_LIKE_SPEAKER:
+                    speakerNpc->yaw = angle;
+                    *listenerYaw = angle;
                     break;
-                case 3:
-                    npc->yaw = yaw;
-                    *yawPtr = angle;
+                case SPEECH_FACE_AWAY_FROM:
+                    speakerNpc->yaw = reverseAngle;
+                    *listenerYaw = angle;
                     break;
-                case 4:
-                    npc->yaw = angle;
+                case SPEECH_FACE_SPEAKER_ONLY:
+                    speakerNpc->yaw = angle;
                     break;
                 case 5:
                     break;
@@ -127,20 +140,20 @@ s32 _show_message(Evt* script, s32 isInitialCall, s32 arg2) {
         }
     }
 
-    npc = script->varTablePtr[12];
-    if (npc != (Npc*) NPC_PLAYER) {
-        get_screen_coords(gCurrentCameraID, npc->pos.x, npc->pos.y + npc->collisionHeight, npc->pos.z, &screenX, &screenY, &screenZ);
+    speakerNpc = script->varTablePtr[12];
+    if (speakerNpc != (Npc*) NPC_PLAYER) {
+        get_screen_coords(gCurrentCameraID, speakerNpc->pos.x, speakerNpc->pos.y + speakerNpc->collisionHeight, speakerNpc->pos.z, &screenX, &screenY, &screenZ);
         animID = script->varTable[13];
         if (animID != -1) {
-            if (!(gCurrentPrintContext->stateFlags & 0x80)) {
+            if (!(gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_80)) {
                 animID = script->varTable[14];
             }
-            set_npc_animation(npc, animID);
+            set_npc_animation(speakerNpc, animID);
         }
     } else {
         get_screen_coords(gCurrentCameraID, playerStatus->position.x, playerStatus->position.y + playerStatus->colliderHeight, playerStatus->position.z, &screenX, &screenY, &screenZ);
         if (script->varTable[13] != -1) {
-            if (gCurrentPrintContext->stateFlags & 0x80) {
+            if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_80) {
                 playerStatus->anim = script->varTable[13];
             } else {
                 playerStatus->anim = script->varTable[14];
@@ -148,11 +161,11 @@ s32 _show_message(Evt* script, s32 isInitialCall, s32 arg2) {
         }
     }
 
-    if (!(script->functionTemp[1] & 0x200)) {
-        msg_printer_set_origin_pos(gCurrentPrintContext, screenX + D_802DAE50, screenY + D_802DAE54);
+    if (!(script->functionTemp[1] & SPEECH_FLAG_200)) {
+        msg_printer_set_origin_pos(gCurrentPrintContext, screenX + ShowMessageScreenOffsetX, screenY + ShowMessageScreenOffsetY);
     }
 
-    if (gCurrentPrintContext->stateFlags & 0x40) {
+    if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_40) {
         return TRUE;
     }
 
@@ -161,14 +174,14 @@ s32 _show_message(Evt* script, s32 isInitialCall, s32 arg2) {
     }
 
     if (script->varTable[13] != -1) {
-        if (npc != (Npc*) NPC_PLAYER) {
-            set_npc_animation(npc, script->functionTemp[3]);
+        if (speakerNpc != (Npc*) NPC_PLAYER) {
+            set_npc_animation(speakerNpc, script->functionTemp[3]);
         } else {
             playerStatus->anim = script->functionTemp[3];
         }
     }
-    if (script->functionTemp[1] & 0x10) {
-        npc->yaw = script->varTable[0xF];
+    if (script->functionTemp[1] & SPEECH_FLAG_10) {
+        speakerNpc->yaw = script->varTable[0xF];
     }
     return TRUE;
 }
@@ -187,7 +200,7 @@ ApiStatus ShowMessageAtScreenPos(Evt* script, s32 isInitialCall) {
         msg_printer_set_origin_pos(gCurrentPrintContext, x, y);
     }
 
-    if (gCurrentPrintContext->stateFlags & 0x40) {
+    if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_40) {
         return ApiStatus_DONE1;
     }
 
@@ -221,7 +234,7 @@ ApiStatus ShowMessageAtWorldPos(Evt* script, s32 isInitialCall) {
         msg_printer_set_origin_pos(*currentPrintContext, x2, y2);
     }
 
-    if (gCurrentPrintContext->stateFlags & 0x40) {
+    if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_40) {
         return ApiStatus_DONE1;
     }
 
@@ -238,7 +251,7 @@ ApiStatus CloseMessage(Evt* script, s32 isInitialCall) {
         close_message(gCurrentPrintContext);
     }
 
-    if (gCurrentPrintContext->stateFlags & 0x40) {
+    if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_40) {
         return ApiStatus_DONE1;
     } else if (D_802DB264 != 1) {
         return ApiStatus_BLOCK;
@@ -255,7 +268,7 @@ ApiStatus SwitchMessage(Evt* script, s32 isInitialCall) {
         msg_printer_load_msg(evt_get_variable(script, *args), gCurrentPrintContext);
     }
 
-    if (gCurrentPrintContext->stateFlags & 0x40) {
+    if (gCurrentPrintContext->stateFlags & MSG_STATE_FLAG_40) {
         return ApiStatus_DONE1;
     } else if (D_802DB264 != 1) {
         return ApiStatus_BLOCK;
@@ -279,7 +292,7 @@ ApiStatus ShowChoice(Evt* script, s32 isInitialCall) {
     temp802DB268 = &D_802DB268;
     script->varTable[0] = gCurrentPrintContext->currentOption = (*temp802DB268)->currentOption;
 
-    if ((*temp802DB268)->stateFlags & 0x40) {
+    if ((*temp802DB268)->stateFlags & MSG_STATE_FLAG_40) {
         return ApiStatus_DONE1;
     }
 
@@ -319,7 +332,7 @@ ApiStatus func_802D0C94(Evt* script, s32 initialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus SetMessageMsg(Evt* script, s32 isInitialCall) {
+ApiStatus SetMessageText(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 msg = evt_get_variable(script, *args++);
     s32 index = evt_get_variable(script, *args++);

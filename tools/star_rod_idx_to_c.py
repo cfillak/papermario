@@ -175,7 +175,7 @@ def disassemble(bytes, midx, symbol_map={}, comments=True, romstart=0, namespace
                 use_script_lib=False,
             ).disassemble()
 
-            if "shakeTree" in name or "searchBush" in name:
+            if "EVS_ShakeTree" in name or "EVS_SearchBush" in name:
                 symbol_map[struct["vaddr"]][0][1] = name.split("_",1)[0] + ")"
                 if not treePrint:
                     out += f"=======================================\n"
@@ -192,7 +192,7 @@ def disassemble(bytes, midx, symbol_map={}, comments=True, romstart=0, namespace
                 if "GotoMap" in script_text[4]:
                     map_, entryIdx = script_text[4].split("(",1)[1].split(")",1)[0].split(",")
                 if walkDistance and exitIdx and map_ and entryIdx:
-                    out += f"EvtScript {name} = EXIT_WALK_SCRIPT({walkDistance}, {exitIdx}, {map_}, {entryIdx});\n"
+                    out += f"EvtScript {name} = EVT_EXIT_WALK({walkDistance}, {exitIdx}, {map_}, {entryIdx});\n"
                 else:
                     print(f"Unable to macro replace exit script {name}")
                     out += "\n".join(script_text) + "\n"
@@ -290,7 +290,7 @@ def disassemble(bytes, midx, symbol_map={}, comments=True, romstart=0, namespace
             staticNpc = bytes.read(struct["length"])
             curr_base = 0
             numNpcs = struct['length'] // 0x1F0
-            tmp_out = f"StaticNpc {name}" + ("[]" if numNpcs > 1 else "") + f" = {{\n"
+            tmp_out = f"NpcData {name}" + ("[]" if numNpcs > 1 else "") + f" = {{\n"
 
             for z in range(numNpcs):
                 i = 0
@@ -854,8 +854,8 @@ def disassemble(bytes, midx, symbol_map={}, comments=True, romstart=0, namespace
                 out += INDENT + INDENT  + f".posOffset = {{ {d[2]}, {d[3]}, {d[4]} }},\n"
                 out += INDENT + INDENT  + f".targetOffset = {{ {d[5]}, {d[6]} }},\n"
                 out += INDENT + INDENT  + f".opacity = {d[7]},\n"
-                out += INDENT + INDENT  + f".idleAnimations = N(idleAnimations_{d[8]:08X}),\n"
-                out += INDENT + INDENT  + f".defenseTable = N(defenseTable_{d[9]:08X}),\n"
+                out += INDENT + INDENT  + f".idleAnimations = N(IdleAnimations_{d[8]:08X}),\n"
+                out += INDENT + INDENT  + f".defenseTable = N(DefenseTable_{d[9]:08X}),\n"
                 out += INDENT + INDENT  + f".eventFlags = {read_flags(d[10], 'ActorEventFlags')},\n"
                 out += INDENT + INDENT  + f".elementImmunityFlags = {read_flags(d[11], 'ElementImmunityFlags')},\n"
                 out += INDENT + INDENT  + f".unk_1C = {d[12]},\n"
@@ -874,12 +874,12 @@ def disassemble(bytes, midx, symbol_map={}, comments=True, romstart=0, namespace
             out += INDENT + f".maxHP = {d[3]},\n"
             out += INDENT + f".partCount = ARRAY_COUNT({read_ptr(d[5], symbol_map)}),\n"
             out += INDENT + f".partsData = {read_ptr(d[5], symbol_map)},\n"
-            out += INDENT + f".script = {read_ptr(d[6], symbol_map)},\n"
+            out += INDENT + f".initScript = {read_ptr(d[6], symbol_map)},\n"
             out += INDENT + f".statusTable = {read_ptr(d[7], symbol_map)},\n"
             out += INDENT + f".escapeChance = {d[8]},\n"
             out += INDENT + f".airLiftChance = {d[9]},\n"
-            out += INDENT + f".spookChance = {d[10]},\n"
-            out += INDENT + f".baseStatusChance = {d[11]},\n"
+            out += INDENT + f".hurricaneChance = {d[10]},\n"
+            out += INDENT + f".spookChance = {d[11]},\n"
             out += INDENT + f".upAndAwayChance = {d[12]},\n"
             out += INDENT + f".spinSmashReq = {d[13]},\n"
             out += INDENT + f".powerBounceChance = {d[14]},\n"

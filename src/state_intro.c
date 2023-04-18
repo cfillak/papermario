@@ -21,9 +21,9 @@ void state_init_intro(void) {
             D_800A0956 = 0x10;
             D_800A0958 = 4;
             D_800A0960 = 0;
-            D_800A095A = 0xD0;
-            D_800A095C = 0xD0;
-            D_800A095E = 0xD0;
+            D_800A095A = 208;
+            D_800A095C = 208;
+            D_800A095E = 208;
             D_800A0964 = 0;
 
             // hos_05 (Star Sanctuary)
@@ -144,10 +144,10 @@ void state_step_intro(void) {
             if (gGameStatusPtr->creditsViewportMode == -1) {
                 general_heap_create();
                 clear_render_tasks();
-                clear_generic_entity_list();
+                clear_worker_list();
                 clear_script_list();
                 create_cameras_a();
-                spr_init_sprites(0);
+                spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
                 clear_entity_models();
                 clear_animator_list();
                 clear_model_data();

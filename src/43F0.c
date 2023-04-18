@@ -1,5 +1,6 @@
 #include "common.h"
 #include "nu/nusys.h"
+#include "gcc/string.h"
 
 u16 heap_nextMallocID = 0;
 
@@ -424,11 +425,11 @@ void mem_clear(void* data, s32 numBytes) {
     }
 }
 
-void transform_point(Matrix4f mtx, f32 inX, f32 inY, f32 inZ, f32 inS, f32* outX, f32* outY, f32* outZ, f32* outS) {
+void transform_point(Matrix4f mtx, f32 inX, f32 inY, f32 inZ, f32 inS, f32* outX, f32* outY, f32* outZ, f32* outW) {
     *outX = (mtx[0][0] * inX) + (mtx[1][0] * inY) + (mtx[2][0] * inZ) + mtx[3][0];
     *outY = (mtx[0][1] * inX) + (mtx[1][1] * inY) + (mtx[2][1] * inZ) + mtx[3][1];
     *outZ = (mtx[0][2] * inX) + (mtx[1][2] * inY) + (mtx[2][2] * inZ) + mtx[3][2];
-    *outS = (mtx[0][3] * inX) + (mtx[1][3] * inY) + (mtx[2][3] * inZ) + mtx[3][3];
+    *outW = (mtx[0][3] * inX) + (mtx[1][3] * inY) + (mtx[2][3] * inZ) + mtx[3][3];
 }
 
 void copy_matrix(Matrix4f src, Matrix4f dest) {
@@ -728,64 +729,64 @@ f32 update_lerp(s32 easing, f32 start, f32 end, s32 elapsed, s32 duration) {
 
     switch (easing) {
         case EASING_LINEAR:
-            return start + ((end - start) * elapsed / duration);
+            return start + (end - start) * elapsed / duration;
         case EASING_QUADRATIC_IN:
-            return start + (SQ(elapsed) * (end - start) / SQ(duration));
+            return start + SQ(elapsed) * (end - start) / SQ(duration);
         case EASING_CUBIC_IN:
-            return start + (CUBE(elapsed) * (end - start) / CUBE(duration));
+            return start + CUBE(elapsed) * (end - start) / CUBE(duration);
         case EASING_QUARTIC_IN:
-            return start + (QUART(elapsed) * (end - start) / QUART(duration));
+            return start + QUART(elapsed) * (end - start) / QUART(duration);
         case EASING_COS_SLOW_OVERSHOOT:
-            return end - (((end - start) * cos_rad(((f32)elapsed / duration) * PI_D * 4.0) * (duration - elapsed) *
-                           (duration - elapsed)) / SQ((f32)duration));
+            return end - ((end - start) * cos_rad(((f32)elapsed / duration) * PI_D * 4.0) * (duration - elapsed) *
+                    (duration - elapsed)) / SQ((f32)duration);
         case EASING_COS_FAST_OVERSHOOT:
-            return end - (((end - start) * cos_rad((((f32)SQ(elapsed) / duration) * PI_D * 4.0) / 15.0) * (duration - elapsed) *
-                           (duration - elapsed)) / SQ((f32)duration));
+            return end - ((end - start) * cos_rad((((f32)SQ(elapsed) / duration) * PI_D * 4.0) / 15.0) * (duration - elapsed) *
+                    (duration - elapsed)) / SQ((f32)duration);
         case EASING_QUADRATIC_OUT:
             timeLeft = duration - elapsed;
-            return (start + (end - start)) - ((SQ(timeLeft) * (end - start))) / SQ(duration);
+            return start + (end - start) - ((SQ(timeLeft) * (end - start))) / SQ(duration);
         case EASING_CUBIC_OUT:
             timeLeft = duration - elapsed;
-            return (start + (end - start)) - ((CUBE(timeLeft) * (end - start))) / CUBE(duration);
+            return start + (end - start) - ((CUBE(timeLeft) * (end - start))) / CUBE(duration);
         case EASING_QUARTIC_OUT:
             timeLeft = duration - elapsed;
-            return (start + (end - start)) - ((QUART(timeLeft) * (end - start))) / QUART(duration);
+            return start + (end - start) - ((QUART(timeLeft) * (end - start))) / QUART(duration);
         case EASING_COS_BOUNCE:
             absMag = cos_rad((((f32)SQ(elapsed) / duration) * PI_D * 4.0) / 40.0) * (duration - elapsed) *
-                      (duration - elapsed) / SQ((f32)duration);
+                    (duration - elapsed) / SQ((f32)duration);
             if (absMag < 0.0f) {
                 absMag = -absMag;
             }
-            return end - ((end - start) * absMag);
+            return end - (end - start) * absMag;
         case EASING_COS_IN_OUT:
-            return start + ((end - start) * (1.0 - cos_rad(((f32)elapsed * PI_D) / (f32)duration)) * 0.5);
+            return start + (end - start) * (1.0 - cos_rad(((f32)elapsed * PI_D) / (f32)duration)) * 0.5;
         case EASING_SIN_OUT:
-            return start + ((end - start) * sin_rad(((f32)elapsed * (PI_D / 2)) / (f32)duration));
+            return start + (end - start) * sin_rad(((f32)elapsed * (PI_D / 2)) / (f32)duration);
         case EASING_COS_IN:
-            return start + ((end - start) * (1.0 - cos_rad(((f32)elapsed * (PI_D / 2)) / (f32)duration)));
+            return start + (end - start) * (1.0 - cos_rad(((f32)elapsed * (PI_D / 2)) / (f32)duration));
     }
 
     return 0.0f;
 }
 
 void appendGfx_startup_prim_rect(u8 r, u8 g, u8 b, u8 a, u16 left, u16 top, u16 right, u16 bottom) {
-    gDPPipeSync(gMasterGfxPos++);
-    gSPDisplayList(gMasterGfxPos++, D_80074580);
+    gDPPipeSync(gMainGfxPos++);
+    gSPDisplayList(gMainGfxPos++, D_80074580);
 
     if (a == 255) {
-        gDPSetRenderMode(gMasterGfxPos++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
-        gDPSetCombineLERP(gMasterGfxPos++, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1);
+        gDPSetRenderMode(gMainGfxPos++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
+        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1, 0, 0, 0, PRIMITIVE, 0, 0, 0, 1);
     } else {
-        gDPSetRenderMode(gMasterGfxPos++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
-        gDPSetCombineMode(gMasterGfxPos++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+        gDPSetRenderMode(gMainGfxPos++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+        gDPSetCombineMode(gMainGfxPos++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     }
 
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, r, g, b, a);
-    gDPFillRectangle(gMasterGfxPos++, left, top, right, bottom);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, r, g, b, a);
+    gDPFillRectangle(gMainGfxPos++, left, top, right, bottom);
 
-    gDPPipeSync(gMasterGfxPos++);
-    gDPSetRenderMode(gMasterGfxPos++, G_RM_TEX_EDGE, G_RM_TEX_EDGE2);
-    gDPSetCombineMode(gMasterGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+    gDPPipeSync(gMainGfxPos++);
+    gDPSetRenderMode(gMainGfxPos++, G_RM_TEX_EDGE, G_RM_TEX_EDGE2);
+    gDPSetCombineMode(gMainGfxPos++, G_CC_DECALRGBA, G_CC_DECALRGBA);
 }
 
 void startup_draw_prim_rect_COPY(s16 left, s16 top, s16 right, s16 bottom, u16 r, u16 g, u16 b, u16 a) {

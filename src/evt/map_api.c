@@ -2,13 +2,8 @@
 #include "model.h"
 #include "evt.h"
 
-typedef struct LavaReset {
-    /* 0x00 */ s32 colliderID;
-    /* 0x04 */ Vec3f pos;
-} LavaReset; // size = 0x10;
-
 extern LavaReset* gLavaResetList;
-extern s32 D_802DADA4;
+extern s32 LastSafeFloor;
 
 ApiStatus TranslateModel(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
@@ -24,9 +19,9 @@ ApiStatus TranslateModel(Evt* script, s32 isInitialCall) {
     z = evt_get_float_variable(script, *args++);
     model = get_model_from_list_index(modelIndex);
 
-    if (!(model->flags & MODEL_FLAGS_HAS_TRANSFORM_APPLIED)) {
+    if (!(model->flags & MODEL_FLAG_HAS_TRANSFORM_APPLIED)) {
         guTranslateF(model->transformMatrix, x, y, z);
-        model->flags |= (MODEL_FLAGS_HAS_TRANSFORM_APPLIED | MODEL_FLAGS_USES_TRANSFORM_MATRIX);
+        model->flags |= (MODEL_FLAG_HAS_TRANSFORM_APPLIED | MODEL_FLAG_USES_TRANSFORM_MATRIX);
     } else {
         Matrix4f mtx;
 
@@ -47,9 +42,9 @@ ApiStatus RotateModel(Evt* script, s32 isInitialCall) {
     f32 z = evt_get_float_variable(script, *args++);
     Model* model = get_model_from_list_index(modelListIndex);
 
-    if (!(model->flags & MODEL_FLAGS_HAS_TRANSFORM_APPLIED)) {
+    if (!(model->flags & MODEL_FLAG_HAS_TRANSFORM_APPLIED)) {
         guRotateF(model->transformMatrix, a, x, y, z);
-        model->flags |= (MODEL_FLAGS_HAS_TRANSFORM_APPLIED | MODEL_FLAGS_USES_TRANSFORM_MATRIX);
+        model->flags |= (MODEL_FLAG_HAS_TRANSFORM_APPLIED | MODEL_FLAG_USES_TRANSFORM_MATRIX);
     } else {
         Matrix4f mtx;
 
@@ -74,9 +69,9 @@ ApiStatus ScaleModel(Evt* script, s32 isInitialCall) {
     z = evt_get_float_variable(script, *args++);
     model = get_model_from_list_index(modelIndex);
 
-    if (!(model->flags & MODEL_FLAGS_HAS_TRANSFORM_APPLIED)) {
+    if (!(model->flags & MODEL_FLAG_HAS_TRANSFORM_APPLIED)) {
         guScaleF(model->transformMatrix, x, y, z);
-        model->flags |= (MODEL_FLAGS_HAS_TRANSFORM_APPLIED | MODEL_FLAGS_USES_TRANSFORM_MATRIX);
+        model->flags |= (MODEL_FLAG_HAS_TRANSFORM_APPLIED | MODEL_FLAG_USES_TRANSFORM_MATRIX);
     } else {
         Matrix4f mtx;
 
@@ -101,7 +96,7 @@ ApiStatus InvalidateModelTransform(Evt* script, s32 isInitialCall) {
     Bytecode modelID = evt_get_variable(script, *args++);
     Model* model = get_model_from_list_index(get_model_list_index_from_tree_index(modelID));
 
-    model->flags &= ~MODEL_FLAGS_HAS_TRANSFORM_APPLIED;
+    model->flags &= ~MODEL_FLAG_HAS_TRANSFORM_APPLIED;
     return ApiStatus_DONE2;
 }
 
@@ -138,7 +133,7 @@ ApiStatus SetTexPanner(Evt* script, s32 isInitialCall) {
     Model* model = get_model_from_list_index(get_model_list_index_from_tree_index(treeIndex));
 
     set_tex_panner(model, var2);
-    model->flags |= MODEL_FLAGS_HAS_TEX_PANNER;
+    model->flags |= MODEL_FLAG_HAS_TEX_PANNER;
     return ApiStatus_DONE2;
 }
 
@@ -149,9 +144,9 @@ ApiStatus SetCustomGfxEnabled(Evt* script, s32 isInitialCall) {
     Model* model = get_model_from_list_index(get_model_list_index_from_tree_index(treeIndex));
 
     if (enable) {
-        model->flags |= MODEL_FLAGS_USES_CUSTOM_GFX;
+        model->flags |= MODEL_FLAG_USES_CUSTOM_GFX;
     } else {
-        model->flags &= ~MODEL_FLAGS_USES_CUSTOM_GFX;
+        model->flags &= ~MODEL_FLAG_USES_CUSTOM_GFX;
     }
     return ApiStatus_DONE2;
 }
@@ -159,79 +154,82 @@ ApiStatus SetCustomGfxEnabled(Evt* script, s32 isInitialCall) {
 ApiStatus SetModelCustomGfx(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 treeIndex = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
+    s32 customGfxUnit = evt_get_variable(script, *args++);
     s32 var3 = evt_get_variable(script, *args++);
     Model* model;
 
     treeIndex = get_model_list_index_from_tree_index(treeIndex);
     model = get_model_from_list_index(treeIndex);
 
-    set_mdl_custom_gfx_set(model, var2, var3);
-    if (var2 != -1) {
-        model->flags |= MODEL_FLAGS_USES_CUSTOM_GFX;
+    set_mdl_custom_gfx_set(model, customGfxUnit, var3);
+    if (customGfxUnit != -1) {
+        model->flags |= MODEL_FLAG_USES_CUSTOM_GFX;
     }
     return ApiStatus_DONE2;
 }
 
 ApiStatus SetModelTexVariant(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    Bytecode treeIndex = evt_get_variable(script, *args++);
-    Bytecode var2 = evt_get_variable(script, *args++);
+    Bytecode modelID = evt_get_variable(script, *args++);
+    Bytecode variation = evt_get_variable(script, *args++);
+    s32 modelIndex = get_model_list_index_from_tree_index(modelID);
+    Model* model = get_model_from_list_index(modelIndex);
 
-    get_model_from_list_index(get_model_list_index_from_tree_index(treeIndex))->textureVariation = var2;
+    model->textureVariation = variation;
     return ApiStatus_DONE2;
 }
 
 ApiStatus EnableTexPanning(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 treeIndex = evt_get_variable(script, *args++);
+    s32 modelID = evt_get_variable(script, *args++);
     s32 flag = evt_get_variable(script, *args++);
-    Model* model = get_model_from_list_index(get_model_list_index_from_tree_index(treeIndex));
+    s32 modelIndex = get_model_list_index_from_tree_index(modelID);
+    Model* model = get_model_from_list_index(modelIndex);
 
     if (flag) {
-        model->flags |= MODEL_FLAGS_HAS_TEX_PANNER;
+        model->flags |= MODEL_FLAG_HAS_TEX_PANNER;
     } else {
-        model->flags &= ~MODEL_FLAGS_HAS_TEX_PANNER;
+        model->flags &= ~MODEL_FLAG_HAS_TEX_PANNER;
     }
     return ApiStatus_DONE2;
 }
 
 ApiStatus EnableModel(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 listIndex = get_model_list_index_from_tree_index(evt_get_variable(script, *args++));
-    Bytecode flag = evt_get_variable(script, *args++);
-    Model* model = get_model_from_list_index(listIndex);
+    s32 modelIndex = get_model_list_index_from_tree_index(evt_get_variable(script, *args++));
+    Bytecode enabled = evt_get_variable(script, *args++);
+    Model* model = get_model_from_list_index(modelIndex);
 
-    if (flag != 0) {
-        model->flags &= ~MODEL_FLAGS_ENABLED;
+    if (enabled) {
+        model->flags &= ~MODEL_FLAG_HIDDEN;
     } else {
-        model->flags |= MODEL_FLAGS_ENABLED;
+        model->flags |= MODEL_FLAG_HIDDEN;
     }
     return ApiStatus_DONE2;
 }
 
-ApiStatus SetGroupEnabled(Evt* script, s32 isInitialCall) {
+ApiStatus SetGroupVisibility(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    Bytecode var1 = evt_get_variable(script, *args++);
-    Bytecode var2 = evt_get_variable(script, *args++);
+    Bytecode groupModelID = evt_get_variable(script, *args++);
+    Bytecode enabled = evt_get_variable(script, *args++);
 
-    func_8011B7C0(var1, 2, var2);
+    set_model_group_visibility(groupModelID, MODEL_FLAG_HIDDEN, enabled);
     return ApiStatus_DONE2;
 }
 
 ApiStatus SetTexPanOffset(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    Bytecode var1 = evt_get_variable(script, *args++);
-    Bytecode var2 = evt_get_variable(script, *args++);
-    Bytecode var3 = evt_get_variable(script, *args++);
-    Bytecode var4 = evt_get_variable(script, *args++);
+    Bytecode texPanner = evt_get_variable(script, *args++);
+    Bytecode tileSelect = evt_get_variable(script, *args++);
+    Bytecode u = evt_get_variable(script, *args++);
+    Bytecode v = evt_get_variable(script, *args++);
 
-    if (var2 == 0) {
-        set_main_pan_u(var1, var3);
-        set_main_pan_v(var1, var4);
+    if (tileSelect == 0) {
+        set_main_pan_u(texPanner, u);
+        set_main_pan_v(texPanner, v);
     } else {
-        set_aux_pan_u(var1, var3);
-        set_aux_pan_v(var1, var4);
+        set_aux_pan_u(texPanner, u);
+        set_aux_pan_v(texPanner, v);
     }
 
     return ApiStatus_DONE2;
@@ -249,11 +247,11 @@ ApiStatus SetCustomGfx(Evt* script, s32 isInitialCall) {
 
 ApiStatus SetCustomGfxBuilders(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 var1 = evt_get_variable(script, *args++);
-    s32 var2 = evt_get_variable(script, *args++);
-    s32 var3 = evt_get_variable(script, *args++);
+    s32 index = evt_get_variable(script, *args++);
+    ModelCustomGfxBuilderFunc pre = (ModelCustomGfxBuilderFunc) evt_get_variable(script, *args++);
+    ModelCustomGfxBuilderFunc post = (ModelCustomGfxBuilderFunc) evt_get_variable(script, *args++);
 
-    set_custom_gfx_builders(var1, var2, var3);
+    set_custom_gfx_builders(index, pre, post);
     return ApiStatus_DONE2;
 }
 
@@ -359,9 +357,10 @@ ApiStatus SetTransformGroupEnabled(Evt* script, s32 isInitialCall) {
 
 ApiStatus TranslateGroup(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 var1 = evt_get_variable(script, *args);
-    s32 index = get_transform_group_index(var1);
+    s32 modelIndex = evt_get_variable(script, *args);
+    s32 index = get_transform_group_index(modelIndex);
     ModelTransformGroup* transformGroup;
+    Matrix4f mtx;
     f32 x, y, z;
 
     if (index == -1) {
@@ -377,13 +376,11 @@ ApiStatus TranslateGroup(Evt* script, s32 isInitialCall) {
 
     transformGroup = get_transform_group(index);
 
-    index = transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAGS_400; // TODO fix weird match
+    index = transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAG_400; // TODO fix weird match
     if (!index) {
         guTranslateF(transformGroup->matrixB, x, y, z);
-        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAGS_400 | MODEL_TRANSFORM_GROUP_FLAGS_1000);
+        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAG_400 | MODEL_TRANSFORM_GROUP_FLAG_1000);
     } else {
-        Matrix4f mtx;
-
         guTranslateF(mtx, x, y, z);
         guMtxCatF(mtx, transformGroup->matrixB, transformGroup->matrixB);
     }
@@ -411,9 +408,9 @@ ApiStatus RotateGroup(Evt* script, s32 isInitialCall) {
 
     transformGroup = get_transform_group(index);
 
-    if (!(transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAGS_400)) {
+    if (!(transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAG_400)) {
         guRotateF(transformGroup->matrixB, a, x, y, z);
-        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAGS_400 | MODEL_TRANSFORM_GROUP_FLAGS_1000);
+        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAG_400 | MODEL_TRANSFORM_GROUP_FLAG_1000);
     } else {
         Matrix4f mtx;
 
@@ -426,12 +423,12 @@ ApiStatus RotateGroup(Evt* script, s32 isInitialCall) {
 
 ApiStatus ScaleGroup(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 var1 = evt_get_variable(script, *args);
-    s32 index = get_transform_group_index(var1);
+    s32 modelID = evt_get_variable(script, *args);
+    s32 transformIndex = get_transform_group_index(modelID);
     ModelTransformGroup* transformGroup;
     f32 x, y, z;
 
-    if (index == -1) {
+    if (transformIndex == -1) {
         apply_transform_to_children(ScaleModel, script);
         return ApiStatus_DONE2;
     }
@@ -442,12 +439,12 @@ ApiStatus ScaleGroup(Evt* script, s32 isInitialCall) {
     y = evt_get_float_variable(script, *args++);
     z = evt_get_float_variable(script, *args++);
 
-    transformGroup = get_transform_group(index);
+    transformGroup = get_transform_group(transformIndex);
 
-    index = transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAGS_400; // TODO fix weird match
-    if (!(index)) {
+    transformIndex = transformGroup->flags & MODEL_TRANSFORM_GROUP_FLAG_400; // TODO fix weird match
+    if (!(transformIndex)) {
         guScaleF(transformGroup->matrixB, x, y, z);
-        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAGS_400 | MODEL_TRANSFORM_GROUP_FLAGS_1000);
+        transformGroup->flags |= (MODEL_TRANSFORM_GROUP_FLAG_400 | MODEL_TRANSFORM_GROUP_FLAG_1000);
     } else {
         Matrix4f mtx;
 
@@ -486,9 +483,9 @@ ApiStatus EnableGroup(Evt* script, s32 isInitialCall) {
     for (index = transformGroup->minChildModelIndex; index <= transformGroup->maxChildModelIndex; index++) {
         Model* model = get_model_from_list_index(index);
         if (flagUnset) {
-            model->flags &= ~MODEL_FLAGS_ENABLED;
+            model->flags &= ~MODEL_FLAG_HIDDEN;
         } else {
-            model->flags |= MODEL_FLAGS_ENABLED;
+            model->flags |= MODEL_FLAG_HIDDEN;
         }
     }
 
@@ -497,11 +494,11 @@ ApiStatus EnableGroup(Evt* script, s32 isInitialCall) {
 
 ApiStatus MakeLocalVertexCopy(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
-    s32 var1 = evt_get_variable(script, *args++);
-    u16 var2 = evt_get_variable(script, *args++);
-    s32 var3 = evt_get_variable(script, *args++);
+    s32 copyIndex = evt_get_variable(script, *args++);
+    u16 modelID = evt_get_variable(script, *args++);
+    s32 isMakingCopy = evt_get_variable(script, *args++);
 
-    mdl_make_local_vertex_copy(var1, var2, var3);
+    mdl_make_local_vertex_copy(copyIndex, modelID, isMakingCopy);
     return ApiStatus_DONE2;
 }
 
@@ -546,16 +543,16 @@ ApiStatus ModifyColliderFlags(Evt* script, s32 isInitialCall) {
     }
 
     switch (mode) {
-        case 0:
+        case MODIFY_COLLIDER_FLAGS_SET_BITS:
             collider->flags |= flags;
             break;
-        case 1:
+        case MODIFY_COLLIDER_FLAGS_CLEAR_BITS:
             collider->flags &= ~flags;
             break;
-        case 2:
+        case MODIFY_COLLIDER_FLAGS_SET_VALUE:
             collider->flags = flags;
             break;
-        case 3:
+        case MODIFY_COLLIDER_FLAGS_SET_SURFACE:
             collider->flags &= ~0xFF;
             collider->flags |= flags & 0xFF;
             break;
@@ -564,6 +561,7 @@ ApiStatus ModifyColliderFlags(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
+//TODO rename to MonitorLastSafeFloor
 ApiStatus ResetFromLava(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     CollisionStatus* collisionStatus = &gCollisionStatus;
@@ -579,19 +577,19 @@ ApiStatus ResetFromLava(Evt* script, s32 isInitialCall) {
             }
             collider = &gCollisionData.colliderList[lavaReset->colliderID];
             if (collider->firstChild >= 0) {
-                modify_collider_family_flags(collider->firstChild, 0x100, 0);
+                modify_collider_family_flags(collider->firstChild, COLLIDER_FLAG_SAFE_FLOOR, 0);
             }
-            collider->flags |= 0x100;
+            collider->flags |= COLLIDER_FLAG_SAFE_FLOOR;
             lavaReset++;
         }
 
-        D_802DADA4 = -1;
+        LastSafeFloor = -1;
     }
 
     if (!(collisionStatus->currentFloor & COLLISION_WITH_ENTITY_BIT)) {
         collider = &gCollisionData.colliderList[collisionStatus->currentFloor];
-        if (collider->flags & 0x100) {
-            D_802DADA4 = collisionStatus->currentFloor;
+        if (collider->flags & COLLIDER_FLAG_SAFE_FLOOR) {
+            LastSafeFloor = collisionStatus->currentFloor;
             return ApiStatus_BLOCK;
         }
     }
@@ -604,7 +602,7 @@ s32 get_lava_reset_pos(f32* outX, f32* outY, f32* outZ) {
     s32 temp_a0;
     LavaReset* lavaReset = gLavaResetList;
 
-    if (D_802DADA4 == -1) {
+    if (LastSafeFloor == -1) {
         temp_v0 = &(*get_current_map_settings()->entryList)[gGameStatusPtr->entryID];
         *outX = temp_v0->x;
         *outY = temp_v0->y;
@@ -617,7 +615,7 @@ s32 get_lava_reset_pos(f32* outX, f32* outY, f32* outZ) {
             break;
         }
 
-        if (lavaReset->colliderID == D_802DADA4) {
+        if (lavaReset->colliderID == LastSafeFloor) {
             *outX = lavaReset->pos.x;
             *outY = lavaReset->pos.y;
             *outZ = lavaReset->pos.z;
@@ -667,10 +665,10 @@ void set_zone_enabled(s32 zoneID, s32 enabled) {
 
     switch (enabled) {
         case 0:
-            zone->flags |= TEMP_SET_ZONE_ENABLED_FLAGS_10000;
+            zone->flags |= TEMP_SET_ZONE_ENABLED_FLAG_10000;
             break;
         case 1:
-            zone->flags &= ~TEMP_SET_ZONE_ENABLED_FLAGS_10000;
+            zone->flags &= ~TEMP_SET_ZONE_ENABLED_FLAG_10000;
             break;
     }
 }
@@ -687,10 +685,10 @@ ApiStatus SetZoneEnabled(Evt* script, s32 isInitialCall) {
 
     switch (enabled) {
         case FALSE:
-            zone->flags |= TEMP_SET_ZONE_ENABLED_FLAGS_10000;
+            zone->flags |= TEMP_SET_ZONE_ENABLED_FLAG_10000;
             break;
         case TRUE:
-            zone->flags &= ~TEMP_SET_ZONE_ENABLED_FLAGS_10000;
+            zone->flags &= ~TEMP_SET_ZONE_ENABLED_FLAG_10000;
             break;
     }
 

@@ -32,13 +32,7 @@ typedef struct HitAssetCollider {
     /* 0x08 */ s32 trianglesOffset;
 } HitAssetCollider; // size = 0x0C
 
-typedef struct VertexIndexStruct {
-    /* 0x00 */ s16 i1;
-    /* 0x02 */ s16 i2;
-    /* 0x04 */ s16 i3;
-} VertexIndexStruct; // size = 0x06
-
-extern VertexIndexStruct gEntityColliderFaces[];
+extern Vec3s gEntityColliderFaces[];
 extern Vec3f gEntityColliderNormals[];
 extern f32 gCollisionRayStartX;
 extern f32 gCollisionRayStartY;
@@ -104,7 +98,7 @@ void initialize_collision(void) {
 void load_map_hit_asset(void) {
     u32 assetSize;
     MapSettings* map = get_current_map_settings();
-    void* compressedData = load_asset_by_name(&wMapHitName, &assetSize);
+    void* compressedData = load_asset_by_name(wMapHitName, &assetSize);
     HitFile* uncompressedData = heap_malloc(assetSize);
 
     decode_yay0(compressedData, uncompressedData);
@@ -133,7 +127,7 @@ void restore_map_collision_data(void) {
         collider->flags = backupEntry->flags;
         collider->parentModelIndex = backupEntry->parentModelIndex;
 
-        if (collider->flags != -1 && collider->flags & 0x80000000) {
+        if (collider->flags != -1 && collider->flags & COLLIDER_FLAG_HAS_MODEL_PARENT) {
             parent_collider_to_model(i, collider->parentModelIndex);
             update_collider_transform(i);
         }
@@ -316,9 +310,9 @@ void parent_collider_to_model(s16 colliderID, s16 modelIndex) {
 
     collider = &gCollisionData.colliderList[colliderID];
     collider->parentModelIndex = modelIndex;
-    collider->flags |= 0x80000000;
+    collider->flags |= COLLIDER_FLAG_HAS_MODEL_PARENT;
 
-    vertexBuffer = collision_heap_malloc(collider->numTriangles * 0xC);
+    vertexBuffer = collision_heap_malloc(collider->numTriangles * sizeof(Vec3f));
     vertexBufferSize = 0;
     vertexPtr = vertexBuffer;
 
@@ -329,7 +323,7 @@ void parent_collider_to_model(s16 colliderID, s16 modelIndex) {
     }
 
     collider->numVertices = vertexBufferSize;
-    collider->vertexTable = collision_heap_malloc(vertexBufferSize * 0x18);
+    collider->vertexTable = collision_heap_malloc(vertexBufferSize * 2 * sizeof(Vec3f));
     for (i = 0, vertexTable = collider->vertexTable; i < vertexBufferSize; vertexPtr++, vertexTable += 2, i++) {
         vertex = *vertexPtr;
         vertexTable[0].x = vertexTable[1].x = vertex->x;
@@ -773,7 +767,7 @@ s32 test_ray_colliders(s32 ignoreFlags, f32 startX, f32 startY, f32 startZ, f32 
     gCollisionRayStartY = startY;
     gCollisionRayStartZ = startZ;
     gCollisionRayLength = *hitDepth;
-    colliderID = -1;
+    colliderID = NO_COLLIDER;
 
     if (dirX < 0) {
         min_x = startX + dirX * gCollisionRayLength;
@@ -866,12 +860,12 @@ s32 test_ray_zones(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f32 d
     gCollisionRayStartY = startY;
     gCollisionRayStartZ = startZ;
     gCollisionRayLength = *hitDepth;
-    colliderID = -1;
+    colliderID = NO_COLLIDER;
 
     for (i = 0; i < collisionData->numColliders; i++) {
         collider = &collisionData->colliderList[i];
 
-        if (collider->flags & 0x10000)
+        if (collider->flags & COLLIDER_FLAG_IGNORE_PLAYER)
             continue;
 
         if (collider->numTriangles == 0 || collider->aabb == NULL)
@@ -931,6 +925,12 @@ f32 test_ray_collider_horizontal(s32 ignoreFlags, s32 colliderID, f32 x, f32 y, 
     return ret;
 }
 
+enum {
+    ENTITY_TEST_ANY     = 0,
+    ENTITY_TEST_DOWN    = 1,
+    ENTITY_TEST_LATERAL = 2,
+};
+
 s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f32 dirZ,
                       f32* hitX, f32* hitY, f32* hitZ, f32* hitDepth, f32* hitNx, f32* hitNy, f32* hitNz) {
     f32 hitDepthDown, hitDepthHoriz;
@@ -949,15 +949,15 @@ s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f3
     ColliderTriangle *triangle = &entityTriangle;
 
     entityIndex = -1;
-    type = 0;
+    type = ENTITY_TEST_ANY;
     hitDepthDown = hitDepthHoriz = *hitDepth;
 
     if (dirX == 0 && dirZ == 0 && dirY < 0) {
         hitDepthHoriz = 0;
-        type = 1;
+        type = ENTITY_TEST_DOWN;
     } else if (dirY == 0) {
         hitDepthDown = 0;
-        type = 2;
+        type = ENTITY_TEST_LATERAL;
     }
 
     gCollisionRayLength = -1;
@@ -965,7 +965,7 @@ s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f3
     for (i = 0; i < MAX_ENTITIES; i++) {
         entity = get_entity_by_index(i);
 
-        if (entity == NULL || (entity->flags & (ENTITY_FLAGS_SKIP_UPDATE | ENTITY_FLAGS_DISABLE_COLLISION))) {
+        if (entity == NULL || (entity->flags & (ENTITY_FLAG_SKIP_UPDATE | ENTITY_FLAG_DISABLE_COLLISION))) {
             continue;
         }
 
@@ -979,15 +979,15 @@ s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f3
         }
 
         switch (type) {
-            case 0:
-            case 1:
+            case ENTITY_TEST_ANY:
+            case ENTITY_TEST_DOWN:
                 dist = entity->position.y;
                 dist2 = hitDepthDown + entity->effectiveSize * 2;
                 if (dist + dist2 < startY || startY < dist - dist2) {
                     continue;
                 }
                 break;
-            case 2:
+            case ENTITY_TEST_LATERAL:
                 dist = entity->position.y;
                 dist2 = entity->effectiveSize * 2;
                 if (dist + dist2 < startY || startY < dist - dist2) {
@@ -1011,9 +1011,9 @@ s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f3
                   startZ - entity->position.z, &gCollisionRayStartX, &gCollisionRayStartY, &gCollisionRayStartZ);
 
         for (j = 0; j < 12; j++) {
-            Vec3f* v1 = triangle->v1 = &boxVertices[gEntityColliderFaces[j].i1];
-            Vec3f* v2 = triangle->v2 = &boxVertices[gEntityColliderFaces[j].i2];
-            Vec3f* v3 = triangle->v3 = &boxVertices[gEntityColliderFaces[j].i3];
+            Vec3f* v1 = triangle->v1 = &boxVertices[gEntityColliderFaces[j].x];
+            Vec3f* v2 = triangle->v2 = &boxVertices[gEntityColliderFaces[j].y];
+            Vec3f* v3 = triangle->v3 = &boxVertices[gEntityColliderFaces[j].z];
             triangle->e13.x = v3->x - v1->x;
             triangle->e13.y = v3->y - v1->y;
             triangle->e13.z = v3->z - v1->z;
@@ -1037,14 +1037,14 @@ s32 test_ray_entities(f32 startX, f32 startY, f32 startZ, f32 dirX, f32 dirY, f3
             *hitDepth = gCollisionRayLength;
 
             switch (type) {
-                case 0:
+                case ENTITY_TEST_ANY:
                     hitDepthDown = gCollisionRayLength;
                     hitDepthHoriz = gCollisionRayLength;
                     break;
-                case 1:
+                case ENTITY_TEST_DOWN:
                     hitDepthDown = gCollisionRayLength;
                     break;
-                case 2:
+                case ENTITY_TEST_LATERAL:
                     hitDepthHoriz = gCollisionRayLength;
                     break;
             }

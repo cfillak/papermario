@@ -7,11 +7,11 @@ s8 D_E000E670[20] = { 0, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7, 7, -1, 0, 0, 
 
 s8* D_E000E684[2] = { D_E000E660, D_E000E670 };
 
-extern Gfx D_09002780[];
-extern Gfx D_09002868[];
-extern Gfx D_09002950[];
-extern Gfx D_09002B20[];
-extern Gfx D_09002B40[];
+extern Gfx D_09002780_32B620[];
+extern Gfx D_09002868_32B708[];
+extern Gfx D_09002950_32B7F0[];
+extern Gfx D_09002B20_32B9C0[];
+extern Gfx D_09002B40_32B9E0[];
 
 void walking_dust_init(EffectInstance* effect);
 void walking_dust_update(EffectInstance* effect);
@@ -89,7 +89,7 @@ void walking_dust_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_28;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void walking_dust_appendGfx(void* effect) {
@@ -108,20 +108,20 @@ void walking_dust_appendGfx(void* effect) {
     s32 i;
 
     if (temp_t3 == 0) {
-        dlist2 = D_09002B20;
+        dlist2 = D_09002B20_32B9C0;
     } else {
-        dlist2 = D_09002B40;
+        dlist2 = D_09002B40_32B9E0;
     }
 
     switch (temp_t3) {
         case 1:
-            dlist = D_09002868;
+            dlist = D_09002868_32B708;
             break;
         default:
-            dlist = D_09002950;
+            dlist = D_09002950_32B7F0;
             break;
         case 0:
-            dlist = D_09002780;
+            dlist = D_09002780_32B620;
             break;
     }
 
@@ -130,11 +130,11 @@ void walking_dust_appendGfx(void* effect) {
         cond = TRUE;
     }
 
-    gDPPipeSync(gMasterGfxPos++);
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(effectTemp->graphics->data));
-    gSPDisplayList(gMasterGfxPos++, dlist);
-    gDPSetEnvColor(gMasterGfxPos++, 0, 0, 0, 127);
-    gDPSetPrimColor(gMasterGfxPos++, 0, 0, 230, 222, 222, 110);
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(effectTemp->graphics->data));
+    gSPDisplayList(gMainGfxPos++, dlist);
+    gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, 127);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, 230, 222, 222, 110);
 
     if (temp_t3 == 0) {
         phi_t1 = 24;
@@ -145,12 +145,12 @@ void walking_dust_appendGfx(void* effect) {
     temp_lo = temp_t4 * phi_t1;
     temp_a0 = temp_lo + phi_t1;
 
-    gDPSetTileSize(gMasterGfxPos++, G_TX_RENDERTILE, temp_lo * 4, 0, (temp_a0 - 1) * 4, ((phi_t1 - 1) * 4));
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, temp_lo * 4, 0, (temp_a0 - 1) * 4, ((phi_t1 - 1) * 4));
 
     if (cond) {
-        gDPSetTileSize(gMasterGfxPos++, 1, temp_a0 * 4, 0, ((temp_lo + (phi_t1 * 2)) - 1) * 4, 0);
+        gDPSetTileSize(gMainGfxPos++, 1, temp_a0 * 4, 0, ((temp_lo + (phi_t1 * 2)) - 1) * 4, 0);
     } else {
-        gDPSetTileSize(gMasterGfxPos++, 1, temp_a0 * 4, 0, ((temp_lo + (phi_t1 * 2)) - 1) * 4, (phi_t1 - 1) * 4);
+        gDPSetTileSize(gMainGfxPos++, 1, temp_a0 * 4, 0, ((temp_lo + (phi_t1 * 2)) - 1) * 4, (phi_t1 - 1) * 4);
     }
 
     for (i = 0; i < effectTemp->numParts; i++, data++) {
@@ -158,10 +158,10 @@ void walking_dust_appendGfx(void* effect) {
         shim_guRotateF(sp58, -gCameras[gCurrentCameraID].currentYaw, 0.0f, 1.0f, 0.0f);
         shim_guMtxCatF(sp58, sp18, sp18);
         shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos]);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
                   G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-        gSPDisplayList(gMasterGfxPos++, dlist2);
-        gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+        gSPDisplayList(gMainGfxPos++, dlist2);
+        gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     }
-    gDPPipeSync(gMasterGfxPos++);
+    gDPPipeSync(gMainGfxPos++);
 }

@@ -16,7 +16,7 @@ ApiStatus ShowStartRecoveryShimmer(Evt* script, s32 isInitialCall) {
     f32 z = evt_get_float_variable(script, *args++);
 
     show_start_recovery_shimmer(x, y, z, evt_get_variable(script, *args++));
-    sfx_play_sound_at_position(SOUND_2055, 0, x, y, z);
+    sfx_play_sound_at_position(SOUND_2055, SOUND_SPACE_MODE_0, x, y, z);
     return ApiStatus_DONE2;
 }
 
@@ -27,7 +27,7 @@ ApiStatus ShowRecoveryShimmer(Evt* script, s32 isInitialCall) {
     f32 z = evt_get_float_variable(script, *args++);
 
     show_recovery_shimmer(x, y, z, evt_get_variable(script, *args++));
-    sfx_play_sound_at_position(SOUND_378, 0, x, y, z);
+    sfx_play_sound_at_position(SOUND_378, SOUND_SPACE_MODE_0, x, y, z);
     return ApiStatus_DONE2;
 }
 
@@ -127,7 +127,7 @@ ApiStatus func_802D7B10(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     EffectInstance* effect = (EffectInstance*)evt_get_variable(script, *args++);
 
-    effect->flags |= EFFECT_INSTANCE_FLAGS_10;
+    effect->flags |= EFFECT_INSTANCE_FLAG_10;
     return ApiStatus_DONE2;
 }
 
@@ -143,8 +143,8 @@ ApiStatus func_802D7B74(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     EffectInstance* effect = (EffectInstance*)evt_get_variable(script, *args++);
 
-    // function is never called, so the effect type is assumed
-    effect->data.gotItemOutline->unk_30 = 5;
+    // function is never called, so the effect type can't be inferred
+    effect->data.any[12] = 5;
     return ApiStatus_DONE2;
 }
 
@@ -208,7 +208,7 @@ ApiStatus SetMotionBlurParams(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus ShowSweat(Evt* script) {
+ApiStatus ShowSweat(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 npcID = evt_get_variable(script, *args++);
     s32 type = evt_get_variable(script, *args++);
@@ -441,7 +441,7 @@ ApiStatus PlayEffect(Evt* script, s32 isInitialCall) {
             fx_lens_flare(iVar1, fVar2, fVar3, fVar4, iVar5);
             break;
         case EFFECT_GOT_ITEM_OUTLINE:
-            fx_got_item_outline(iVar1, fVar2, fVar3, fVar4, fVar5, &sp34);
+            fx_got_item_outline(iVar1, fVar2, fVar3, fVar4, fVar5, (EffectInstance**) &sp34);
             evt_set_variable(script, a6, sp34);
             break;
         case EFFECT_SPIKY_WHITE_AURA:
@@ -451,7 +451,7 @@ ApiStatus PlayEffect(Evt* script, s32 isInitialCall) {
             fx_smoke_impact(iVar1, fVar2, fVar3, fVar4, fVar5, iVar6, fVar7, iVar8);
             break;
         case EFFECT_DAMAGE_INDICATOR:
-            fx_damage_indicator(iVar1, fVar2, fVar3, fVar4, fVar5, fVar6, iVar7, (EffectInstance**)&sp30);
+            fx_damage_indicator(iVar1, fVar2, fVar3, fVar4, fVar5, fVar6, iVar7, (EffectInstance**) &sp30);
             evt_set_variable(script, a8, sp30);
             break;
         case EFFECT_PURPLE_RING:
@@ -577,7 +577,7 @@ ApiStatus PlayEffect(Evt* script, s32 isInitialCall) {
             effectRet = fx_snowfall(iVar1, iVar2);
             break;
         case EFFECT_46:
-            effectRet = fx_46(iVar1, (EffectWhirlwindUnk*)a2, fVar3, iVar4);
+            effectRet = fx_46(iVar1, (PlayerStatus*)a2, fVar3, iVar4);
             break;
         case EFFECT_GATHER_MAGIC:
             effectRet = fx_gather_magic(iVar1, fVar2, fVar3, fVar4, fVar5, iVar6);

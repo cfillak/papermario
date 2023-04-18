@@ -151,7 +151,7 @@ def get_constants():
         "AmbientSounds", "NpcIDs", "Emotes", "NpcFlags", "Statuses", "Elements",
         "DamageTypes", "ElementImmunityFlags", "HitResults", "ActorFlags", "ActorPartFlags",
         "ActorEventFlags", "ElementFlags", "EncounterTriggers", "Abilities",
-        "Easings", "DecorationIDs", "HitResults", "Phases", "ItemSpawnModes",
+        "EasingType", "DecorationIDs", "HitResults", "Phases", "ItemSpawnModes",
         "ActionStates", "Triggers", "Buttons", "ActionCommand", "MoveIDs", "BattleStatusFlags1",
         "BattleStatusFlags2", "BtlCameraPreset", "EffectID", "StatusFlags" }
     for enum in valid_enums:
@@ -404,11 +404,11 @@ replace_funcs = {
     "func_8026ED20"             :{0:"ActorIDs"},
     "func_8027D32C"             :{0:"ActorIDs"},
     "func_8027D434"             :{0:"ActorIDs"},
-    "func_8027D4C8"             :{0:"ActorIDs"},
-    "func_8027D75C"             :{0:"ActorIDs"},
-    "func_802CFD30"             :{0:"NpcIDs"},
-    "func_802CFE2C"             :{0:"NpcIDs"},
-    "func_802D2520"             :{0:"PlayerAnims"},
+    "SetProjectileTargetOffset"             :{0:"ActorIDs"},
+    "GetInstigatorValue"             :{0:"ActorIDs"},
+    "SetNpcFoldParams"             :{0:"NpcIDs"},
+    "SetNpcFoldFlags"             :{0:"NpcIDs"},
+    "UpdatePlayerFold"             :{0:"PlayerAnims"},
 
     "GetAnimation"              :{0:"ActorIDs", 2:"CustomAnim"},
     "GetActorFlags"             :{0:"ActorIDs", 1:"ActorFlags"},
@@ -565,8 +565,7 @@ replace_funcs = {
 }
 
 def trim_lw(arg):
-    arg = arg[3:-1]
-    return arg
+    return arg[arg.find("(")+1:arg.find(")")]
 
 
 def replace_constants(self, func, args):
@@ -723,7 +722,7 @@ class ScriptDisassembler:
             elif name.startswith("N(npcSettings_"):
                 prefix = "NpcSettings "
             elif name.startswith("N(npcGroup_"):
-                prefix = "StaticNpc "
+                prefix = "NpcData "
             elif name.startswith("N(entryList_"):
                 prefix = "EntryList "
             elif name.startswith("N(npcGroupList_"):
@@ -1058,7 +1057,7 @@ if __name__ == "__main__":
                     script_text = script.disassemble()
                     if script.instructions > 1 and "_EVT_CMD" not in script_text:
                         if gap and first_print:
-                            potential_struct_sizes = { "StaticNpc": 0x1F0, "MobileAISettings":0x30, "NpcSettings":0x2C, "NpcGroupList":0xC }
+                            potential_struct_sizes = { "NpcData": 0x1F0, "MobileAISettings":0x30, "NpcSettings":0x2C, "NpcGroupList":0xC }
                             gap_size = offset - gap_start
                             potential_struct = "Unknown data"
                             potential_count = 1
@@ -1117,8 +1116,8 @@ if __name__ == "__main__":
                             f.seek(offset)
                             print(ScriptDisassembler(f).disassemble(), end="")
                             break
-                except:
-                    break
+                except Exception as e:
+                    print(e)
 
                 loffset = script.end_pos
                 LOCAL_WORDS = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]

@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A92A0_42DCB0(void);
+API_CALLABLE(action_command_mega_shock_init);
+API_CALLABLE(action_command_mega_shock_start);
+void action_command_mega_shock_update(void);
+void action_command_mega_shock_draw(void);
+void action_command_mega_shock_free(void);
 
 #endif

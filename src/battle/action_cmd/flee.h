@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9378_422E48(void);
+API_CALLABLE(action_command_flee_init);
+API_CALLABLE(action_command_flee_start);
+void action_command_flee_update(void);
+void action_command_flee_draw(void);
+void action_command_flee_free(void);
 
 #endif

@@ -1,20 +1,20 @@
 #include "common.h"
 #include "effects_internal.h"
 
-extern Gfx D_09002170[];
-extern Gfx D_09002238[];
-extern Gfx D_090022E0[];
-extern Gfx D_09002308[];
-extern Gfx D_090023B0[];
-extern Gfx D_090023D8[];
-extern Gfx D_09002480[];
-extern Gfx D_090024A8[];
-extern Gfx D_09002550[];
-extern Gfx D_09002578[];
+extern Gfx D_09002170_336DE0[];
+extern Gfx D_09002238_336EA8[];
+extern Gfx D_090022E0_336F50[];
+extern Gfx D_09002308_336F78[];
+extern Gfx D_090023B0_337020[];
+extern Gfx D_090023D8_337048[];
+extern Gfx D_09002480_3370F0[];
+extern Gfx D_090024A8_337118[];
+extern Gfx D_09002550_3371C0[];
+extern Gfx D_09002578_3371E8[];
 
-Gfx* D_E0020C90[] = { D_090022E0, NULL, D_090023B0, D_09002480, D_09002550 };
+Gfx* D_E0020C90[] = { D_090022E0_336F50, NULL, D_090023B0_337020, D_09002480_3370F0, D_09002550_3371C0 };
 
-Gfx* D_E0020CA4[] = { D_09002238, NULL, D_09002308, D_090023D8, D_090024A8 };
+Gfx* D_E0020CA4[] = { D_09002238_336EA8, NULL, D_09002308_336F78, D_090023D8_337048, D_090024A8_337118 };
 
 s8 D_E0020CB8[40] = {
     0, 0, 1, 2, 3, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -40,19 +40,52 @@ s8 D_E0020D30[80] = {
 
 s8* D_E0020D80[5] = { D_E0020CB8, D_E0020CE0, D_E0020CFC, D_E0020D24, D_E0020D30 };
 
-s8 D_E0020D94[] = {
-    64, 0, 0, 32, 0, 32, 0, 0, 64, 0, 32, 32, 0, 64, 0, 32, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+u8 D_E0020D94[] = {
+    64,  0,  0,
+    32,  0, 32,
+     0,  0, 64,
+     0, 32, 32,
+     0, 64,  0,
+    32, 32,  0,
+     0,  0,  0
 };
 
-void func_E0020000(EmoteFXData* part, s32 arg1);
 void emote_init(EffectInstance* effect);
 void emote_update(EffectInstance* effect);
 void emote_render(EffectInstance* effect);
 void emote_appendGfx(void* effect);
 
-INCLUDE_ASM(s32, "effects/emote", func_E0020000);
+void func_E0020000(EmoteFXData* part, s32 arg1) {
+    f32 unk_1C = part->unk_1C;
+    f32 unk_20 = part->unk_20;
+    Npc* npc = part->unk_3C;
+    Matrix4f sp18;
+    f32 sin;
+    f32 cos;
 
-void emote_main(s32 arg0, s32 arg1, f32 arg2, f32 arg3, f32 arg4, f32 arg5, f32 arg6, s32 arg7, EffectInstance** arg8) {
+    sin = shim_sin_deg(gCameras[gCurrentCameraID].currentYaw);
+    cos = shim_cos_deg(gCameras[gCurrentCameraID].currentYaw);
+    shim_guRotateF(sp18, -(unk_1C - 20.0f + arg1 * 20), sin, 0.0f, -cos);
+
+    if (npc == PTR_LIST_END) {
+        part->unk_04 = gPlayerStatus.position.x + part->unk_10 + sp18[1][0] * (unk_20 + 16.0f);
+        part->unk_08 = gPlayerStatus.position.y + part->unk_14 + sp18[1][1] * (unk_20 + 16.0f);
+        part->unk_0C = gPlayerStatus.position.z + part->unk_18 + sp18[1][2] * (unk_20 + 16.0f);
+    } else if (npc != NULL) {
+        part->unk_04 = npc->pos.x + part->unk_10 + sp18[1][0] * (unk_20 + 16.0f);
+        part->unk_08 = npc->pos.y + part->unk_14 + sp18[1][1] * (unk_20 + 16.0f);
+        part->unk_0C = npc->pos.z + part->unk_18 + sp18[1][2] * (unk_20 + 16.0f);
+    } else {
+        part->unk_04 = part->unk_10 + sp18[1][0] * (unk_20 + 16.0f);
+        part->unk_08 = part->unk_14 + sp18[1][1] * (unk_20 + 16.0f);
+        part->unk_0C = part->unk_18 + sp18[1][2] * (unk_20 + 16.0f);
+    }
+
+    part->unk_24 = unk_1C - 20.0f + arg1 * 20;
+    part->unk_28 = (unk_20 / 12.0f) * 0.5f + 0.5;
+}
+
+void emote_main(s32 arg0, Npc* arg1, f32 arg2, f32 arg3, f32 arg4, f32 arg5, f32 arg6, s32 arg7, EffectInstance** arg8) {
     EffectBlueprint bp;
     EffectBlueprint* bpPtr = &bp;
     EmoteFXData* data;
@@ -142,7 +175,7 @@ void emote_update(EffectInstance* effect) {
         return;
     }
 
-    if (part->unk_3C != 0) {
+    if (part->unk_3C != NULL) {
         if (type == 1) {
             s32 i;
 
@@ -165,53 +198,47 @@ void emote_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
-// lots of issues
-#ifdef NON_EQUIVALENT
 void emote_appendGfx(void* effect) {
+    EmoteFXData* part = ((EffectInstance*)effect)->data.emote;
+    s32 type = part->unk_00;
+    s32 unk_38;
+    Gfx* dlist;
+    Gfx* dlist2;
+    Mtx* matrix;
+    s32 w;
+    s32 h;
+    s32 uls;
+    s32 ult;
+    s32 idx;
     Matrix4f sp18;
     Matrix4f sp58;
-    EffectInstance* effectTemp = effect;
-    EmoteFXData* part = effectTemp->data;
-    s32 idx;
-    s32 type;
-    Gfx* temp_a3;
-    Gfx* temp_t0;
-    Mtx* blah;
+    s32 i;
 
-    s32 sp9C;
-    s32 spA0;
-    s32 temp_a0_3;
-    s32 phi_t1;
-    s32 phi_s7;
-    s32 phi_fp;
-
-    type = part->unk_00;
-    gDPPipeSync(gMasterGfxPos++);
-    gSPSegment(gMasterGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(effectTemp->graphics->data));
-    //phi_s7 = saved_reg_s7;
-    //phi_fp = saved_reg_fp;
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
 
     if (type != 1) {
         shim_guTranslateF(sp18, part->unk_04, part->unk_08, part->unk_0C);
         shim_guRotateF(sp58, -gCameras[gCurrentCameraID].currentYaw, 0.0f, 1.0f, 0.0f);
         shim_guMtxCatF(sp58, sp18, sp18);
+
+        matrix = &gDisplayContext->matrixStack[gMatrixListPos];
+
         shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos++]);
         shim_guScaleF(sp58, 1.0f, 0.8f, 1.0f);
         shim_guMtxCatF(sp58, sp18, sp18);
         shim_guRotateF(sp58, part->unk_24, 0.0f, 0.0f, 1.0f);
         shim_guMtxCatF(sp58, sp18, sp18);
         shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos]);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-        gSPDisplayList(gMasterGfxPos++, D_09002170)
-        gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPDisplayList(gMainGfxPos++, D_09002170_336DE0);
+        gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     } else {
         if (part->unk_38 == 0) {
-            s32 i;
-
             for (i = 0; i < 3; i++, part++) {
                 shim_guTranslateF(sp18, part->unk_04, part->unk_08, part->unk_0C);
                 shim_guRotateF(sp58, -gCameras[gCurrentCameraID].currentYaw, 0.0f, 1.0f, 0.0f);
@@ -221,65 +248,63 @@ void emote_appendGfx(void* effect) {
                 shim_guScaleF(sp58, part->unk_28, part->unk_28, 1.0f);
                 shim_guMtxCatF(sp58, sp18, sp18);
                 shim_guMtxF2L(sp18, &gDisplayContext->matrixStack[gMatrixListPos]);
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 235, 28, 0, 255);
-                gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-                gSPDisplayList(gMasterGfxPos++, D_09002578);
-                gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+
+                gDPSetPrimColor(gMainGfxPos++, 0, 0, 235, 28, 0, 255);
+                gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPDisplayList(gMainGfxPos++, D_09002578_3371E8);
+                gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
             }
         }
+
+        return;
     }
 
-    temp_a0_3 = part->unk_38;
-    temp_a3 = D_E0020CA4[type];
-    temp_t0 = D_E0020C90[type];
+    gSPMatrix(gMainGfxPos++, matrix, G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+
+    unk_38 = part->unk_38;
+    dlist = D_E0020CA4[type];
+    dlist2 = D_E0020C90[type];
 
     switch (type) {
+        case 0:
+            w = 16;
+            h = 16;
+            uls = 128 - unk_38 * 16;
+            ult = 0;
+            gDPSetPrimColor(gMainGfxPos++, 0, 0, 220, 0, 0, 255);
+            break;
         case 2:
-            sp9C = 0x20;
-            phi_t1 = 0x30;
-            phi_s7 = 0x80 - (temp_a0_3 << 5);
-            spA0 = phi_t1;
-            gDPSetPrimColor(gMasterGfxPos++, 0, 0, 220, 0, 0, 255);
-            phi_fp = 0;
+            w = 32;
+            h = 48;
+            uls = 128 - unk_38 * 32;
+            ult = 0;
+            gDPSetPrimColor(gMainGfxPos++, 0, 0, 220, 0, 0, 255);
             break;
         case 3:
-            sp9C = 0x20;
-            spA0 = 0x20;
-            idx = (part->unk_2C * 3) % 7;
-            gDPSetPrimColor(gMasterGfxPos++, 0, 0, D_E0020D94[idx], D_E0020D94[idx + 1], D_E0020D94[idx + 2], 255);
-            phi_s7 = 0x80 - (temp_a0_3 << 5);
-            phi_fp = 0;
+            w = 32;
+            h = 32;
+            uls = 128 - unk_38 * 32;
+            ult = 0;
+            idx = (part->unk_2C * 3) % (ARRAY_COUNT(D_E0020D94) / 3);
+            gDPSetPrimColor(gMainGfxPos++, 0, 0, D_E0020D94[idx], D_E0020D94[idx + 1], D_E0020D94[idx + 2], 255);
             break;
         case 4:
-            sp9C = 0x20;
-            spA0 = 8;
-            phi_s7 = 0x80 - (temp_a0_3 << 5);
-            phi_fp = 0;
-            break;
-        default:
-            phi_t1 = 0x10;
-            if (type == 0) {
-                sp9C = 0x10;
-                phi_s7 = 0x80 - (temp_a0_3 * 0x10);
-                spA0 = phi_t1;
-                gDPSetPrimColor(gMasterGfxPos++, 0, 0, 220, 0, 0, 255);
-                phi_fp = 0;
-            }
+            w = 32;
+            h = 8;
+            uls = 128 - unk_38 * 32;
+            ult = 0;
             break;
     }
 
-    if (temp_a3 != NULL) {
-        gSPDisplayList(gMasterGfxPos++, temp_a3);
+    if (dlist != NULL) {
+        gSPDisplayList(gMainGfxPos++, dlist);
     }
 
-    gDPSetTileSize(gMasterGfxPos++, 2, phi_s7, 0, phi_s7 + sp9C, spA0);
+    gDPSetTileSize(gMainGfxPos++, G_TX_RENDERTILE, uls * 4, ult * 4, (uls + w) * 4, (ult + h) * 4);
 
-    if (temp_t0 != NULL) {
-        gSPDisplayList(gMasterGfxPos++, temp_t0);
+    if (dlist2 != NULL) {
+        gSPDisplayList(gMainGfxPos++, dlist2);
     }
 
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
-#else
-INCLUDE_ASM(s32, "effects/emote", emote_appendGfx);
-#endif

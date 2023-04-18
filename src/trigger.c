@@ -19,16 +19,16 @@ void clear_trigger_data(void) {
     }
 
     gTriggerCount = 0;
-    collisionStatus->pushingAgainstWall = -1;
-    collisionStatus->currentFloor = -1;
-    collisionStatus->lastTouchedFloor = -1;
-    collisionStatus->currentCeiling = -1;
-    collisionStatus->currentInspect = -1;
+    collisionStatus->pushingAgainstWall = NO_COLLIDER;
+    collisionStatus->currentFloor = NO_COLLIDER;
+    collisionStatus->lastTouchedFloor = NO_COLLIDER;
+    collisionStatus->currentCeiling = NO_COLLIDER;
+    collisionStatus->currentInspect = NO_COLLIDER;
     collisionStatus->unk_0C = -1;
     collisionStatus->unk_0E = -1;
     collisionStatus->unk_10 = -1;
-    collisionStatus->currentWall = -1;
-    collisionStatus->lastWallHammered = -1;
+    collisionStatus->currentWall = NO_COLLIDER;
+    collisionStatus->lastWallHammered = NO_COLLIDER;
     collisionStatus->touchingWallTrigger = 0;
     collisionStatus->bombetteExploded = -1;
     collisionStatus->bombetteExplosionPos.x = 0.0f;
@@ -69,12 +69,12 @@ Trigger* create_trigger(TriggerBlueprint* bp) {
     trigger->varIndex = bp->varIndex;
     trigger->location.colliderID = bp->colliderID;
     trigger->itemList = bp->itemList;
-    trigger->unk_tr_2C = bp->unk_tr_2C;
+    trigger->tattleMsg = bp->tattleMsg;
     trigger->hasPlayerInteractPrompt = bp->hasPlayerInteractPrompt;
 
     trigger->onActivateFunc = bp->onActivateFunc;
     if (trigger->onActivateFunc == NULL) {
-        trigger->onActivateFunc = default_trigger_on_activate;
+        trigger->onActivateFunc = (s32 (*) (Trigger*)) default_trigger_on_activate;
     }
 
     return trigger;
@@ -149,7 +149,7 @@ void update_triggers(void) {
 
         if (listTrigger->flags.flags & TRIGGER_FLOOR_PRESS_A) {
             if ((listTrigger->location.colliderID != collisionStatus->currentFloor) ||
-                !(gGameStatusPtr->pressedButtons[0] & BUTTON_A) || (gPlayerStatus.flags & PS_FLAGS_INPUT_DISABLED)) {
+                !(gGameStatusPtr->pressedButtons[0] & BUTTON_A) || (gPlayerStatus.flags & PS_FLAG_INPUT_DISABLED)) {
                 continue;
             }
         }
@@ -166,19 +166,19 @@ void update_triggers(void) {
             }
         }
 
-        if (listTrigger->flags.flags & TRIGGER_FLAGS_2000) {
+        if (listTrigger->flags.flags & TRIGGER_FLAG_2000) {
             if (listTrigger->location.colliderID != collisionStatus->unk_0C) {
                 continue;
             }
         }
 
-        if (listTrigger->flags.flags & TRIGGER_FLAGS_4000) {
+        if (listTrigger->flags.flags & TRIGGER_FLAG_4000) {
             if (listTrigger->location.colliderID != collisionStatus->unk_0E) {
                 continue;
             }
         }
 
-        if (listTrigger->flags.flags & TRIGGER_FLAGS_8000) {
+        if (listTrigger->flags.flags & TRIGGER_FLAG_8000) {
             if (listTrigger->location.colliderID != collisionStatus->unk_10) {
                 continue;
             }
@@ -192,7 +192,7 @@ void update_triggers(void) {
                 continue;
             }
 
-            triggerPos = listTrigger->location.position;
+            triggerPos = listTrigger->location.pos;
             dist = dist3D(triggerPos->x, triggerPos->y, triggerPos->z,
                                 collisionStatus->bombetteExplosionPos.x, collisionStatus->bombetteExplosionPos.y,
                                 collisionStatus->bombetteExplosionPos.z);
@@ -282,10 +282,11 @@ s32 should_collider_allow_interact(s32 colliderID) {
     for (i = 0; i < ARRAY_COUNT(*gCurrentTriggerListPtr); i++) {
         Trigger* trigger = (*gCurrentTriggerListPtr)[i];
 
-        if (trigger != NULL &&
-            trigger->hasPlayerInteractPrompt != 0 &&
-            trigger->location.colliderID == colliderID &&
-            trigger->flags.flags & TRIGGER_WALL_PRESS_A) {
+        if (trigger != NULL
+            && trigger->hasPlayerInteractPrompt != 0
+            && trigger->location.colliderID == colliderID
+            &&  trigger->flags.flags & TRIGGER_WALL_PRESS_A
+        ) {
             return TRUE;
         }
     }

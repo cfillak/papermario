@@ -374,12 +374,6 @@ class N64SegPm_msg(N64Segment):
         type,
         name,
         vram_start,
-        extract,
-        given_subalign,
-        exclusive_ram_id,
-        given_dir,
-        symbol_name_format,
-        symbol_name_format_no_rom,
         args,
         yaml,
     ):
@@ -389,12 +383,6 @@ class N64SegPm_msg(N64Segment):
             type,
             name,
             vram_start,
-            extract,
-            given_subalign,
-            exclusive_ram_id,
-            given_dir,
-            symbol_name_format=symbol_name_format,
-            symbol_name_format_no_rom=symbol_name_format_no_rom,
             args=args,
             yaml=yaml,
         )
@@ -418,7 +406,7 @@ class N64SegPm_msg(N64Segment):
             section_offsets.append(offset)
             pos += 4
 
-        msg_dir = options.get_asset_path() / self.name
+        msg_dir = options.opts.asset_path / self.name
         msg_dir.mkdir(parents=True, exist_ok=True)
 
         for i, section_offset in enumerate(section_offsets):
@@ -465,7 +453,7 @@ class N64SegPm_msg(N64Segment):
     def get_linker_entries(self):
         from segtypes.linker_entry import LinkerEntry
 
-        base_path = options.get_asset_path() / f"{self.name}"
+        base_path = options.opts.asset_path / f"{self.name}"
         out_paths = [base_path / Path(f + ".msg") for f in self.files]
 
         return [LinkerEntry(self, out_paths, base_path, ".data")]

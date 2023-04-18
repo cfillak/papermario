@@ -11,8 +11,13 @@ extern Gfx Entity_SaveBlock_RenderNone[];
 
 extern s32 Entity_SaveBlock_ScriptResume[];
 
+BSS s32 SaveBlockTutorialPrinterClosed;
+BSS s32 SaveBlockResultPrinterClosed;
+BSS MessagePrintState* SaveBlockTutorialPrinter;
+BSS MessagePrintState* SaveBlockResultPrinter;
+
 void entity_SaveBlock_setupGfx(s32 index) {
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(index);
     SaveBlockData* blockData = entity->dataBuf.saveBlock;
     Matrix4f sp18;
@@ -45,7 +50,7 @@ void entity_SaveBlock_setupGfx(s32 index) {
     gSPDisplayList(gfxPos++, dlist);
     gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_SaveBlock_idle(Entity* entity) {
@@ -149,6 +154,7 @@ EntityScript Entity_SaveBlock_Script = {
     es_Restart
     es_End
 };
+
 EntityScript Entity_SaveBlock_ScriptResume = {
     es_Call(entity_SaveBlock_resume_game)
     es_SetCallback(NULL, 2)
@@ -159,7 +165,7 @@ EntityScript Entity_SaveBlock_ScriptResume = {
 EntityModelScript Entity_SaveBlock_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_SaveBlock_RenderNone, RENDER_MODE_SURFACE_XLU_LAYER3);
 
 EntityBlueprint Entity_SavePoint = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(SaveBlockData),
     .renderCommandList = Entity_SaveBlock_RenderScript,
     .modelAnimationNodes = 0,

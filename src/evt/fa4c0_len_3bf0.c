@@ -3,12 +3,13 @@
 #include "hud_element.h"
 #include "world/partners.h"
 
-AuResult bgm_set_track_volumes(s32 playerIndex, s16 trackVolSet);
-static ApiStatus PollMusicEvents(Evt* script, s32 isInitialCall);
+ApiStatus PollMusicEvents(Evt* script, s32 isInitialCall);
 
 extern MusicEvent* MusicEventList;
+extern s32 D_802DB7D4; // unused?
 extern Evt* RunningMusicEvents[10];
 extern s32 RunningMusicEventIDs[10];
+extern s32 D_802DB828[2]; // unused?
 extern PopupMenu D_802DB830;
 
 s32 MusicEventPollCount = 0;
@@ -19,14 +20,14 @@ static EvtScript EVS_MusicEventMonitor = {
     EVT_END
 };
 
-static s32 PollMusicEvents(Evt* script, s32 isInitialCall) {
+ApiStatus PollMusicEvents(Evt* script, s32 isInitialCall) {
     MusicEventTrigger* list;
     s32 musicEventID, scriptSelector;
     u32 count;
     s32 i;
 
     bgm_poll_music_events(&list, &count);
-    
+
     for (i = 0; i < count; i++, list++) {
         MusicEvent* cur = MusicEventList;
         musicEventID = (*list & 0xFF0000) >> 0x10;
@@ -45,7 +46,7 @@ static s32 PollMusicEvents(Evt* script, s32 isInitialCall) {
                 kill_script_by_ID(RunningMusicEventIDs[musicEventID]);
             }
             if (newSource != NULL) {
-                Evt* newEvt = start_script(newSource, 1, 0);
+                Evt* newEvt = start_script(newSource, EVT_PRIORITY_1, 0);
                 RunningMusicEvents[musicEventID] = newEvt;
                 RunningMusicEventIDs[musicEventID] = newEvt->id;
             }
@@ -107,18 +108,18 @@ ApiStatus FadeInMusic(Evt* script, s32 isInitialCall) {
     s16 fadeStartVolume = evt_get_variable(script, *args++);
     s16 fadeEndVolume = evt_get_variable(script, *args++);
 
-    if (func_8014A964(musicPlayer, songID, variation, fadeTime, fadeStartVolume, fadeEndVolume)) { 
+    if (func_8014A964(musicPlayer, songID, variation, fadeTime, fadeStartVolume, fadeEndVolume)) {
         return ApiStatus_DONE2;
     } else {
         return ApiStatus_BLOCK;
     }
 }
 
-ApiStatus func_802D5EE0(Evt* script, s32 isInitialCall) {
+ApiStatus EnableMusicProximityMix(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 playerIndex = evt_get_variable(script, *args++);
 
-    gMusicSettings[playerIndex].flags |= MUSIC_SETTINGS_FLAGS_2;
+    gMusicSettings[playerIndex].flags |= MUSIC_SETTINGS_FLAG_ENABLE_PROXIMITY_MIX;
     return ApiStatus_DONE2;
 }
 
@@ -215,12 +216,12 @@ ApiStatus PlaySoundWithVolume(Evt* script, s32 isInitialCall) {
 ApiStatus PlaySoundAt(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 soundID = evt_get_variable(script, *args++);
-    s32 value2 = evt_get_variable(script, *args++);
+    s32 flags = evt_get_variable(script, *args++);
     s32 x = evt_get_variable(script, *args++);
     s32 y = evt_get_variable(script, *args++);
     s32 z = evt_get_variable(script, *args++);
 
-    sfx_play_sound_at_position(soundID, value2, x, y, z);
+    sfx_play_sound_at_position(soundID, flags, x, y, z);
     return ApiStatus_DONE2;
 }
 
@@ -236,21 +237,21 @@ ApiStatus func_802D62E4(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 soundID = evt_get_variable(script, *args++);
 
-    func_80149A6C(soundID, TRUE);
+    snd_stop_tracking_env_sound_pos(soundID, TRUE);
     return ApiStatus_DONE2;
 }
 
 ApiStatus UseDoorSounds(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
 
-    gCurrentDoorSoundsSet = evt_get_variable(script, *args++);
+    gCurrentDoorSounds = evt_get_variable(script, *args++);
     return ApiStatus_DONE2;
 }
 
-ApiStatus UseAdvancedDoorSounds(Evt* script, s32 isInitialCall) {
+ApiStatus UseRoomDoorSounds(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
 
-    D_80151308 = evt_get_variable(script, *args++);
+    gCurrentRoomDoorSounds = evt_get_variable(script, *args++);
     return ApiStatus_DONE2;
 }
 
@@ -324,7 +325,7 @@ ApiStatus ShowKeyChoicePopup(Evt* script, s32 isInitialCall) {
             menu->popupType = POPUP_MENU_USEKEY;
             menu->numEntries = numEntries;
             menu->initialPos = 0;
-            create_popup_menu(menu);
+            create_standard_popup_menu(menu);
             script->functionTemp[1] = 0;
             script->functionTemp[0] = 1;
             break;
@@ -415,7 +416,7 @@ ApiStatus ShowConsumableChoicePopup(Evt* script, s32 isInitialCall) {
             menu->popupType = POPUP_MENU_USEKEY;
             menu->numEntries = numEntries;
             menu->initialPos = 0;
-            create_popup_menu(menu);
+            create_standard_popup_menu(menu);
             script->functionTemp[1] = 0;
             script->functionTemp[0] = 1;
             break;
@@ -645,7 +646,7 @@ ApiStatus DropItemEntity(Evt* script, s32 isInitialCall) {
     return ApiStatus_DONE2;
 }
 
-ApiStatus DropTinyItemEntity(Evt* script, s32 isInitialCall) {
+ApiStatus DropResizableItemEntity(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
     s32 itemID = evt_get_variable(script, *args++);
     s32 x = evt_get_variable(script, *args++);
@@ -655,7 +656,7 @@ ApiStatus DropTinyItemEntity(Evt* script, s32 isInitialCall) {
     s32 pickupVar = evt_get_variable_index(script, *args++);
 
     script->varTable[0] = make_item_entity_nodelay(itemID, x, y, z, itemSpawnMode, pickupVar);
-    set_item_entity_flags(script->varTable[0], ITEM_ENTITY_FLAGS_TINY);
+    set_item_entity_flags(script->varTable[0], ITEM_ENTITY_RESIZABLE);
     return ApiStatus_DONE2;
 }
 
@@ -767,6 +768,7 @@ ApiStatus GetItemPower(Evt* script, s32 isInitialCall) {
 
 ApiStatus ShowGotItem(Evt* script, s32 isInitialCall) {
     Bytecode* args = script->ptrReadPos;
+    s32 itemID, category, pickupMsgFlags;
 
     if (isInitialCall) {
         script->functionTemp[0] = 0;
@@ -774,9 +776,10 @@ ApiStatus ShowGotItem(Evt* script, s32 isInitialCall) {
 
     switch (script->functionTemp[0]) {
         case 0:
-            script->functionTemp[1] = make_item_entity_at_player(evt_get_variable(script, *args++),
-                                                                 evt_get_variable(script, *args++),
-                                                                 *args++);
+            itemID = evt_get_variable(script, *args++);
+            category = evt_get_variable(script, *args++);
+            pickupMsgFlags = *args++;
+            script->functionTemp[1] = make_item_entity_at_player(itemID, category, pickupMsgFlags);
             script->functionTemp[0] = 1;
             break;
         case 1:

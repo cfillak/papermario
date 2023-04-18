@@ -26,7 +26,7 @@ enum {
     SUBSTATE_DISGUISE_FINISH_SPIN       = 7,
     SUBSTATE_DISGUISE_DONE              = 8,
     SUBSTATE_REVERT_INIT                = 20, // begin undisguise process
-    SUBSTATE_REVERT_WAIT_FOR_ANGLE      = 21, 
+    SUBSTATE_REVERT_WAIT_FOR_ANGLE      = 21,
     SUBSTATE_SPIN_DOWN                  = 22,
     SUBSTATE_FINISH_SPIN                = 23,
     SUBSTATE_REVERT_DONE                = 24,
@@ -35,7 +35,9 @@ enum {
     SUBSTATE_BLOCKED                    = 50, // cant raise parasol due to collisions with world
 };
 
-extern TransformationData ParasolTransformation;
+BSS TransformationData ParasolTransformation;
+
+TransformationData* D_802B6D80_E2B430 = &ParasolTransformation;
 
 void parasol_update_spin(void);
 
@@ -44,7 +46,7 @@ Npc* parasol_get_npc(void) {
     f32 angle;
     Npc* ret = NULL;
     do {                // TODO fix this do...while
-        if (playerStatus->availableDisguiseType != 0) {
+        if (playerStatus->availableDisguiseType != PEACH_DISGUISE_NONE) {
             if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_8) {
                 gGameStatusPtr->peachFlags &= ~PEACH_STATUS_FLAG_8;
             } else {
@@ -79,16 +81,16 @@ void action_update_parasol(void) {
     f32 angle;
     f32 radius;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         mem_clear(&ParasolTransformation, sizeof(ParasolTransformation));
         disable_player_static_collisions();
         tempUnk_1C = &transformation->playerRotationRate;
         playerStatus->timeInAir = 0;
-        playerStatus->unk_C2 = 0;
+        playerStatus->peakJumpTime = 0;
         playerStatus->currentSpeed = 0;
         playerStatus->pitch = 0;
-        
+
         if (playerStatus->spriteFacingAngle >= 90 && playerStatus->spriteFacingAngle < 270) {
             phi_f4 = 2;
         } else {
@@ -96,7 +98,7 @@ void action_update_parasol(void) {
         }
         *tempUnk_1C = phi_f4;
 
-        if (!(playerStatus->animFlags & PA_FLAGS_IN_DISGUISE)) {
+        if (!(playerStatus->animFlags & PA_FLAG_INVISIBLE)) {
             playerStatus->currentStateTime = 20;
             playerStatus->actionSubstate = SUBSTATE_DISGUISE_INIT;
             transformation->disguiseTime = 15;
@@ -107,9 +109,9 @@ void action_update_parasol(void) {
             transformation->reverted = 1;
             transformation->revertTime = 12;
             disguiseNpc = get_npc_by_index(PeachDisguiseNpcIndex);
-            disguiseNpc->flags |= NPC_FLAG_40000;
-            playerStatus->flags |= PS_FLAGS_100000;
-            sfx_play_sound_at_player(SOUND_FD, 0);
+            disguiseNpc->flags |= NPC_FLAG_IGNORE_CAMERA_FOR_YAW;
+            playerStatus->flags |= PS_FLAG_ROTATION_LOCKED;
+            sfx_play_sound_at_player(SOUND_FD, SOUND_SPACE_MODE_0);
         }
     }
 
@@ -117,11 +119,11 @@ void action_update_parasol(void) {
         case SUBSTATE_DISGUISE_INIT:
             if (playerStatus->flipYaw[CAM_DEFAULT] == 0) {
                 if (peach_disguise_check_overlaps() < 0) {
-                    suggest_player_anim_clearUnkFlag(ANIM_Peach_C0024);
-                    sfx_play_sound_at_player(SOUND_92, 0);
+                    suggest_player_anim_allow_backward(ANIM_Peach2_UseParasol);
+                    sfx_play_sound_at_player(SOUND_92, SOUND_SPACE_MODE_0);
                     playerStatus->actionSubstate++; // SUBSTATE_USE_PARASOL
                 } else {
-                    suggest_player_anim_clearUnkFlag(ANIM_Peach_C0027);
+                    suggest_player_anim_allow_backward(ANIM_Peach2_CantFitParasol);
                     playerStatus->actionSubstate = SUBSTATE_BLOCKED;
                     playerStatus->currentStateTime = 10;
                     transformation->disguiseTime = 0;
@@ -129,7 +131,7 @@ void action_update_parasol(void) {
             }
         case SUBSTATE_USE_PARASOL:
             if (--playerStatus->currentStateTime == 0) {
-                suggest_player_anim_clearUnkFlag(ANIM_Peach_C0025);
+                suggest_player_anim_allow_backward(ANIM_Peach2_PutAwayParasol);
                 playerStatus->actionSubstate = SUBSTATE_PUT_AWAY;
                 if (transformation->npc == NULL) {
                     playerStatus->actionSubstate = SUBSTATE_FAILED;
@@ -141,9 +143,9 @@ void action_update_parasol(void) {
         case SUBSTATE_PUT_AWAY:
             if (playerStatus->animNotifyValue != 0) {
                 playerStatus->currentStateTime = 12;
-                playerStatus->flags |= PS_FLAGS_100000;
+                playerStatus->flags |= PS_FLAG_ROTATION_LOCKED;
                 playerStatus->actionSubstate++; // SUBSTATE_DISGUISE_BEGIN
-                sfx_play_sound_at_player(SOUND_FD, 0);
+                sfx_play_sound_at_player(SOUND_FD, SOUND_SPACE_MODE_0);
             }
             break;
         case SUBSTATE_DISGUISE_BEGIN:
@@ -185,7 +187,7 @@ void action_update_parasol(void) {
             break;
         case SUBSTATE_DISGUISE_MAKE_NPC:
             gameStatus = gGameStatusPtr;
-            playerStatus->animFlags |= PA_FLAGS_IN_DISGUISE;
+            playerStatus->animFlags |= PA_FLAG_INVISIBLE;
             gameStatus->peachFlags |= PEACH_STATUS_FLAG_DISGUISED;
             playerStatus->actionSubstate++; // SUBSTATE_DISGUISE_SPIN_DOWN
         case SUBSTATE_DISGUISE_SPIN_DOWN:
@@ -203,7 +205,7 @@ void action_update_parasol(void) {
                     playerStatus->actionSubstate++; // SUBSTATE_DISGUISE_DONE
                     playerStatus->spriteFacingAngle = 180;
                     disguiseNpc = get_npc_by_index(PeachDisguiseNpcIndex);
-                    disguiseNpc->isFacingAway = 1;
+                    disguiseNpc->isFacingAway = TRUE;
                     disguiseNpc->yaw = clamp_angle((cam->currentYaw - playerStatus->spriteFacingAngle) - 90);
                     disguiseNpc->yawCamOffset = disguiseNpc->yaw;
                 }
@@ -215,7 +217,7 @@ void action_update_parasol(void) {
                     playerStatus->spriteFacingAngle = 0;
                     playerStatus->actionSubstate++; // SUBSTATE_DISGUISE_DONE
                     disguiseNpc = get_npc_by_index(PeachDisguiseNpcIndex);
-                    disguiseNpc->isFacingAway = 0;
+                    disguiseNpc->isFacingAway = FALSE;
                     disguiseNpc->yaw = clamp_angle((cam->currentYaw - playerStatus->spriteFacingAngle) - 90);
                     disguiseNpc->yawCamOffset = disguiseNpc->yaw;
                 }
@@ -227,8 +229,8 @@ void action_update_parasol(void) {
             if (--playerStatus->currentStateTime == 0) {
                 set_time_freeze_mode(TIME_FREEZE_NORMAL);
                 disguiseNpc = get_npc_by_index(PeachDisguiseNpcIndex);
-                disguiseNpc->flags &= ~NPC_FLAG_40000;
-                playerStatus->flags &= ~PS_FLAGS_100000;
+                disguiseNpc->flags &= ~NPC_FLAG_IGNORE_CAMERA_FOR_YAW;
+                playerStatus->flags &= ~PS_FLAG_ROTATION_LOCKED;
                 set_action_state(ACTION_STATE_IDLE);
                 enable_player_static_collisions();
             }
@@ -261,7 +263,7 @@ void action_update_parasol(void) {
                     playerStatus->currentStateTime = 2;
                     playerStatus->actionSubstate++; // SUBSTATE_SPIN_DOWN
                     gameStatus2 = gGameStatusPtr;
-                    playerStatus->animFlags &= ~PA_FLAGS_IN_DISGUISE;
+                    playerStatus->animFlags &= ~PA_FLAG_INVISIBLE;
                     gameStatus2->peachFlags &= ~PEACH_STATUS_FLAG_DISGUISED;
                     playerStatus->peachDisguise = 0;
                     free_npc_by_index(PeachDisguiseNpcIndex);
@@ -308,7 +310,7 @@ void action_update_parasol(void) {
         case SUBSTATE_REVERT_DONE:
             if (--playerStatus->currentStateTime == 0) {
                 set_time_freeze_mode(TIME_FREEZE_NORMAL);
-                playerStatus->flags &= ~PS_FLAGS_100000;
+                playerStatus->flags &= ~PS_FLAG_ROTATION_LOCKED;
                 set_action_state(ACTION_STATE_IDLE);
                 enable_player_static_collisions();
             }
@@ -346,13 +348,13 @@ void action_update_parasol(void) {
         }
         if (transformation->disguiseTime <= 10 && transformation->disguiseTime & 1) {
             f64 tempX, tempZ;
-            
+
             fx_sparkles(FX_SPARKLES_3,
                 transformation->position.x - 8,
                 transformation->position.y + 50,
                 transformation->position.z,
                 2);
-            
+
             /*
             TODO something like:
             angle = DEG_TO_RAD((cam->currentYaw + playerStatus->spriteFacingAngle) - 90);
@@ -360,8 +362,8 @@ void action_update_parasol(void) {
             transformation->position.z -= (10.0 * cos_rad(angle));
             */
 
-            angle = DEG_TO_RAD((cam->currentYaw + playerStatus->spriteFacingAngle) - 90);        
-            
+            angle = DEG_TO_RAD((cam->currentYaw + playerStatus->spriteFacingAngle) - 90);
+
             tempX = transformation->position.x;
             tempX += 10.0 * sin_rad(angle);
             transformation->position.x = tempX;
@@ -382,7 +384,7 @@ void action_update_parasol(void) {
     if (transformation->revertTime != 0) {
         if (transformation->revertTime <= 10) {
             if (transformation->revertTime == 10) {
-                sfx_play_sound_at_player(SOUND_FE, 0);
+                sfx_play_sound_at_player(SOUND_FE, SOUND_SPACE_MODE_0);
             }
             if ((transformation->revertTime & 3) == 0) {
                 fx_stars_shimmer(4,

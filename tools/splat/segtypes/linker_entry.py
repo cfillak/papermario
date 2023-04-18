@@ -1,18 +1,22 @@
-from dataclasses import dataclass
-from typing import Dict, Optional, OrderedDict, Union, List
-from pathlib import Path
-from segtypes.common.data import CommonSegData
-from segtypes.n64.img import N64SegImg
-from segtypes.n64.palette import N64SegPalette
-from util import options
-from segtypes.segment import Segment
 import os
 import re
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import Dict, List, OrderedDict, Set, Tuple, Union
+from segtypes.n64.palette import N64SegPalette
+
+from util import options
+
+from segtypes.segment import Segment
+from util.symbols import to_cname
+
 
 # clean 'foo/../bar' to 'bar'
+@lru_cache(maxsize=None)
 def clean_up_path(path: Path) -> Path:
     path_resolved = path.resolve()
-    base_resolved = options.get_base_path().resolve()
+    base_resolved = options.opts.base_path.resolve()
     try:
         return path_resolved.relative_to(base_resolved)
     except ValueError:
@@ -31,11 +35,11 @@ def clean_up_path(path: Path) -> Path:
 
 def path_to_object_path(path: Path) -> Path:
     path = clean_up_path(path)
-    if options.use_o_as_suffix():
+    if options.opts.use_o_as_suffix:
         full_suffix = ".o"
     else:
         full_suffix = path.suffix + ".o"
-    return clean_up_path(options.get_build_path() / path.with_suffix(full_suffix))
+    return clean_up_path(options.opts.build_path / path.with_suffix(full_suffix))
 
 
 def write_file_if_different(path: Path, new_content: str):
@@ -50,16 +54,7 @@ def write_file_if_different(path: Path, new_content: str):
             f.write(new_content)
 
 
-def to_cname(symbol: str) -> str:
-    symbol = re.sub(r"[^0-9a-zA-Z_]", "_", symbol)
-
-    if symbol[0] in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
-        symbol = "_" + symbol
-
-    return symbol
-
-
-def get_segment_cname(segment: Segment) -> str:
+def segment_cname(segment: Segment) -> str:
     name = segment.name
     if segment.parent:
         name = segment.parent.name + "_" + name
@@ -68,6 +63,10 @@ def get_segment_cname(segment: Segment) -> str:
         name += "_pal"
 
     return to_cname(name)
+
+
+def get_segment_vram_end_symbol_name(segment: Segment) -> str:
+    return segment_cname(segment) + "_VRAM_END"
 
 
 @dataclass
@@ -107,8 +106,8 @@ class LinkerEntry:
 
 class LinkerWriter:
     def __init__(self):
-        self.shiftable: bool = options.get_shiftable()
-        self.linker_discard_section: bool = options.linker_discard_section()
+        self.linker_discard_section: bool = options.opts.ld_discard_section
+        # Used to store all the linker entries - build tools may want this information
         self.entries: List[LinkerEntry] = []
 
         self.buffer: List[str] = []
@@ -118,23 +117,38 @@ class LinkerWriter:
 
         self._writeln("SECTIONS")
         self._begin_block()
-        self._writeln(f"__romPos = 0;")
+        self._writeln("__romPos = 0;")
 
-        if options.get_gp() is not None:
-            self._writeln("_gp = " + f"0x{options.get_gp():X};")
+        if options.opts.gp is not None:
+            self._writeln("_gp = " + f"0x{options.opts.gp:X};")
+
+    # Write a series of statements which compute a symbol that represents the highest address among a list of segments' end addresses
+    def write_max_vram_end_sym(self, symbol: str, overlays: List[Segment]):
+        for segment in overlays:
+            if segment == overlays[0]:
+                self._writeln(
+                    f"{symbol} = {get_segment_vram_end_symbol_name(segment)};"
+                )
+            else:
+                self._writeln(
+                    f"{symbol} = MAX({symbol}, {get_segment_vram_end_symbol_name(segment)});"
+                )
 
     # Adds all the entries of a segment to the linker script buffer
-    def add(self, segment: Segment, next_segment: Optional[Segment]):
+    def add(self, segment: Segment, max_vram_syms: List[Tuple[str, List[Segment]]]):
         entries = segment.get_linker_entries()
         self.entries.extend(entries)
 
-        seg_name = get_segment_cname(segment)
+        seg_name = segment_cname(segment)
+
+        for sym, segs in max_vram_syms:
+            self.write_max_vram_end_sym(sym, segs)
 
         section_labels: OrderedDict[str, LinkerSection] = OrderedDict(
             {
                 l: LinkerSection(l)
-                for l in options.get_section_order()
-                if l in options.ld_section_labels()
+                for l in options.opts.section_order
+                if l in options.opts.ld_section_labels
             }
         )
 
@@ -165,14 +179,10 @@ class LinkerWriter:
         for entry in entries:
             entering_bss = False
             leaving_bss = False
-            cur_section = entry.section
+            cur_section = entry.section_type
 
-            if cur_section == "linker":
-                self._end_block()
-                self._begin_segment(entry.segment)
-                continue
-            elif cur_section == "linker_offset":
-                self._write_symbol(f"{get_segment_cname(entry.segment)}_OFFSET", f".")
+            if cur_section == "linker_offset":
+                self._write_symbol(f"{segment_cname(entry.segment)}_OFFSET", ".")
                 continue
 
             for i, section in enumerate(section_labels.values()):
@@ -204,12 +214,22 @@ class LinkerWriter:
                 )
                 self._write_symbol(path_cname, ".")
 
+            wildcard = "*" if options.opts.ld_wildcard_sections else ""
+
             # Create new linker section for BSS
             if entering_bss or leaving_bss:
                 # If this is the last entry of its type, add the END marker for the section we're ending
-                if entry in last_seen_sections and section_labels[entry.section_type].started:
+                if (
+                    entry in last_seen_sections
+                    and section_labels[entry.section_type].started
+                ):
+                    seg_name_section = to_cname(
+                        f"{seg_name}{last_seen_sections[entry].upper()}"
+                    )
+                    self._write_symbol(f"{seg_name_section}_END", ".")
                     self._write_symbol(
-                        f"{seg_name}{last_seen_sections[entry].upper()}_END", "."
+                        f"{seg_name_section}_SIZE",
+                        f"ABSOLUTE({seg_name_section}_END - {seg_name_section}_START)",
                     )
                     section_labels[last_seen_sections[entry]].ended = True
 
@@ -224,25 +244,38 @@ class LinkerWriter:
                 section_labels[cur_section].started = True
 
                 # Write THIS linker entry
-                self._writeln(f"{entry.object_path}({cur_section});")
+                self._writeln(f"{entry.object_path}({entry.section}{wildcard});")
             else:
                 # Write THIS linker entry
-                self._writeln(f"{entry.object_path}({cur_section});")
+                if entry.section == ".bss" and entry.segment.bss_contains_common:
+                    self._writeln(f"{entry.object_path}(.bss COMMON .scommon);")
+                else:
+                    self._writeln(f"{entry.object_path}({entry.section}{wildcard});")
 
                 # If this is the last entry of its type, add the END marker for the section we're ending
                 if entry in last_seen_sections:
-                    self._write_symbol(f"{seg_name}{cur_section.upper()}_END", ".")
+                    seg_name_section = to_cname(f"{seg_name}{cur_section.upper()}")
+                    self._write_symbol(f"{seg_name_section}_END", ".")
+                    self._write_symbol(
+                        f"{seg_name_section}_SIZE",
+                        f"ABSOLUTE({seg_name_section}_END - {seg_name_section}_START)",
+                    )
                     section_labels[cur_section].ended = True
 
             prev_section = cur_section
 
         # End all un-ended sections
         for section in section_labels.values():
-            if (section.started and not section.ended):
-                self._write_symbol(f"{seg_name}_{section.name.upper()}_END", ".")
+            if section.started and not section.ended:
+                seg_name_section = to_cname(f"{seg_name}{section.name.upper()}")
+                self._write_symbol(f"{seg_name_section}_END", ".")
+                self._write_symbol(
+                    f"{seg_name_section}_SIZE",
+                    f"ABSOLUTE({seg_name_section}_END - {seg_name_section}_START)",
+                )
 
         all_bss = all(e.section == ".bss" for e in entries)
-        self._end_segment(segment, next_segment, all_bss)
+        self._end_segment(segment, all_bss)
 
     def save_linker_script(self):
         if self.linker_discard_section:
@@ -256,11 +289,11 @@ class LinkerWriter:
         assert self._indent_level == 0
 
         write_file_if_different(
-            options.get_ld_script_path(), "\n".join(self.buffer) + "\n"
+            options.opts.ld_script_path, "\n".join(self.buffer) + "\n"
         )
 
     def save_symbol_header(self):
-        path = options.get_linker_symbol_header_path()
+        path = options.opts.ld_symbol_header_path
 
         if path:
             write_file_if_different(
@@ -301,27 +334,37 @@ class LinkerWriter:
             self.symbols.append(symbol)
 
     def _begin_segment(self, segment: Segment):
-        if segment.follows_vram_segment:
-            vram_str = get_segment_cname(segment.follows_vram_segment) + "_VRAM_END "
+        if options.opts.ld_use_follows and segment.vram_of_symbol:
+            vram_str = segment.vram_of_symbol + " "
         else:
-            vram_str = f"0x{segment.vram_start:X} " if isinstance(segment.vram_start, int) else ""
+            vram_str = (
+                f"0x{segment.vram_start:X} "
+                if isinstance(segment.vram_start, int)
+                else ""
+            )
 
-        name = get_segment_cname(segment)
+        name = segment_cname(segment)
 
         self._write_symbol(f"{name}_VRAM", f"ADDR(.{name})")
 
-        self._writeln(
-            f".{name} {vram_str}: AT({name}_ROM_START) SUBALIGN({segment.subalign})"
-        )
+        line = f".{name} {vram_str}: AT({name}_ROM_START)"
+        if segment.subalign != None:
+            line += f" SUBALIGN({segment.subalign})"
+
+        self._writeln(line)
         self._begin_block()
 
     def _begin_bss_segment(self, segment: Segment, is_first: bool = False):
-        if segment.follows_vram_segment:
-            vram_str = get_segment_cname(segment.follows_vram_segment) + "_VRAM_END "
+        if options.opts.ld_use_follows and segment.vram_of_symbol:
+            vram_str = segment.vram_of_symbol + " "
         else:
-            vram_str = f"0x{segment.vram_start:X} " if isinstance(segment.vram_start, int) else ""
+            vram_str = (
+                f"0x{segment.vram_start:X} "
+                if isinstance(segment.vram_start, int)
+                else ""
+            )
 
-        name = get_segment_cname(segment) + "_bss"
+        name = segment_cname(segment) + "_bss"
 
         self._write_symbol(f"{name}_VRAM", f"ADDR(.{name})")
 
@@ -330,27 +373,27 @@ class LinkerWriter:
         else:
             addr_str = "(NOLOAD)"
 
-        self._writeln(f".{name} {addr_str} : SUBALIGN({segment.subalign})")
+        line = f".{name} {addr_str} :"
+        if segment.subalign != None:
+            line += f" SUBALIGN({segment.subalign})"
+
+        self._writeln(line)
         self._begin_block()
 
-    def _end_segment(
-        self, segment: Segment, next_segment: Optional[Segment] = None, all_bss=False
-    ):
+    def _end_segment(self, segment: Segment, all_bss=False):
         self._end_block()
 
-        name = get_segment_cname(segment)
+        name = segment_cname(segment)
 
         if not all_bss:
             self._writeln(f"__romPos += SIZEOF(.{name});")
 
         # Align directive
         if segment.align:
-            self._writeln(
-                f"__romPos = (__romPos + {segment.align - 1}) & ~{segment.align - 1}; /* align {segment.align} */"
-            )
+            self._writeln(f"__romPos = ALIGN(__romPos, {segment.align});")
 
         self._write_symbol(f"{name}_ROM_END", "__romPos")
 
-        self._write_symbol(f"{name}_VRAM_END", ".")
+        self._write_symbol(get_segment_vram_end_symbol_name(segment), ".")
 
         self._writeln("")

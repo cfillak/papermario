@@ -166,7 +166,7 @@ void Entity_BoardedFloor_setupGfx(s32 entityIndex) {
     f32 x_inv;
     f32 y_inv;
     f32 z_inv;
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     Entity* entity = get_entity_by_index(entityIndex);
     BoardedFloorData* data = entity->dataBuf.boardedFloor;
     Gfx* fragmentDlist;
@@ -200,7 +200,7 @@ void Entity_BoardedFloor_setupGfx(s32 entityIndex) {
         gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
     }
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void Entity_BoardedFloor_idle(Entity* entity) {
@@ -226,18 +226,18 @@ void Entity_BoardedFloor_shatter(Entity* entity) {
         data->fragmentPosY[i] += 1.0f;
     }
 
-    entity_set_render_script(entity, Entity_BoardedFloor_RenderScriptShattered);
+    entity_set_render_script(entity, &Entity_BoardedFloor_RenderScriptShattered);
 }
 
-EntityScript Entity_BoardedFloor_Script = {
-    es_ClearFlags(ENTITY_FLAGS_DISABLE_COLLISION)
+EntityModelScript Entity_BoardedFloor_Script = {
+    es_ClearFlags(ENTITY_FLAG_DISABLE_COLLISION)
     es_SetCallback(Entity_BoardedFloor_idle, 0)
     es_PlaySound(SOUND_2092)
-    es_SetFlags(ENTITY_FLAGS_DISABLE_COLLISION)
+    es_SetFlags(ENTITY_FLAG_DISABLE_COLLISION)
     es_Call(Entity_BoardedFloor_shatter)
     es_SetCallback(Entity_BoardedFloor_update_fragments, 0)
-    es_SetFlags(ENTITY_FLAGS_HIDDEN)
-    es_SetFlags(ENTITY_FLAGS_PENDING_INSTANCE_DELETE)
+    es_SetFlags(ENTITY_FLAG_HIDDEN)
+    es_SetFlags(ENTITY_FLAG_PENDING_INSTANCE_DELETE)
     es_End
 };
 

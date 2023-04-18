@@ -4,8 +4,25 @@
 #include "camera.h"
 #include "hud_element.h"
 #include "sprite.h"
+#include "model.h"
 
-s32 D_80077980[] = { &D_8038F800, &D_803B5000, &heap_battleHead, };
+#if VERSION_JP
+// TODO: split the filemenu segment
+extern Addr filemenu_ROM_START;
+extern Addr filemenu_ROM_END;
+extern Addr filemenu_VRAM;
+extern Addr filemenu_TEXT_START;
+extern Addr filemenu_TEXT_END;
+extern Addr filemenu_DATA_START;
+extern Addr filemenu_RODATA_END;
+extern Addr filemenu_BSS_START;
+extern Addr filemenu_BSS_END;
+#endif
+
+extern u16 gFrameBuf0[];
+extern u16 gFrameBuf1[];
+extern u16 gFrameBuf2[];
+u16* fsFrameBuffers[] = { gFrameBuf0, gFrameBuf1, gFrameBuf2 };
 
 NUPiOverlaySegment D_8007798C = {
     .romStart = filemenu_ROM_START,
@@ -22,6 +39,7 @@ NUPiOverlaySegment D_8007798C = {
 u8 D_800779B0 = 0;
 
 extern s32 D_80200000;
+extern ShapeFile gMapShapeData;
 
 void state_init_language_select(void) {
     D_800A0931 = 0;
@@ -40,29 +58,29 @@ void state_init_file_select(void) {
     hud_element_set_aux_cache(0, 0);
     hud_element_clear_cache();
     load_model_textures(0, 0, 0);
-    gCameras[CAM_DEFAULT].updateMode = 6;
+    gCameras[CAM_DEFAULT].updateMode = CAM_UPDATE_MODE_6;
     gCameras[CAM_DEFAULT].unk_06 = 1;
     gCameras[CAM_DEFAULT].nearClip = 16;
     gCameras[CAM_DEFAULT].farClip = 4096;
-    gCameras[CAM_DEFAULT].flags |= CAM_FLAG_ENABLED;
+    gCameras[CAM_DEFAULT].flags |= CAMERA_FLAG_ENABLED;
     gCurrentCameraID = CAM_DEFAULT;
-    gCameras[CAM_BATTLE].flags |= CAM_FLAG_ENABLED;
-    gCameras[CAM_TATTLE].flags |= CAM_FLAG_ENABLED;
-    gCameras[CAM_3].flags |= CAM_FLAG_ENABLED;
+    gCameras[CAM_BATTLE].flags |= CAMERA_FLAG_ENABLED;
+    gCameras[CAM_TATTLE].flags |= CAMERA_FLAG_ENABLED;
+    gCameras[CAM_3].flags |= CAMERA_FLAG_ENABLED;
     gCameras[CAM_DEFAULT].vfov = 25.0f;
     set_cam_viewport(0, 12, 28, 296, 184);
     gCameras[CAM_DEFAULT].auxBoomLength = 40;
     gCameras[CAM_DEFAULT].lookAt_eye.x = 500.0f;
     gCameras[CAM_DEFAULT].lookAt_eye.y = 1000.0f;
     gCameras[CAM_DEFAULT].lookAt_eye.z = 1500.0f;
-    gCameras[CAM_DEFAULT].auxPos.z = 150.0f;
+    gCameras[CAM_DEFAULT].lookAt_obj_target.z = 150.0f;
     gCameras[CAM_DEFAULT].bgColor[0] = 0;
     gCameras[CAM_DEFAULT].bgColor[1] = 0;
     gCameras[CAM_DEFAULT].bgColor[2] = 0;
-    gCameras[CAM_DEFAULT].auxPos.x = 25.0f;
-    gCameras[CAM_DEFAULT].auxPos.y = 25.0f;
-    gCameras[CAM_DEFAULT].unk_1C = 0;
-    gCameras[CAM_DEFAULT].unk_20 = 100;
+    gCameras[CAM_DEFAULT].lookAt_obj_target.x = 25.0f;
+    gCameras[CAM_DEFAULT].lookAt_obj_target.y = 25.0f;
+    gCameras[CAM_DEFAULT].auxPitch = 0;
+    gCameras[CAM_DEFAULT].lookAt_dist = 100;
     gCameras[CAM_DEFAULT].auxBoomPitch = 0;
     gOverrideFlags |= GLOBAL_OVERRIDES_WINDOWS_IN_FRONT_OF_CURTAINS;
 }
@@ -98,7 +116,7 @@ void state_step_language_select(void) {
         case 2:
             D_800A0930--;
             if (D_800A0930 == 0) {
-                nuGfxSetCfb(D_80077980, 2);
+                nuGfxSetCfb(fsFrameBuffers, 2);
                 if (nuGfxCfb[2] == nuGfxCfb_ptr) {
                     gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
                 } else {
@@ -120,13 +138,13 @@ void state_step_language_select(void) {
                     backup_map_collision_data();
                     battle_heap_create();
                     sfx_clear_env_sounds(0);
-                    spr_init_sprites(0);
+                    spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
                     clear_model_data();
                     clear_sprite_shading_data();
                     reset_background_settings();
                     clear_entity_models();
                     clear_animator_list();
-                    clear_generic_entity_list();
+                    clear_worker_list();
                     hud_element_set_aux_cache(&D_80200000, 0x20000);
                     hud_element_clear_cache();
                     reset_status_menu();
@@ -264,7 +282,7 @@ void state_step_exit_language_select(void) {
                     BackgroundHeader* bgHeader;
 
                     D_800A0930 = -1;
-                    nuGfxSetCfb(D_80077980, ARRAY_COUNT(D_80077980));
+                    nuGfxSetCfb(fsFrameBuffers, ARRAY_COUNT(fsFrameBuffers));
                     filemenu_cleanup();
                     gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
                     mapSettings = get_current_map_settings();
@@ -278,7 +296,7 @@ void state_step_exit_language_select(void) {
                     init_sprite_shading_data();
                     init_entity_models();
                     reset_animator_list();
-                    init_generic_entity_list();
+                    init_worker_list();
                     hud_element_set_aux_cache(0, 0);
                     init_hud_element_list();
                     init_item_entity_list();
@@ -286,8 +304,8 @@ void state_step_exit_language_select(void) {
                     init_npc_list();
                     init_entity_data();
                     init_trigger_list();
-                    mapShape = load_asset_by_name(&wMapShapeName, &mapShapeSize);
-                    decode_yay0(mapShape, &D_80210000);
+                    mapShape = load_asset_by_name(wMapShapeName, &mapShapeSize);
+                    decode_yay0(mapShape, &gMapShapeData);
                     general_heap_free(mapShape);
                     initialize_collision();
                     restore_map_collision_data();
@@ -307,7 +325,7 @@ void state_step_exit_language_select(void) {
 
                     calculate_model_sizes();
                     npc_reload_all();
-                    func_800E98C4();
+                    status_menu_respond_to_changes();
                     set_time_freeze_mode(TIME_FREEZE_PARTIAL);
                 }
                 set_windows_visible(WINDOW_GROUP_ALL);
@@ -365,8 +383,8 @@ void state_step_exit_file_select(void) {
             for (i = 44; i < ARRAY_COUNT(gWindows); i++) {
                 Window* window = &gWindows[i];
 
-                if (window->parent == 44 || window->parent == -1) {
-                    flagSum += window->flags & WINDOW_FLAGS_INITIAL_ANIMATION;
+                if (window->parent == WINDOW_ID_FILEMENU_MAIN || window->parent == -1) {
+                    flagSum += window->flags & WINDOW_FLAG_INITIAL_ANIMATION;
                 }
             }
 
@@ -375,7 +393,7 @@ void state_step_exit_file_select(void) {
             }
             break;
         case 1:
-            if (temp_s0 == 0 || (update_exit_map_screen_overlay(D_800A0932) << 0x10) != 0) {
+            if (temp_s0 == 0 || update_exit_map_screen_overlay(D_800A0932) != 0) {
                 D_800A0931 = 2;
             }
             break;

@@ -1,6 +1,16 @@
 #include "common.h"
 #include "effects_internal.h"
 
+extern Gfx D_090003A0_396490[];
+extern Gfx D_090003E0_3964D0[];
+extern Gfx D_09000410_396500[];
+extern Gfx D_09000450_396540[];
+
+Gfx* D_E0098510[] = {
+    D_090003A0_396490, D_090003E0_3964D0, D_09000410_396500,
+    D_090003A0_396490, D_090003E0_3964D0, D_09000410_396500
+};
+
 void floating_rock_init(EffectInstance* effect);
 void floating_rock_update(EffectInstance* effect);
 void floating_rock_render(EffectInstance* effect);
@@ -93,7 +103,31 @@ void floating_rock_render(EffectInstance *effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
-INCLUDE_ASM(s32, "effects/floating_rock", floating_rock_appendGfx);
+void floating_rock_appendGfx(void* effect) {
+    FloatingRockFXData* data = ((EffectInstance*)effect)->data.floatingRock;
+    s32 unk_44 = data->unk_44;
+    Matrix4f sp20;
+
+    gDPPipeSync(gMainGfxPos++);
+    gSPSegment(gMainGfxPos++, 0x09, VIRTUAL_TO_PHYSICAL(((EffectInstance*)effect)->graphics->data));
+
+    shim_guPositionF(sp20, data->unk_24, data->unk_2C, data->unk_28, data->unk_3C, data->unk_04, data->unk_08, data->unk_0C);
+    shim_guMtxF2L(sp20, &gDisplayContext->matrixStack[gMatrixListPos]);
+
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, 215, 215, 110, unk_44);
+
+    if (unk_44 != 255) {
+        gDPSetRenderMode(gMainGfxPos++, G_RM_AA_ZB_XLU_SURF, G_RM_AA_ZB_XLU_SURF2);
+    } else {
+        gDPSetRenderMode(gMainGfxPos++, G_RM_AA_ZB_OPA_SURF, G_RM_AA_ZB_OPA_SURF2);
+    }
+
+    gSPDisplayList(gMainGfxPos++, D_09000450_396540);
+    gSPDisplayList(gMainGfxPos++, D_E0098510[data->unk_00]);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+    gDPPipeSync(gMainGfxPos++);
+}

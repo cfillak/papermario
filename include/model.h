@@ -6,7 +6,7 @@
 typedef union ModelNodePropertyData {
     s32 s;
     f32 f;
-    s32* p;
+    void* p;
 } ModelNodePropertyData;
 
 // In memory this is a list of ModelNodeProperty, but due to the way it uses
@@ -49,7 +49,7 @@ typedef struct Model {
     /* 0x04 */ Mtx* currentMatrix;
     /* 0x08 */ ModelNode* modelNode;
     /* 0x0C */ ModelGroupData* groupData;
-    /* 0x10 */ s32* currentSpecialMatrix;
+    /* 0x10 */ Mtx* currentSpecialMatrix;
     /* 0x14 */ char unk_14[4];
     /* 0x18 */ Mtx specialMatrix;
     /* 0x58 */ Matrix4f transformMatrix;
@@ -57,7 +57,7 @@ typedef struct Model {
     /* 0xA4 */ u8 texPannerID;
     /* 0xA5 */ u8 customGfxIndex;
     /* 0xA6 */ s8 renderMode;
-    /* 0xA7 */ s8 matrixMode;
+    /* 0xA7 */ u8 matrixMode;
     /* 0xA8 */ u8 textureID;
     /* 0xA9 */ s8 textureVariation;
     /* 0xAA */ char unk_AA[6];
@@ -68,18 +68,23 @@ typedef struct ModelTransformGroup {
     /* 0x02 */ u16 groupModelID;
     /* 0x04 */ Mtx* matrixRDP_N;
     /* 0x08 */ ModelNode* modelNode;
-    /* 0x0C */ Matrix4s* transformMtx;
+    /* 0x0C */ Mtx* transformMtx;
     /* 0x10 */ Mtx matrixA;
     /* 0x50 */ Matrix4f matrixB;
     /* 0x90 */ Vec3f center;
     /* 0x9C */ u8 minChildModelIndex;
     /* 0x9D */ u8 maxChildModelIndex;
     /* 0x9E */ u8 renderMode;
-    /* 0x9F */ s8 matrixMode;
+    /* 0x9F */ u8 matrixMode;
 } ModelTransformGroup; // size = 0xA0
 
 typedef Model* ModelList[MAX_MODELS];
 typedef ModelTransformGroup* ModelTransformGroupList[MAX_MODEL_TRANSFORM_GROUPS];
+
+typedef struct ModelIDList {
+    u16 count;
+    u16 list[VLA];
+} ModelIDList;
 
 typedef struct ModelLocalVertexCopy {
     /* 0x00 */ s32 numVertices;
@@ -89,12 +94,12 @@ typedef struct ModelLocalVertexCopy {
     /* 0x18 */ s32 selector;
 } ModelLocalVertexCopy; // size = 0x1C
 
-typedef ModelLocalVertexCopy* ModelLocalVertexCopyList[0];
+typedef ModelLocalVertexCopy* ModelLocalVertexCopyList[16];
 
 typedef struct ModelTreeInfo {
     /* 0x00 */ u8 modelIndex;
     /* 0x01 */ u8 treeDepth;
-    /* 0x02 */ s8 textureID;
+    /* 0x02 */ u8 textureID;
     /* 0x03 */ char unk_03;
 } ModelTreeInfo; // size = 0x04
 
@@ -137,13 +142,44 @@ typedef enum ShapeTypes {
     SHAPE_TYPE_SPECIAL_GROUP = 10,
 } ShapeTypes;
 
+typedef enum ExtraTileTypes {
+    EXTRA_TILE_NONE = 0,
+    EXTRA_TILE_MIPMAPS = 1,
+    EXTRA_TILE_AUX_SAME_AS_MAIN = 2,
+    EXTRA_TILE_AUX_INDEPENDENT = 3,
+    EXTRA_TILE_4 = 4,
+} ExtraTileTypes;
+
+#define SHAPE_SIZE_LIMIT 0x8000
+
+typedef struct ShapeFileHeader {
+    /* 0x00 */ ModelNode* root;
+    /* 0x04 */ Vtx_t* vertexTable;
+    /* 0x08 */ char** modelNames;
+    /* 0x0C */ char** colliderNames;
+    /* 0x10 */ char** zoneNames;
+    /* 0x14 */ unsigned char pad_14[0xC];
+} ShapeFileHeader; // size = 0x20
+
+typedef struct ShapeFile {
+    /* 0x00 */ ShapeFileHeader header;
+    /* 0x20 */ u8 data[SHAPE_SIZE_LIMIT - 0x20];
+} ShapeFile; // size = variable
+
 typedef ModelTreeInfo ModelTreeInfoList[0x200];
 extern ModelTreeInfoList* mdl_currentModelTreeNodeInfo;
 extern ModelList* gCurrentModels;
 
+void set_model_fog_color_parameters(u8 primR, u8 primG, u8 primB, u8 primA, u8 fogR, u8 fogG, u8 fogB, s32 fogStart, s32 fogEnd);
+void set_model_env_color_parameters(u8 primR, u8 primG, u8 primB, u8 envR, u8 envG, u8 envB);
+void get_model_env_color_parameters(u8* primR, u8* primG, u8* primB, u8* envR, u8* envG, u8* envB);
+
+void init_model_data(void);
 void update_model_animator(s32);
 void update_model_animator_with_transform(s32 animatorID, Mtx* mtx);
 void set_mdl_custom_gfx_set(Model*, s32, u32);
+ModelNodeProperty* get_model_property(ModelNode* node, ModelPropertyKeys key);
+void func_80115498(u32 romOffset, s32 textureID, s32 baseOffset, s32 size);
 s32 step_model_animator(ModelAnimator* animator);
 AnimatorNode* get_animator_node_for_tree_index(ModelAnimator* animator, s32 treeIndex);
 AnimatorNode* get_animator_node_with_id(ModelAnimator* animator, s32 id);
@@ -151,12 +187,22 @@ void animator_update_model_transforms(ModelAnimator* animator, Mtx* rootTransfor
 void render_animated_model(s32 animatorID, Mtx* rootTransform);
 void animator_node_update_model_transform(ModelAnimator* animator, f32 (*flipMtx)[4], AnimatorNode* node,
                                           Mtx* rootTransform);
+void init_worker_list(void);
+ModelAnimator* get_animator_by_index(s32 animModelID);
+void reset_animator_list(void);
 void delete_model_animator_node(AnimatorNode* node);
 void delete_model_animator_nodes(ModelAnimator* animator);
 void delete_model_animator(ModelAnimator* animator);
 void render_animated_model_with_vertices(s32 animatorID, Mtx* rootTransform, s32 segment, void* baseAddr);
 void appendGfx_animator(ModelAnimator* animator);
-ModelAnimator* set_animator_render_callback(s32 animModelID, s32 callbackArg, void (*callbackFunc)(void*));
+ModelAnimator* set_animator_render_callback(s32 animModelID, void* callbackArg, void (*callbackFunc)(void*));
 void reload_mesh_animator_tree(ModelAnimator* animator);
 s32 step_mesh_animator(ModelAnimator* animator);
+
+void set_custom_gfx_builders(s32 customGfxIndex, ModelCustomGfxBuilderFunc pre, ModelCustomGfxBuilderFunc post);
+void mdl_make_local_vertex_copy(s32 arg0, u16 treeIdx, s32);
+void play_model_animation_starting_from(s32 index, s16* animPos, s32 framesToSkip);
+
+void set_background_color_blend(u8 r, u8 g, u8 b, u8 a);
+
 #endif

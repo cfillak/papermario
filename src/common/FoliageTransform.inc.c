@@ -4,7 +4,7 @@
 
 typedef struct FoliageModelList {
     s32 count;
-    s32 models[0];
+    s32 models[VLA];
 } FoliageModelList;
 
 typedef struct FoliageDropList {
@@ -15,12 +15,12 @@ typedef struct FoliageDropList {
         s32 spawnMode;
         Bytecode pickupFlag;
         Bytecode spawnFlag;
-    } drops[0];
+    } drops[VLA];
 } FoliageDropList;
 
 typedef struct FoliageVectorList {
     s32 count;
-    Vec3i vectors[0];
+    Vec3i vectors[VLA];
 } FoliageVectorList;
 
 typedef struct SearchBushConfig {
@@ -50,7 +50,7 @@ void N(foliage_setup_shear_mtx)(Matrix4f mtx, f32 scale, f32 xAmount, f32 zAmoun
 /// @apiparam float dx
 /// @apiparam float dy
 /// @apiparam float dz
-ApiStatus N(TransformFoliage)(Evt* script, s32 isInitialCall) {
+API_CALLABLE(N(TransformFoliage)) {
     Bytecode* args = script->ptrReadPos;
     s32 modelListIndex = get_model_list_index_from_tree_index(evt_get_variable(script, *args++));
     f32 scale = evt_get_float_variable(script, *args++);
@@ -60,13 +60,13 @@ ApiStatus N(TransformFoliage)(Evt* script, s32 isInitialCall) {
     Model* model = get_model_from_list_index(modelListIndex);
     Matrix4f mtx;
 
-    if (!(model->flags & MODEL_FLAGS_HAS_TRANSFORM_APPLIED)) {
+    if (!(model->flags & MODEL_FLAG_HAS_TRANSFORM_APPLIED)) {
         guTranslateF(model->transformMatrix, 0.0f, dy, 0.0f);
         N(foliage_setup_shear_mtx)(mtx, scale, dx, dz);
         guMtxCatF(mtx, model->transformMatrix, model->transformMatrix);
         guTranslateF(mtx, 0.0f, -dy, 0.0f);
         guMtxCatF(mtx, model->transformMatrix, model->transformMatrix);
-        model->flags |= (MODEL_FLAGS_HAS_TRANSFORM_APPLIED | MODEL_FLAGS_USES_TRANSFORM_MATRIX);
+        model->flags |= (MODEL_FLAG_HAS_TRANSFORM_APPLIED | MODEL_FLAG_USES_TRANSFORM_MATRIX);
     } else {
         guTranslateF(mtx, 0.0f, dy, 0.0f);
         guMtxCatF(mtx, model->transformMatrix, model->transformMatrix);

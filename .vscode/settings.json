@@ -17,20 +17,21 @@
     ],
     "git.ignoreLimitWarning": true,
     "search.exclude": {
-        "**/build/src": true,
-        "docs/doxygen": true,
-        "ctx.c": true,
-        "ver/current": true,
-        "ver/us/build": true,
-        "ver/jp/build": true,
-        "expected": true,
         "**/*.i": true,
+        "**/build/src": true,
+        "ctx.c": true,
+        "docs/doxygen": true,
+        "expected": true,
+        "ver/jp/expected": true,
+        "ver/us/expected": true
     },
     "python.autoComplete.extraPaths": [
         "./tools"
     ],
     "python.analysis.extraPaths": [
-        "./tools"
+        "./tools",
+        "./tools/build/sprite",
+        "./tools/splat"
     ],
     "[c]": {
         "editor.wordSeparators": "`~!@#%^&*()-=+[{]}\\|;:'\",.<>/?", // no $, for scripts
@@ -46,7 +47,7 @@
         "ver/current": true,
         "expected": true,
         "**/*.i": true,
-        "docs/doxygen": true,
+        "docs/doxygen": true
     },
     "C_Cpp.default.cStandard": "c89",
 }

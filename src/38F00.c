@@ -4,13 +4,13 @@ ApiStatus func_8005DB00(Evt* script, s32 isInitialCall);
 ApiStatus func_8005DD54(Evt* script, s32 isInitialCall);
 ApiStatus func_8005DDF0(Evt* script, s32 isInitialCall);
 
-EvtScript D_800936C0 = {
+EvtScript EVS_800936C0 = {
     EVT_CALL(func_8005DB00)
     EVT_RETURN
     EVT_END
 };
 
-EvtScript D_800936DC = {
+EvtScript EVS_NpcHitRecoil = {
     EVT_CALL(SetNpcAnimation, NPC_SELF, LVar0)
     EVT_CALL(GetNpcPos, NPC_SELF, LVar0, LVar3, LVar2)
     EVT_SET(LVar1, LVar3)
@@ -63,20 +63,20 @@ EvtScript D_800939B4 = {
     EVT_IF_EQ(LVar0, 0)
         EVT_CALL(SetSelfVar, 0, 1)
         EVT_CALL(BindNpcAI, NPC_SELF, EVT_PTR(D_800939A4))
-        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_GRAVITY | NPC_FLAG_40000, TRUE)
-        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_ENABLE_HIT_SCRIPT | NPC_FLAG_JUMPING, FALSE)
+        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_GRAVITY | NPC_FLAG_IGNORE_CAMERA_FOR_YAW, TRUE)
+        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_8 | NPC_FLAG_JUMPING, FALSE)
         EVT_CALL(SetNpcAnimation, NPC_SELF, LVar2)
         EVT_SET(LVar0, 0)
         EVT_LOOP(30)
             EVT_CALL(SetNpcRotation, NPC_SELF, 0, LVar0, 0)
             EVT_CALL(func_8005DD54)
-            EVT_CALL(func_802CFD30, NPC_SELF, 6, LVar2, LVar2, LVar2, 0)
+            EVT_CALL(SetNpcFoldParams, NPC_SELF, FOLD_UPD_SET_COLOR, LVar2, LVar2, LVar2, 0)
             EVT_ADD(LVar0, 30)
             EVT_WAIT(1)
         EVT_END_LOOP
         EVT_CALL(SetNpcRotation, NPC_SELF, 0, 0, 0)
-        EVT_CALL(func_802CFD30, NPC_SELF, 6, 255, 255, 255, 0)
-        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_40000, FALSE)
+        EVT_CALL(SetNpcFoldParams, NPC_SELF, FOLD_UPD_SET_COLOR, 255, 255, 255, 0)
+        EVT_CALL(SetNpcFlagBits, NPC_SELF, NPC_FLAG_IGNORE_CAMERA_FOR_YAW, FALSE)
         EVT_CALL(SetSelfVar, 0, 0)
         EVT_CALL(func_8005DDF0)
         EVT_CALL(BindNpcAI, NPC_SELF, LVar1)
@@ -89,11 +89,11 @@ ApiStatus func_8005DB00(Evt* script, s32 isInitialCall) {
     Npc* npc;
     f32 targetDir, npcYaw;
     PlayerStatus* playerStatus;
-    PartnerActionStatus* partnerStatus;
+    PartnerStatus* partnerStatus;
 
     npc = get_npc_unsafe(script->owner1.enemy->npcID);
     playerStatus = &gPlayerStatus;
-    partnerStatus = &gPartnerActionStatus;
+    partnerStatus = &gPartnerStatus;
 
     if (isInitialCall) {
         script->functionTemp[0] = 0;
@@ -158,7 +158,7 @@ ApiStatus func_8005DD54(Evt* script, s32 isInitialCall) {
 }
 
 ApiStatus func_8005DDF0(Evt* script, s32 isInitialCall) {
-    if (~gCurrentEncounter.unk_08) {
+    if (gCurrentEncounter.unk_08 != -1) {
         return ApiStatus_DONE1;
     } else {
         return ApiStatus_BLOCK;

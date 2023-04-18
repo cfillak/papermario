@@ -546,7 +546,7 @@
 ///
 ///     EVT_CHILD_THREAD
 ///         EVT_WAIT_SECONDS(1)                 // child thread will be killed whilst waiting
-///         EVT_CALL(SetPlayerPos, 0, -1000, 0) // will not be executed
+///         EVT_CALL(SetPlayerPos, NPC_DISPOSE_LOCATION) // will not be executed
 ///     EVT_END_CHILD_THREAD
 ///     EVT_RETURN                              // parent thread dies
 ///
@@ -568,10 +568,77 @@
 /// The given arguments can be accessed from the API function using `thread->ptrReadPos`.
 #define EVT_CALL(FUNC, ARGS...)                     EVT_CMD(EVT_OP_CALL, (Bytecode) FUNC, ##ARGS),
 
+/// Does nothing in release version
+#define EVT_DEBUG_LOG(STRING)                   EVT_CMD(EVT_OP_DEBUG_LOG, STRING),
+
+/// Prints variable name and value
+#define EVT_DEBUG_PRINT_VAR(VAR)                EVT_CMD(EVT_OP_DEBUG_PRINT_VAR, VAR),
+
+/****** VECTOR OPERATIONS *********************************************************************************************/
+
+// expand vector components
+#define EVT_AS_VEC2(baseVar) (baseVar), (baseVar + 1)
+#define EVT_AS_VEC3(baseVar) (baseVar), (baseVar + 1), (baseVar + 2)
+
+// extract components from vector
+#define EVT_VEC_X(baseVar) (baseVar)
+#define EVT_VEC_Y(baseVar) (baseVar + 1)
+#define EVT_VEC_Z(baseVar) (baseVar + 2)
+
+#define EVT_VEC2_OP(OPERATION, MUT_BASE, x, y) \
+    OPERATION(MUT_BASE + 0, x) \
+    OPERATION(MUT_BASE + 1, y)
+
+#define EVT_VEC3_OP(OPERATION, MUT_BASE, x, y, z) \
+    OPERATION(MUT_BASE + 0, x) \
+    OPERATION(MUT_BASE + 1, y) \
+    OPERATION(MUT_BASE + 2, z)
+
+#define EVT_VEC2_VOP(OPERATION, MUT_BASE, AMT_BASE) \
+    OPERATION(MUT_BASE + 0, AMT_BASE + 0) \
+    OPERATION(MUT_BASE + 1, AMT_BASE + 1)
+
+#define EVT_VEC3_VOP(OPERATION, MUT_BASE, AMT_BASE) \
+    OPERATION(MUT_BASE + 0, AMT_BASE + 0) \
+    OPERATION(MUT_BASE + 1, AMT_BASE + 1) \
+    OPERATION(MUT_BASE + 2, AMT_BASE + 2)
+
+#define EVT_VEC2I_SET(baseVar, x, y)    EVT_VEC2_OP(EVT_SET, baseVar, x, y)
+#define EVT_VEC2F_SET(baseVar, x, y)    EVT_VEC2_OP(EVT_SETF, baseVar, x, y)
+#define EVT_VEC3I_SET(baseVar, x, y, z) EVT_VEC3_OP(EVT_SET, baseVar, x, y, z)
+#define EVT_VEC3F_SET(baseVar, x, y, z) EVT_VEC3_OP(EVT_SETF, baseVar, x, y, z)
+
+#define EVT_VEC2I_VSET(baseVar, baseSrc) EVT_VEC2_VOP(EVT_SET, baseVar, baseSrc)
+#define EVT_VEC2F_VSET(baseVar, baseSrc) EVT_VEC2_VOP(EVT_SETF, baseVar, baseSrc)
+#define EVT_VEC3I_VSET(baseVar, baseSrc) EVT_VEC3_VOP(EVT_SET, baseVar, baseSrc)
+#define EVT_VEC3F_VSET(baseVar, baseSrc) EVT_VEC3_VOP(EVT_SETF, baseVar, baseSrc)
+
+#define EVT_VEC2I_ADD(baseVar, x, y)    EVT_VEC2_OP(EVT_ADD, baseVar, x, y)
+#define EVT_VEC2F_ADD(baseVar, x, y)    EVT_VEC2_OP(EVT_ADDF, baseVar, x, y)
+#define EVT_VEC3I_ADD(baseVar, x, y, z) EVT_VEC3_OP(EVT_ADD, baseVar, x, y, z)
+#define EVT_VEC3F_ADD(baseVar, x, y, z) EVT_VEC3_OP(EVT_ADDF, baseVar, x, y, z)
+
+#define EVT_VEC2I_VADD(baseVar, baseAmt) EVT_VEC2_VOP(EVT_ADD, baseVar, baseAmt)
+#define EVT_VEC2F_VADD(baseVar, baseAmt) EVT_VEC2_VOP(EVT_ADDF, baseVar, baseAmt)
+#define EVT_VEC3I_VADD(baseVar, baseAmt) EVT_VEC3_VOP(EVT_ADD, baseVar, baseAmt)
+#define EVT_VEC3F_VADD(baseVar, baseAmt) EVT_VEC3_VOP(EVT_ADDF, baseVar, baseAmt)
+
+#define EVT_VEC2I_SUB(baseVar, x, y)    EVT_VEC2_OP(EVT_SUB, baseVar, x, y)
+#define EVT_VEC2F_SUB(baseVar, x, y)    EVT_VEC2_OP(EVT_SUBF, baseVar, x, y)
+#define EVT_VEC3I_SUB(baseVar, x, y, z) EVT_VEC3_OP(EVT_SUB, baseVar, x, y, z)
+#define EVT_VEC3F_SUB(baseVar, x, y, z) EVT_VEC3_OP(EVT_SUBF, baseVar, x, y, z)
+
+#define EVT_VEC2I_VSUB(baseVar, baseAmt) EVT_VEC2_VOP(EVT_SUB, baseVar, baseAmt)
+#define EVT_VEC2F_VSUB(baseVar, baseAmt) EVT_VEC2_VOP(EVT_SUBF, baseVar, baseAmt)
+#define EVT_VEC3I_VSUB(baseVar, baseAmt) EVT_VEC3_VOP(EVT_SUB, baseVar, baseAmt)
+#define EVT_VEC3F_VSUB(baseVar, baseAmt) EVT_VEC3_VOP(EVT_SUBF, baseVar, baseAmt)
 
 /****** COMMON SCRIPTS ************************************************************************************************/
 
-#define EXIT_WALK_SCRIPT(walkDistance, exitIdx, map, entryIdx) \
+#define EVT_IF_TRUE(b)  EVT_IF_NE(b, 0)
+#define EVT_IF_FALSE(b) EVT_IF_EQ(b, 0)
+
+#define EVT_EXIT_WALK(walkDistance, exitIdx, map, entryIdx) \
     { \
         EVT_SET_GROUP(EVT_GROUP_1B) \
         EVT_CALL(UseExitHeading, walkDistance, exitIdx) \
@@ -581,5 +648,157 @@
         EVT_RETURN \
         EVT_END \
     }
+
+// alternate version of EVT_EXIT_WALK used on Pleasant Path which does not join EVT_GROUP_1B
+#define EVT_EXIT_WALK_NOK(walkDistance, exitIdx, map, entryIdx) \
+    { \
+        EVT_CALL(UseExitHeading, walkDistance, exitIdx) \
+        EVT_EXEC(ExitWalk) \
+        EVT_CALL(GotoMap, EVT_PTR(map), entryIdx) \
+        EVT_WAIT(100) \
+        EVT_RETURN \
+        EVT_END \
+    }
+
+// alternate version of EVT_EXIT_WALK which includes a call to DisablePlayerInput
+#define EVT_EXIT_WALK_FIXED(walkDistance, exitIdx, map, entryIdx) \
+    { \
+        EVT_SET_GROUP(EVT_GROUP_1B) \
+        EVT_CALL(DisablePlayerInput, TRUE) \
+        EVT_CALL(UseExitHeading, walkDistance, exitIdx) \
+        EVT_EXEC(ExitWalk) \
+        EVT_CALL(GotoMap, EVT_PTR(map), entryIdx) \
+        EVT_WAIT(100) \
+        EVT_RETURN \
+        EVT_END \
+    }
+
+#define EVT_EXIT_SINGLE_DOOR(exitIdx, map, entryIdx, colliderID, modelID, swingDir) \
+    { \
+        EVT_SET_GROUP(EVT_GROUP_1B) \
+        EVT_CALL(DisablePlayerInput, TRUE) \
+        EVT_SET(LVar0, exitIdx) \
+        EVT_SET(LVar1, colliderID) \
+        EVT_SET(LVar2, modelID) \
+        EVT_SET(LVar3, swingDir) \
+        EVT_EXEC(ExitSingleDoor) \
+        EVT_WAIT(17) \
+        EVT_CALL(GotoMap, EVT_PTR(map), entryIdx) \
+        EVT_WAIT(100) \
+        EVT_RETURN \
+        EVT_END \
+    }
+
+#define EVT_EXIT_SPLIT_SINGLE_DOOR(exitIdx, map, entryIdx, colliderID, topModelID, bottomModelID, swingDir) \
+    { \
+        EVT_SET_GROUP(EVT_GROUP_1B) \
+        EVT_CALL(DisablePlayerInput, TRUE) \
+        EVT_SET(LVar0, exitIdx) \
+        EVT_SET(LVar1, colliderID) \
+        EVT_SET(LVar2, topModelID) \
+        EVT_SET(LVar4, bottomModelID) \
+        EVT_SET(LVar3, swingDir) \
+        EVT_EXEC(ExitSplitSingleDoor) \
+        EVT_WAIT(17) \
+        EVT_CALL(GotoMap, EVT_PTR(map), entryIdx) \
+        EVT_WAIT(100) \
+        EVT_RETURN \
+        EVT_END \
+    }
+
+#define EVT_EXIT_DOUBLE_DOOR(exitIdx, map, entryIdx, colliderID, leftDoorModelID, rightDoorModelID) \
+    { \
+        EVT_SET_GROUP(EVT_GROUP_1B) \
+        EVT_CALL(DisablePlayerInput, TRUE) \
+        EVT_SET(LVar0, exitIdx) \
+        EVT_SET(LVar1, colliderID) \
+        EVT_SET(LVar2, leftDoorModelID) \
+        EVT_SET(LVar3, rightDoorModelID) \
+        EVT_EXEC(ExitDoubleDoor) \
+        EVT_WAIT(17) \
+        EVT_CALL(GotoMap, EVT_PTR(map), entryIdx) \
+        EVT_WAIT(100) \
+        EVT_RETURN \
+        EVT_END \
+    }
+
+// only set perspective to standard values
+#define EVT_SETUP_CAMERA_MINIMAL() \
+    EVT_CALL(SetCamPerspective, CAM_DEFAULT, CAM_UPDATE_MODE_3, 25, 16, 4096)
+
+#define EVT_SETUP_CAMERA_DEFAULT() \
+    EVT_CALL(SetCamPerspective, CAM_DEFAULT, CAM_UPDATE_MODE_3, 25, 16, 4096) \
+    EVT_CALL(SetCamBGColor, CAM_DEFAULT, 0, 0, 0) \
+    EVT_CALL(SetCamEnabled, CAM_DEFAULT, TRUE)
+
+#define EVT_SETUP_CAMERA_NO_LEAD() \
+    EVT_CALL(SetCamPerspective, CAM_DEFAULT, CAM_UPDATE_MODE_3, 25, 16, 4096) \
+    EVT_CALL(SetCamBGColor, CAM_DEFAULT, 0, 0, 0) \
+    EVT_CALL(SetCamEnabled, CAM_DEFAULT, TRUE) \
+    EVT_CALL(SetCamLeadPlayer, CAM_DEFAULT, FALSE)
+
+// same as EVT_SETUP_CAMERA_NO_LEAD with calls reordered
+#define EVT_SETUP_CAMERA_ALT_NO_LEAD() \
+    EVT_CALL(SetCamPerspective, CAM_DEFAULT, CAM_UPDATE_MODE_3, 25, 16, 4096) \
+    EVT_CALL(SetCamBGColor, CAM_DEFAULT, 0, 0, 0) \
+    EVT_CALL(SetCamLeadPlayer, CAM_DEFAULT, FALSE) \
+    EVT_CALL(SetCamEnabled, CAM_DEFAULT, TRUE)
+
+// allow macros with variable number of arguments
+// see https://stackoverflow.com/questions/11761703/overloading-macro-on-number-of-arguments
+// solution provided by R1tschY and edited by Gabriel Staples
+#define __NARG__(args...) \
+    __NARG_I_(args,__RSEQ_N())
+#define __NARG_I_(args...) \
+    __ARG_N(args)
+#define __ARG_N( \
+      _1, _2, _3, _4, _5, _6, _7, _8, _9,_10, \
+     _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
+     _21,_22,_23,_24,_25,_26,_27,_28,_29,_30, \
+     _31,_32,_33,_34,_35,_36,_37,_38,_39,_40, \
+     _41,_42,_43,_44,_45,_46,_47,_48,_49,_50, \
+     _51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
+     _61,_62,_63,N,...) N
+#define __RSEQ_N() \
+     63,62,61,60,                   \
+     59,58,57,56,55,54,53,52,51,50, \
+     49,48,47,46,45,44,43,42,41,40, \
+     39,38,37,36,35,34,33,32,31,30, \
+     29,28,27,26,25,24,23,22,21,20, \
+     19,18,17,16,15,14,13,12,11,10, \
+     9,8,7,6,5,4,3,2,1,0
+#define _VFUNC_(name, n) name##n
+#define _VFUNC(name, n) _VFUNC_(name, n)
+#define VFUNC(func, args...) _VFUNC(func, __NARG__(args)) (args)
+
+#define EVT_PLAY_EFFECT(args...) VFUNC(EVT_PLAY_EFFECT, args)
+#define EVT_PLAY_EFFECT1(effect) \
+    EVT_CALL(PlayEffect, effect, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT2(effect, subtype) \
+    EVT_CALL(PlayEffect, effect, subtype, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT3(effect, subtype, a) \
+    EVT_CALL(PlayEffect, effect, subtype, a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT4(effect, subtype, a, b) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT5(effect, subtype, a, b, c) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT6(effect, subtype, a, b, c, d) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, 0, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT7(effect, subtype, a, b, c, d, e) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, 0, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT8(effect, subtype, a, b, c, d, e, f) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, 0, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT9(effect, subtype, a, b, c, d, e, f, g) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, 0, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT10(effect, subtype, a, b, c, d, e, f, g, h) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, h, 0, 0, 0, 0)
+#define EVT_PLAY_EFFECT11(effect, subtype, a, b, c, d, e, f, g, h, i) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, h, i, 0, 0, 0)
+#define EVT_PLAY_EFFECT12(effect, subtype, a, b, c, d, e, f, g, h, i, j) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, h, i, j, 0, 0)
+#define EVT_PLAY_EFFECT13(effect, subtype, a, b, c, d, e, f, g, h, i, j, k) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, h, i, j, k, 0)
+#define EVT_PLAY_EFFECT14(effect, subtype, a, b, c, d, e, f, g, h, i, j, k, l) \
+    EVT_CALL(PlayEffect, effect, subtype, a, b, c, d, e, f, g, h, i, j, k, l)
 
 #endif

@@ -1,9 +1,8 @@
 #include "common.h"
 #include "effects.h"
+#include "message_ids.h"
 #include "ld_addrs.h"
 #include "entity.h"
-
-extern u32 HeartBlockPrinterClosed;
 
 extern EntityModelScript Entity_HeartBlockContent_RenderScriptIdle;
 extern EntityModelScript Entity_HeartBlockContent_RenderScriptAfterHit;
@@ -16,6 +15,8 @@ extern Gfx Entity_HeartBlockContent_RenderHeartSleeping[];
 extern Gfx Entity_HeartBlockContent_RenderHeartAwake[];
 extern Gfx Entity_HeartBlockContent_RenderHeartHappy[];
 
+BSS u32 HeartBlockPrinterClosed;
+
 f32 entity_HeartBlockContent_get_previous_yaw(HeartBlockContentData* data, s32 lagTime) {
     s32 bufIdx = data->yawBufferPos - lagTime;
     if (bufIdx < 0) {
@@ -27,7 +28,7 @@ f32 entity_HeartBlockContent_get_previous_yaw(HeartBlockContentData* data, s32 l
 void entity_HeartBlockContent__setupGfx(s32 entityIndex, Gfx* arg1) {
     Entity* entity = get_entity_by_index(entityIndex);
     HeartBlockContentData* data = entity->dataBuf.heartBlockContent;
-    Gfx* gfxPos = gMasterGfxPos;
+    Gfx* gfxPos = gMainGfxPos;
     s32 alpha;
     Matrix4f sp18;
     Gfx* dlist;
@@ -69,7 +70,7 @@ void entity_HeartBlockContent__setupGfx(s32 entityIndex, Gfx* arg1) {
     gDPSetPrimColor(gfxPos++, 0, 0, 0, 0, 0, alpha);
     gSPPopMatrix(gfxPos++, G_MTX_MODELVIEW);
 
-    gMasterGfxPos = gfxPos;
+    gMainGfxPos = gfxPos;
 }
 
 void entity_HeartBlockContent_setupGfx(s32 entityIndex) {
@@ -92,7 +93,7 @@ void entity_HeartBlockContent__reset(Entity* entity) {
     entity->renderSetupFunc = entity_HeartBlockContent_setupGfx;
     entity->alpha = 255;
     data = entity->dataBuf.heartBlockContent;
-    entity->flags |= ENTITY_FLAGS_ALWAYS_FACE_CAMERA;
+    entity->flags |= ENTITY_FLAG_ALWAYS_FACE_CAMERA;
     blockEntity = get_entity_by_index(data->parentEntityIndex);
 
     if (data->unk_09 == 0) {
@@ -157,7 +158,7 @@ void entity_HeartBlockContent_anim_idle(Entity* entity, s32 arg1) {
         exec_entity_commandlist(entity);
         disable_player_input();
         gPlayerStatus.currentSpeed = 0;
-        gPlayerStatus.animFlags |= PA_FLAGS_RAISED_ARMS;
+        gPlayerStatus.animFlags |= PA_FLAG_RAISED_ARMS;
         set_time_freeze_mode(TIME_FREEZE_PARTIAL);
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
     }
@@ -190,10 +191,10 @@ void entity_HeartBlockContent__anim_heal(Entity* entity, s32 arg1) {
             data->riseVelocity -= 1.0f;
             if (data->riseVelocity <= 2.0f) {
                 data->state++;
-                entity->flags &= ~ENTITY_FLAGS_ALWAYS_FACE_CAMERA;
+                entity->flags &= ~ENTITY_FLAG_ALWAYS_FACE_CAMERA;
                 data->rotationRate = -10.0f;
-                entity_set_render_script(entity, Entity_HeartBlockContent_RenderScriptHit);
-                entity->renderSetupFunc = &entity_HeartBlockContent_setupGfx;
+                entity_set_render_script(entity, &Entity_HeartBlockContent_RenderScriptHit);
+                entity->renderSetupFunc = entity_HeartBlockContent_setupGfx;
             }
             break;
         case 2:
@@ -275,7 +276,7 @@ void entity_HeartBlockContent__anim_heal(Entity* entity, s32 arg1) {
             }
             break;
         case 5:
-            playerStatus->animFlags &= ~PA_FLAGS_RAISED_ARMS;
+            playerStatus->animFlags &= ~PA_FLAG_RAISED_ARMS;
             enable_player_input();
             set_time_freeze_mode(TIME_FREEZE_NORMAL);
             gOverrideFlags &= ~GLOBAL_OVERRIDES_40;
@@ -340,7 +341,7 @@ void entity_HeartBlockContent_init(Entity* entity) {
 
 void entity_HeartBlockContent_reset(Entity* entity) {
     entity_HeartBlockContent__reset(entity);
-    entity_set_render_script(entity, Entity_HeartBlockContent_RenderScriptIdle);
+    entity_set_render_script(entity, &Entity_HeartBlockContent_RenderScriptIdle);
 }
 
 void entity_HeartBlockContent_idle(Entity* entity) {
@@ -353,13 +354,13 @@ void entity_HeartBlockContent_anim_heal(Entity* entity) {
 }
 
 void entity_HeartBlock_change_render_script(Entity* entity) {
-    entity_set_render_script(entity, Entity_HeartBlockContent_RenderScriptAfterHit);
+    entity_set_render_script(entity, &Entity_HeartBlockContent_RenderScriptAfterHit);
 }
 
 void entity_HeartBlock_show_tutorial_message(Entity* entity) {
-    if ((!gPlayerData.partners[PARTNER_GOOMBARIO].enabled) && get_global_flag(GF_Tutorial_HeartBlock) == 0) {
+    if (!gPlayerData.partners[PARTNER_GOOMBARIO].enabled && !get_global_flag(GF_Tutorial_HeartBlock)) {
         HeartBlockPrinterClosed = FALSE;
-        msg_get_printer_for_msg(0x1D0001, &HeartBlockPrinterClosed);
+        msg_get_printer_for_msg(MSG_Menus_Tutorial_HeartBlock, &HeartBlockPrinterClosed);
         set_time_freeze_mode(TIME_FREEZE_PARTIAL);
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
         disable_player_input();
@@ -429,7 +430,7 @@ EntityModelScript Entity_HeartBlockContent_RenderScriptAfterHit = STANDARD_ENTIT
 EntityModelScript Entity_HeartBlock_RenderScript = STANDARD_ENTITY_MODEL_SCRIPT(Entity_HeartBlock_Render, RENDER_MODE_SURFACE_XLU_LAYER3);
 
 EntityBlueprint Entity_HeartBlockFrame = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HeartBlock_RenderScript,
     .modelAnimationNodes = 0,
@@ -442,7 +443,7 @@ EntityBlueprint Entity_HeartBlockFrame = {
 };
 
 EntityBlueprint Entity_HeartBlockContent = {
-    .flags = ENTITY_FLAGS_DISABLE_COLLISION,
+    .flags = ENTITY_FLAG_DISABLE_COLLISION,
     .typeDataSize = sizeof(HeartBlockContentData),
     .renderCommandList = Entity_HeartBlockContent_RenderScriptIdle,
     .modelAnimationNodes = 0,
@@ -455,7 +456,7 @@ EntityBlueprint Entity_HeartBlockContent = {
 };
 
 EntityBlueprint Entity_HeartBlock = {
-    .flags = ENTITY_FLAGS_4000 | ENTITY_FLAGS_FIXED_SHADOW_SIZE,
+    .flags = ENTITY_FLAG_4000 | ENTITY_FLAG_FIXED_SHADOW_SIZE,
     .typeDataSize = sizeof(BlockData),
     .renderCommandList = Entity_HeartBlock_RenderScript,
     .modelAnimationNodes = 0,

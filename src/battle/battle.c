@@ -6,291 +6,101 @@
 #include "sprite.h"
 
 extern s32 D_800DC060;
-extern Stage* D_800DC064;
+extern StageListRow* gCurrentStagePtr;
+
+// standard battle area table entry
+#define BTL_AREA(id, jpName) { \
+    .dmaStart = battle_area_##id##_ROM_START, \
+    .dmaEnd = battle_area_##id##_ROM_END, \
+    .dmaDest = battle_area_##id##_VRAM, \
+    .battles = &b_area_##id##_Formations, \
+    .stages = &b_area_##id##_Stages, \
+    .name = jpName, \
+} \
+
+// extended battle area with a dmaTable, used by kzn2 for lava piranha animations
+#define BTL_AREA_DMA(id, jpName) { \
+    .dmaStart = battle_area_##id##_ROM_START, \
+    .dmaEnd = battle_area_##id##_ROM_END, \
+    .dmaDest = battle_area_##id##_VRAM, \
+    .battles = &b_area_##id##_Formations, \
+    .stages = &b_area_##id##_Stages, \
+    .dmaTable = b_area_##id##_dmaTable, \
+    .name = jpName, \
+} \
+
+// auxiliary battle area for omo which contains only additional enemy data
+#define BTL_AREA_AUX(id, jpName) { \
+    .dmaStart = battle_area_##id##_ROM_START, \
+    .dmaEnd = battle_area_##id##_ROM_END, \
+    .dmaDest = battle_area_##id##_VRAM, \
+    .name = jpName, \
+} \
 
 BattleArea gBattleAreas[] = {
-    [BTL_AREA_KMR_PART_1] = {
-        BTL_AREA(area_kmr_part_1),
-        .name = "エリア ＫＭＲ その１",
-        .battles = &b_area_kmr_part_1_formationTable,
-        .stages = &b_area_kmr_part_1_stageTable,
-    },
-    [BTL_AREA_KMR_PART_2] = {
-        BTL_AREA(area_kmr_part_2),
-        .name = "エリア ＫＭＲ その２",
-        .battles = &b_area_kmr_part_2_formationTable,
-        .stages = &b_area_kmr_part_2_stageTable,
-    },
-    [BTL_AREA_KMR_PART_3] = {
-        BTL_AREA(area_kmr_part_3),
-        .name = "エリア ＫＭＲ その３",
-        .battles = &b_area_kmr_part_3_formationTable,
-        .stages = &b_area_kmr_part_3_stageTable,
-    },
-    [BTL_AREA_MAC] = {
-        BTL_AREA(area_mac),
-        .name = "エリア ＭＡＣ",
-        .battles = &b_area_mac_formationTable,
-        .stages = &b_area_mac_stageTable,
-    },
-    [BTL_AREA_HOS] = {
-        BTL_AREA(area_hos),
-        .name = "エリア ＨＯＳ",
-        .battles = &b_area_hos_formationTable,
-        .stages = &b_area_hos_stageTable,
-    },
-    [BTL_AREA_NOK] = {
-        BTL_AREA(area_nok),
-        .name = "エリア ＮＯＫ",
-        .battles = &b_area_nok_formationTable,
-        .stages = &b_area_nok_stageTable,
-    },
-    [BTL_AREA_TRD_PART_1] = {
-        BTL_AREA(area_trd_part_1),
-        .name = "エリア ＴＲＤ その１",
-        .battles = &b_area_trd_part_1_formationTable,
-        .stages = &b_area_trd_part_1_stageTable,
-    },
-    [BTL_AREA_TRD_PART_2] = {
-        BTL_AREA(area_trd_part_2),
-        .name = "エリア ＴＲＤ その２",
-        .battles = &b_area_trd_part_2_formationTable,
-        .stages = &b_area_trd_part_2_stageTable,
-    },
-    [BTL_AREA_TRD_PART_3] = {
-        BTL_AREA(area_trd_part_3),
-        .name = "エリア ＴＲＤ その３",
-        .battles = &b_area_trd_part_3_formationTable,
-        .stages = &b_area_trd_part_3_stageTable,
-    },
-    [BTL_AREA_IWA] = {
-        BTL_AREA(area_iwa),
-        .name = "エリア ＩＷＡ",
-        .battles = &b_area_iwa_formationTable,
-        .stages = &b_area_iwa_stageTable,
-    },
-    [BTL_AREA_SBK] = {
-        BTL_AREA(area_sbk),
-        .name = "エリア ＳＢＫ",
-        .battles = &b_area_sbk_formationTable,
-        .stages = &b_area_sbk_stageTable,
-    },
-    [BTL_AREA_ISK_PART_1] = {
-        BTL_AREA(area_isk_part_1),
-        .name = "エリア ＩＳＫ その１",
-        .battles = &b_area_isk_part_1_formationTable,
-        .stages = &b_area_isk_part_1_stageTable,
-    },
-    [BTL_AREA_ISK_PART_2] = {
-        BTL_AREA(area_isk_part_2),
-        .name = "エリア ＩＳＫ その２",
-        .battles = &b_area_isk_part_2_formationTable,
-        .stages = &b_area_isk_part_2_stageTable,
-    },
-    [BTL_AREA_MIM] = {
-        BTL_AREA(area_mim),
-        .name = "エリア ＭＩＭ",
-        .battles = &b_area_mim_formationTable,
-        .stages = &b_area_mim_stageTable,
-    },
-    [BTL_AREA_ARN] = {
-        BTL_AREA(area_arn),
-        .name = "エリア ＡＲＮ",
-        .battles = &b_area_arn_formationTable,
-        .stages = &b_area_arn_stageTable,
-    },
-    [BTL_AREA_DGB] = {
-        BTL_AREA(area_dgb),
-        .name = "エリア ＤＧＢ",
-        .battles = &b_area_dgb_formationTable,
-        .stages = &b_area_dgb_stageTable,
-    },
-    [BTL_AREA_OMO] = {
-        BTL_AREA(area_omo),
-        .name = "エリア ＯＭＯ",
-        .battles = &b_area_omo_formationTable,
-        .stages = &b_area_omo_stageTable,
-    },
-    [BTL_AREA_OMO2] = {
-        BTL_AREA(area_omo2),
-        .name = "エリア ＯＭＯ２",
-        .battles = 0x8022FBF4,
-        .stages = 0x8022FC1C,
-    },
-    [BTL_AREA_OMO3] = {
-        BTL_AREA(area_omo3),
-        .name = "エリア ＯＭＯ３",
-        .battles = 0x8022EA2C,
-        .stages = 0x8022EB1C,
-    },
-    [BTL_AREA_KGR] = {
-        BTL_AREA(area_kgr),
-        .name = "エリア ＫＧＲ",
-        .battles = &b_area_kgr_formationTable,
-        .stages = &b_area_kgr_stageTable,
-    },
-    [BTL_AREA_JAN] = {
-        BTL_AREA(area_jan),
-        .name = "エリア ＪＡＮ",
-        .battles = &b_area_jan_formationTable,
-        .stages = &b_area_jan_stageTable,
-    },
-    [BTL_AREA_JAN2] = {
-        BTL_AREA(area_jan2),
-        .name = "エリア ＪＡＮ２",
-        .battles = &b_area_jan2_formationTable,
-        .stages = &b_area_jan2_stageTable,
-    },
-    [BTL_AREA_KZN] = {
-        BTL_AREA(area_kzn),
-        .name = "エリア ＫＺＮ",
-        .battles = &b_area_kzn_formationTable,
-        .stages = &b_area_kzn_stageTable,
-    },
-    [BTL_AREA_KZN2] = {
-        BTL_AREA(area_kzn2),
-        .name = "エリア ＫＺＮ２",
-        .battles = 0x8022AA08,
-        .stages = 0x8022AA44,
-        .dmaTable = 0x8022AA84,
-    },
-    [BTL_AREA_FLO] = {
-        BTL_AREA(area_flo),
-        .name = "エリア ＦＬＯ",
-        .battles = 0x80234574,
-        .stages = 0x8023486C,
-    },
-    [BTL_AREA_FLO2] = {
-        BTL_AREA(area_flo2),
-        .name = "エリア ＦＬＯ２",
-        .battles = 0x802356FC,
-        .stages = 0x80235788,
-    },
-    [BTL_AREA_TIK] = {
-        BTL_AREA(area_tik),
-        .name = "エリア ＴＩＫ",
-        .battles = 0x802340B4,
-        .stages = 0x802342BC,
-    },
-    [BTL_AREA_TIK2] = {
-        BTL_AREA(area_tik2),
-        .name = "エリア ＴＩＫ２",
-        .battles = 0x80227A90,
-        .stages = 0x80227AE0,
-    },
-    [BTL_AREA_TIK3] = {
-        BTL_AREA(area_tik3),
-        .name = "エリア ＴＩＫ３",
-        .battles = 0x802232E8,
-        .stages = 0x8022334C,
-    },
-    [BTL_AREA_SAM] = {
-        BTL_AREA(area_sam),
-        .name = "エリア ＳＡＭ",
-        .battles = &b_area_sam_formationTable,
-        .stages = &b_area_sam_stageTable,
-    },
-    [BTL_AREA_SAM2] = {
-        BTL_AREA(area_sam2),
-        .name = "エリア ＳＡＭ２",
-        .battles = 0x802234F0,
-        .stages = 0x8022352C,
-    },
-    [BTL_AREA_PRA] = {
-        BTL_AREA(area_pra),
-        .name = "エリア ＰＲＡ",
-        .battles = 0x8022F4D4,
-        .stages = 0x8022F614,
-    },
-    [BTL_AREA_PRA2] = {
-        BTL_AREA(area_pra2),
-        .name = "エリア ＰＲＡ２",
-        .battles = &b_area_pra2_formationTable,
-        .stages = &b_area_pra2_stageTable,
-    },
-    [BTL_AREA_PRA3] = {
-        BTL_AREA(area_pra3),
-        .name = "エリア ＰＲＡ３",
-        .battles = &b_area_pra3_formationTable,
-        .stages = &b_area_pra3_stageTable,
-    },
-    [BTL_AREA_KPA] = {
-        BTL_AREA(area_kpa),
-        .name = "エリア ＫＰＡ",
-        .battles = 0x80231A64,
-        .stages = 0x80231ED8,
-    },
-    [BTL_AREA_KPA2] = {
-        BTL_AREA(area_kpa2),
-        .name = "エリア ＫＰＡ２",
-        .battles = 0x802346A8,
-        .stages = 0x80234720,
-    },
-    [BTL_AREA_KPA3] = {
-        BTL_AREA(area_kpa3),
-        .name = "エリア ＫＰＡ３",
-        .battles = 0x8022839C,
-        .stages = 0x802283EC,
-    },
-    [BTL_AREA_KPA4] = {
-        BTL_AREA(area_kpa4),
-        .name = "エリア ＫＰＡ４",
-        .battles = 0x80227910,
-        .stages = 0x80227988,
-    },
-    [BTL_AREA_KKJ] = {
-        BTL_AREA(area_kkj),
-        .name = "エリア ＫＫＪ",
-        .battles = 0x802185BC,
-        .stages = 0x802185E4,
-    },
-    [BTL_AREA_DIG] = {
-        BTL_AREA(area_dig),
-        .name = "エリア ＤＩＧ",
-        .battles = 0x8022A7C4,
-        .stages = 0x8022A83C,
-    },
-    [BTL_AREA_OMO2_1] = {
-        BTL_AREA(area_omo2_1),
-        .name = "エリア ＯＭＯ２＿１",
-    },
-    [BTL_AREA_OMO2_2] = {
-        BTL_AREA(area_omo2_2),
-        .name = "エリア ＯＭＯ２＿２",
-    },
-    [BTL_AREA_OMO2_3] = {
-        BTL_AREA(area_omo2_3),
-        .name = "エリア ＯＭＯ２＿３",
-    },
-    [BTL_AREA_OMO2_4] = {
-        BTL_AREA(area_omo2_4),
-        .name = "エリア ＯＭＯ２＿４",
-    },
-    [BTL_AREA_OMO2_5] = {
-        BTL_AREA(area_omo2_5),
-        .name = "エリア ＯＭＯ２＿５",
-    },
-    [BTL_AREA_OMO2_6] = {
-        BTL_AREA(area_omo2_6),
-        .name = "エリア ＯＭＯ２＿６",
-    },
+    [BTL_AREA_KMR_1]    BTL_AREA(kmr_part_1, "エリア ＫＭＲ その１"),
+    [BTL_AREA_KMR_2]    BTL_AREA(kmr_part_2, "エリア ＫＭＲ その２"),
+    [BTL_AREA_KMR_3]    BTL_AREA(kmr_part_3, "エリア ＫＭＲ その３"),
+    [BTL_AREA_MAC]      BTL_AREA(mac, "エリア ＭＡＣ"),
+    [BTL_AREA_HOS]      BTL_AREA(hos, "エリア ＨＯＳ"),
+    [BTL_AREA_NOK]      BTL_AREA(nok, "エリア ＮＯＫ"),
+    [BTL_AREA_TRD_1]    BTL_AREA(trd_part_1, "エリア ＴＲＤ その１"),
+    [BTL_AREA_TRD_2]    BTL_AREA(trd_part_2, "エリア ＴＲＤ その２"),
+    [BTL_AREA_TRD_3]    BTL_AREA(trd_part_3, "エリア ＴＲＤ その３"),
+    [BTL_AREA_IWA]      BTL_AREA(iwa, "エリア ＩＷＡ"),
+    [BTL_AREA_SBK]      BTL_AREA(sbk, "エリア ＳＢＫ"),
+    [BTL_AREA_ISK_1]    BTL_AREA(isk_part_1, "エリア ＩＳＫ その１"),
+    [BTL_AREA_ISK_2]    BTL_AREA(isk_part_2, "エリア ＩＳＫ その２"),
+    [BTL_AREA_MIM]      BTL_AREA(mim, "エリア ＭＩＭ"),
+    [BTL_AREA_ARN]      BTL_AREA(arn, "エリア ＡＲＮ"),
+    [BTL_AREA_DGB]      BTL_AREA(dgb, "エリア ＤＧＢ"),
+    [BTL_AREA_OMO]      BTL_AREA(omo, "エリア ＯＭＯ"),
+    [BTL_AREA_OMO2]     BTL_AREA(omo2, "エリア ＯＭＯ２"),
+    [BTL_AREA_OMO3]     BTL_AREA(omo3, "エリア ＯＭＯ３"),
+    [BTL_AREA_KGR]      BTL_AREA(kgr, "エリア ＫＧＲ"),
+    [BTL_AREA_JAN]      BTL_AREA(jan, "エリア ＪＡＮ"),
+    [BTL_AREA_JAN2]     BTL_AREA(jan2, "エリア ＪＡＮ２"),
+    [BTL_AREA_KZN]      BTL_AREA(kzn, "エリア ＫＺＮ"),
+    [BTL_AREA_KZN2]     BTL_AREA_DMA(kzn2, "エリア ＫＺＮ２"),
+    [BTL_AREA_FLO]      BTL_AREA(flo, "エリア ＦＬＯ"),
+    [BTL_AREA_FLO2]     BTL_AREA(flo2, "エリア ＦＬＯ２"),
+    [BTL_AREA_TIK]      BTL_AREA(tik, "エリア ＴＩＫ"),
+    [BTL_AREA_TIK2]     BTL_AREA(tik2, "エリア ＴＩＫ２"),
+    [BTL_AREA_TIK3]     BTL_AREA(tik3, "エリア ＴＩＫ３"),
+    [BTL_AREA_SAM]      BTL_AREA(sam, "エリア ＳＡＭ"),
+    [BTL_AREA_SAM2]     BTL_AREA(sam2, "エリア ＳＡＭ２"),
+    [BTL_AREA_PRA]      BTL_AREA(pra, "エリア ＰＲＡ"),
+    [BTL_AREA_PRA2]     BTL_AREA(pra2, "エリア ＰＲＡ２"),
+    [BTL_AREA_PRA3]     BTL_AREA(pra3, "エリア ＰＲＡ３"),
+    [BTL_AREA_KPA]      BTL_AREA(kpa, "エリア ＫＰＡ"),
+    [BTL_AREA_KPA2]     BTL_AREA(kpa2, "エリア ＫＰＡ２"),
+    [BTL_AREA_KPA3]     BTL_AREA(kpa3, "エリア ＫＰＡ３"),
+    [BTL_AREA_KPA4]     BTL_AREA(kpa4, "エリア ＫＰＡ４"),
+    [BTL_AREA_KKJ]      BTL_AREA(kkj, "エリア ＫＫＪ"),
+    [BTL_AREA_DIG]      BTL_AREA(dig, "エリア ＤＩＧ"),
+    [BTL_AREA_OMO2_1]   BTL_AREA_AUX(omo2_1, "エリア ＯＭＯ２＿１"),
+    [BTL_AREA_OMO2_2]   BTL_AREA_AUX(omo2_2, "エリア ＯＭＯ２＿２"),
+    [BTL_AREA_OMO2_3]   BTL_AREA_AUX(omo2_3, "エリア ＯＭＯ２＿３"),
+    [BTL_AREA_OMO2_4]   BTL_AREA_AUX(omo2_4, "エリア ＯＭＯ２＿４"),
+    [BTL_AREA_OMO2_5]   BTL_AREA_AUX(omo2_5, "エリア ＯＭＯ２＿５"),
+    [BTL_AREA_OMO2_6]   BTL_AREA_AUX(omo2_6, "エリア ＯＭＯ２＿６"),
 };
 
 void reset_battle_status(void) {
     gGameStatusPtr->demoFlags = 0;
     gBattleState = BATTLE_STATE_0;
     D_800DC4E0 = 1;
-    gBattleState2 = BATTLE_STATE2_UNK_0;
-    D_800DC4D0 = 0;
+    gBattleSubState = BTL_SUBSTATE_INIT;
+    gLastDrawBattleState = BATTLE_STATE_0;
     D_800DC4F0 = 0;
     D_800DC4D4 = 0;
-    D_800DC4FC = NULL;
+    gCurrentBattlePtr = NULL;
     D_800DC4F8 = 0;
-    D_800DC4E8 = 0;
-    D_800DC064 = NULL;
+    gCurrentBattleID = 0;
+    gCurrentStagePtr = NULL;
     D_800DC060 = 0;
-    D_800DC4EC = 0;
-    D_800DC4F4 = NULL;
+    gCurrentStageID = 0;
+    gOverrideBattlePtr = NULL;
 }
 
 void ALT_reset_battle_status(void) {
@@ -302,37 +112,37 @@ void func_80072BCC(s32 arg0) {
 }
 
 void load_battle_section(void) {
-    BattleArea* battleArea = &gBattleAreas[gCurrentBattleSection];
-    s32 battleIdx = D_800DC4EB;
+    BattleArea* battleArea = &gBattleAreas[UNPACK_BTL_AREA(gCurrentBattleID)];
+    s32 battleIdx = UNPACK_BTL_INDEX(gCurrentBattleID);
 
     dma_copy(battleArea->dmaStart, battleArea->dmaEnd, battleArea->dmaDest);
 
-    D_800DC4FC = &(*battleArea->battles)[battleIdx];
+    gCurrentBattlePtr = &(*battleArea->battles)[battleIdx];
 
-    if (D_800DC4EC < 0) {
-        D_800DC064 = NULL;
+    if (gCurrentStageID < 0) {
+        gCurrentStagePtr = NULL;
     } else {
-        D_800DC064 = &(*battleArea->stages)[D_800DC4EC];
+        gCurrentStagePtr = &(*battleArea->stages)[gCurrentStageID];
     }
 
     btl_set_state(BATTLE_STATE_NORMAL_START);
-    D_800DC4D0 = 0;
+    gLastDrawBattleState = BATTLE_STATE_0;
 }
 
-void load_battle(s32 arg0) {
-    D_800DC4E8 = arg0;
+void load_battle(s32 battleID) {
+    gCurrentBattleID = battleID;
     set_game_mode(GAME_MODE_BATTLE);
-    gBattleState = 0;
-    D_800DC4D0 = 0;
-    gBattleState2 = 0;
+    gBattleState = BATTLE_STATE_0;
+    gLastDrawBattleState = BATTLE_STATE_0;
+    gBattleSubState = BTL_SUBSTATE_INIT;
 }
 
-void set_battle_stage(s32 arg0) {
-    D_800DC4EC = arg0;
+void set_battle_stage(s32 stageID) {
+    gCurrentStageID = stageID;
 }
 
 void set_battle_formation(Battle* battle) {
-    D_800DC4F4 = battle;
+    gOverrideBattlePtr = battle;
 }
 
 void func_80072CEC(f32 arg0, f32 arg1, f32 arg2) {
@@ -379,7 +189,7 @@ void setup_demo_player(void) {
     }
 
     playerData->unk_288 = 0;
-    playerData->merleeSpellType = 0;
+    playerData->merleeSpellType = MERLEE_SPELL_0;
     playerData->merleeCastsLeft = 0;
     playerData->merleeTurnCount = 0;
     playerData->maxStarPower = 0;
@@ -398,10 +208,10 @@ void load_demo_battle(u32 index) {
     gGameStatusPtr->isBattle = FALSE;
 
     general_heap_create();
-    clear_generic_entity_list();
+    clear_worker_list();
     clear_script_list();
     create_cameras_a();
-    spr_init_sprites(0);
+    spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
     clear_animator_list();
     clear_entity_models();
     clear_npcs();
@@ -462,7 +272,7 @@ void load_demo_battle(u32 index) {
             battleID = BTL_DIG_FORMATION_00;
     }
 
-    gGameStatusPtr->debugEnemyContact = 0;
+    gGameStatusPtr->debugEnemyContact = DEBUG_CONTACT_NONE;
     gGameStatusPtr->unk_7C = 1;
 
     switch (mode) {
@@ -501,8 +311,8 @@ void load_demo_battle(u32 index) {
 
     evt_set_variable(NULL, GF_Tutorial_SwapTurnOrder, 1);
     gCurrentEncounter.unk_07 = 0;
-    gCurrentEncounter.unk_10 = 0;
-    set_battle_stage(-1);
+    gCurrentEncounter.instigatorValue = 0;
+    set_battle_stage(BTL_STAGE_DEFAULT);
     gGameStatusPtr->demoFlags |= 1;
     gOverrideFlags &= ~GLOBAL_OVERRIDES_8;
     load_battle(battleID);

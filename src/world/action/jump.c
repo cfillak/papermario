@@ -15,60 +15,60 @@ void initialize_jump(void) {
 
     playerStatus->actionSubstate = JUMP_SUBSTATE_0;
     playerStatus->timeInAir = 0;
-    playerStatus->unk_C2 = 0;
-    playerStatus->flags &= ~(PS_FLAGS_ACTION_STATE_CHANGED | PS_FLAGS_FLYING);
-    playerStatus->flags |= PS_FLAGS_JUMPING;
+    playerStatus->peakJumpTime = 0;
+    playerStatus->flags &= ~(PS_FLAG_ACTION_STATE_CHANGED | PS_FLAG_FLYING);
+    playerStatus->flags |= PS_FLAG_JUMPING;
     playerStatus->jumpFromPos.x = playerStatus->position.x;
     playerStatus->jumpFromPos.z = playerStatus->position.z;
     playerStatus->jumpFromHeight = playerStatus->position.y;
 
     phys_init_integrator_for_current_state();
 
-    if (playerStatus->animFlags & PA_FLAGS_8BIT_MARIO) {
-        anim = ANIM_Mario_90005;
-    } else if (!(playerStatus->animFlags & (PA_FLAGS_HOLDING_WATT | PA_FLAGS_2))) {
-        anim = ANIM_Mario_AnimMidairStill;
+    if (playerStatus->animFlags & PA_FLAG_8BIT_MARIO) {
+        anim = ANIM_MarioW3_8bit_Jump;
+    } else if (!(playerStatus->animFlags & (PA_FLAG_USING_WATT | PA_FLAG_WATT_IN_HANDS))) {
+        anim = ANIM_Mario1_Jump;
     } else {
-        anim = ANIM_Mario_60009;
+        anim = ANIM_MarioW1_JumpWatt;
     }
-    suggest_player_anim_clearUnkFlag(anim);
+    suggest_player_anim_allow_backward(anim);
 
     collisionStatus->lastTouchedFloor = collisionStatus->currentFloor;
-    collisionStatus->currentFloor = -1;
+    collisionStatus->currentFloor = NO_COLLIDER;
 }
 
 void action_update_jump(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
     AnimID anim;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         initialize_jump();
 
         if (playerStatus->actionState == ACTION_STATE_LAUNCH) {
             phys_adjust_cam_on_landing();
         } else {
-            gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+            gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
         }
 
         if (playerStatus->actionState == ACTION_STATE_JUMP) {
-            if (playerStatus->animFlags & PA_FLAGS_8BIT_MARIO) {
-                sfx_play_sound_at_player(SOUND_JUMP_8BIT_MARIO, 0);
+            if (playerStatus->animFlags & PA_FLAG_8BIT_MARIO) {
+                sfx_play_sound_at_player(SOUND_JUMP_8BIT_MARIO, SOUND_SPACE_MODE_0);
             }
             else {
-                sfx_play_sound_at_player(SOUND_JUMP_2081, 0);
+                sfx_play_sound_at_player(SOUND_JUMP_2081, SOUND_SPACE_MODE_0);
             }
         }
     }
 
-    if (playerStatus->animFlags & PA_FLAGS_8BIT_MARIO) {
-        anim = ANIM_Mario_90005;
-    } else if (!(playerStatus->animFlags & (PA_FLAGS_HOLDING_WATT | PA_FLAGS_2))) {
-        anim = ANIM_Mario_AnimMidairStill;
+    if (playerStatus->animFlags & PA_FLAG_8BIT_MARIO) {
+        anim = ANIM_MarioW3_8bit_Jump;
+    } else if (!(playerStatus->animFlags & (PA_FLAG_USING_WATT | PA_FLAG_WATT_IN_HANDS))) {
+        anim = ANIM_Mario1_Jump;
     } else {
-        anim = ANIM_Mario_60009;
+        anim = ANIM_MarioW1_JumpWatt;
     }
-    suggest_player_anim_clearUnkFlag(anim);
+    suggest_player_anim_allow_backward(anim);
 
     playerStatus->timeInAir++;
 }
@@ -78,13 +78,13 @@ void action_update_landing_on_switch(void) {
     CollisionStatus* collisionStatus = &gCollisionStatus;
     AnimID anim;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
         Entity* entity = get_entity_by_index(collisionStatus->currentFloor);
 
         JumpedOnSwitchX = entity->position.x;
         JumpedOnSwitchZ = entity->position.z;
         initialize_jump();
-        playerStatus->flags |= (PS_FLAGS_800000 | PS_FLAGS_80000);
+        playerStatus->flags |= (PS_FLAG_SCRIPTED_FALL | PS_FLAG_ARMS_RAISED);
         disable_player_input();
     }
 
@@ -94,18 +94,18 @@ void action_update_landing_on_switch(void) {
         return;
     }
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~(PS_FLAGS_ACTION_STATE_CHANGED | PS_FLAGS_JUMPING | PS_FLAGS_FLYING);
-        playerStatus->flags |= PS_FLAGS_FALLING;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~(PS_FLAG_ACTION_STATE_CHANGED | PS_FLAG_JUMPING | PS_FLAG_FLYING);
+        playerStatus->flags |= PS_FLAG_FALLING;
 
-        if (!(playerStatus->animFlags & (PA_FLAGS_HOLDING_WATT | PA_FLAGS_2))) {
-            anim = ANIM_Mario_AnimMidair;
+        if (!(playerStatus->animFlags & (PA_FLAG_USING_WATT | PA_FLAG_WATT_IN_HANDS))) {
+            anim = ANIM_Mario1_Fall;
         } else {
-            anim = ANIM_Mario_6000A;
+            anim = ANIM_MarioW1_FallWatt;
         }
 
-        suggest_player_anim_clearUnkFlag(anim);
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+        suggest_player_anim_allow_backward(anim);
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
     }
 
     playerStatus->actionSubstate++;
@@ -114,26 +114,26 @@ void action_update_landing_on_switch(void) {
 void action_update_falling(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    if (playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS) {
+    if (playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS) {
         action_update_peach_falling();
         return;
     }
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
         s32 anim;
 
-        playerStatus->flags &= ~(PS_FLAGS_ACTION_STATE_CHANGED | PS_FLAGS_JUMPING | PS_FLAGS_FLYING);
-        playerStatus->flags |= PS_FLAGS_FALLING;
+        playerStatus->flags &= ~(PS_FLAG_ACTION_STATE_CHANGED | PS_FLAG_JUMPING | PS_FLAG_FLYING);
+        playerStatus->flags |= PS_FLAG_FALLING;
 
-        if (playerStatus->animFlags & PA_FLAGS_8BIT_MARIO) {
-            anim = ANIM_Mario_90005;
-        } else  if (!(playerStatus->animFlags & (PA_FLAGS_HOLDING_WATT | PA_FLAGS_2))) {
-            anim = ANIM_Mario_AnimMidair;
+        if (playerStatus->animFlags & PA_FLAG_8BIT_MARIO) {
+            anim = ANIM_MarioW3_8bit_Jump;
+        } else  if (!(playerStatus->animFlags & (PA_FLAG_USING_WATT | PA_FLAG_WATT_IN_HANDS))) {
+            anim = ANIM_Mario1_Fall;
         } else {
-            anim = ANIM_Mario_6000A;
+            anim = ANIM_MarioW1_FallWatt;
         }
-        suggest_player_anim_clearUnkFlag(anim);
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+        suggest_player_anim_allow_backward(anim);
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
     }
     playerStatus->timeInAir++;
 }
@@ -147,15 +147,15 @@ void action_update_step_down(void) {
     f32 hitDirX, hitDirZ;
     f32 height;
 
-    if (playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS) {
+    if (playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS) {
         action_update_peach_step_down();
         return;
     }
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~(PS_FLAGS_ACTION_STATE_CHANGED | PS_FLAGS_JUMPING | PS_FLAGS_FLYING);
-        playerStatus->flags |= PS_FLAGS_FALLING;
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~(PS_FLAG_ACTION_STATE_CHANGED | PS_FLAG_JUMPING | PS_FLAG_FLYING);
+        playerStatus->flags |= PS_FLAG_FALLING;
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
     }
 
     playerStatus->timeInAir++;
@@ -169,7 +169,7 @@ void action_update_step_down(void) {
     surfaceType = get_collider_flags(colliderID) & COLLIDER_FLAGS_SURFACE_TYPE_MASK;
     if (!(surfaceType == SURFACE_TYPE_SPIKES || surfaceType == SURFACE_TYPE_LAVA) && check_input_jump()) {
         set_action_state(ACTION_STATE_JUMP);
-        playerStatus->flags &= ~PS_FLAGS_AIRBORNE;
+        playerStatus->flags &= ~PS_FLAG_AIRBORNE;
         action_update_jump();
     }
 }
@@ -178,19 +178,19 @@ void action_update_peach_falling(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
     AnimID anim;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        playerStatus->flags &= ~(PS_FLAGS_JUMPING | PS_FLAGS_FLYING);
-        playerStatus->flags |= PS_FLAGS_FALLING;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+        playerStatus->flags &= ~(PS_FLAG_JUMPING | PS_FLAG_FLYING);
+        playerStatus->flags |= PS_FLAG_FALLING;
 
-        if (!(playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS)) {
-            anim = ANIM_Mario_AnimMidair;
+        if (!(playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS)) {
+            anim = ANIM_Mario1_Fall;
         } else {
-            anim = ANIM_Peach_A0006;
+            anim = ANIM_Peach1_StepDown;
         }
 
-        suggest_player_anim_clearUnkFlag(anim);
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+        suggest_player_anim_allow_backward(anim);
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
     }
     playerStatus->timeInAir++;
 }
@@ -198,14 +198,14 @@ void action_update_peach_falling(void) {
 void action_update_peach_step_down(void) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
-        playerStatus->flags &= ~(PS_FLAGS_JUMPING | PS_FLAGS_FLYING);
-        playerStatus->flags |= PS_FLAGS_FALLING;
-        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_FLAGS_1;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
+        playerStatus->flags &= ~(PS_FLAG_JUMPING | PS_FLAG_FLYING);
+        playerStatus->flags |= PS_FLAG_FALLING;
+        gCameras[CAM_DEFAULT].moveFlags |= CAMERA_MOVE_IGNORE_PLAYER_Y;
 
-        if (playerStatus->animFlags & PA_FLAGS_USING_PEACH_PHYSICS) {
-            suggest_player_anim_clearUnkFlag(ANIM_Peach_A0006);
+        if (playerStatus->animFlags & PA_FLAG_USING_PEACH_PHYSICS) {
+            suggest_player_anim_allow_backward(ANIM_Peach1_StepDown);
         }
     }
     playerStatus->timeInAir++;

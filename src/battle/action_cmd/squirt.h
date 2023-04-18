@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9208_429F28(void);
+API_CALLABLE(action_command_squirt_init);
+API_CALLABLE(action_command_squirt_start);
+void action_command_squirt_update(void);
+void action_command_squirt_draw(void);
+void action_command_squirt_free(void);
 
 #endif

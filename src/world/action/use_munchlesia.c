@@ -1,10 +1,10 @@
 #include "common.h"
 
-extern f32 Munchlesia_LaunchVelocity;
-extern f32 Munchlesia_LateralVelocity;
-extern f32 Munchlesia_LaunchAccel;
-extern f32 Munchlesia_LaunchYaw;
-extern s32 D_802B62E0;
+BSS f32 Munchlesia_LaunchVelocity;
+BSS f32 Munchlesia_LateralVelocity;
+BSS f32 Munchlesia_LaunchAccel;
+BSS f32 Munchlesia_LaunchYaw;
+BSS s32 D_802B62E0;
 
 enum {
     SUBSTATE_INIT       = 0,
@@ -19,8 +19,8 @@ void action_update_use_munchlesia(void) {
     s32 colliderID;
     f32 hitPosY;
 
-    if (playerStatus->flags & PS_FLAGS_ACTION_STATE_CHANGED) {
-        playerStatus->flags &= ~PS_FLAGS_ACTION_STATE_CHANGED;
+    if (playerStatus->flags & PS_FLAG_ACTION_STATE_CHANGED) {
+        playerStatus->flags &= ~PS_FLAG_ACTION_STATE_CHANGED;
         playerStatus->actionSubstate = SUBSTATE_INIT;
         gOverrideFlags |= GLOBAL_OVERRIDES_40;
         disable_player_static_collisions();
@@ -29,7 +29,7 @@ void action_update_use_munchlesia(void) {
 
     switch (playerStatus->actionSubstate) {
         case SUBSTATE_INIT:
-            suggest_player_anim_clearUnkFlag(ANIM_Mario_1002E);
+            suggest_player_anim_allow_backward(ANIM_Mario1_FallBack);
             D_802B62E0 = 32;
             Munchlesia_LaunchVelocity = 16.0f;
             Munchlesia_LateralVelocity = 4.0f;
@@ -58,8 +58,8 @@ void action_update_use_munchlesia(void) {
             gCameras[CAM_DEFAULT].targetPos.z = playerStatus->position.z;
             hitPosY = player_check_collision_below(Munchlesia_LaunchVelocity, &colliderID);
             if (colliderID >= 0) {
-                sfx_play_sound_at_player(SOUND_162, 0);
-                suggest_player_anim_setUnkFlag(ANIM_Mario_80003);
+                sfx_play_sound_at_player(SOUND_162, SOUND_SPACE_MODE_0);
+                suggest_player_anim_always_forward(ANIM_MarioW2_Collapse);
                 playerStatus->position.y = hitPosY;
                 D_802B62E0 = 10;
                 playerStatus->actionSubstate++; // SUBSTATE_CRASH
@@ -67,7 +67,7 @@ void action_update_use_munchlesia(void) {
             break;
         case SUBSTATE_CRASH:
             if (playerStatus->animNotifyValue != 0) {
-                suggest_player_anim_setUnkFlag(ANIM_Mario_GetUp);
+                suggest_player_anim_always_forward(ANIM_Mario1_GetUp);
                 playerStatus->actionSubstate = SUBSTATE_GET_UP;
                 playerStatus->currentStateTime = 15;
                 break;

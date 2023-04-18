@@ -22,7 +22,7 @@ void update_player_input(void) {
     playerStatus->heldButtonsBuffer[inputBufPos] = playerStatus->heldButtons;
     playerStatus->inputBufPos = inputBufPos;
 
-    if (playerStatus->flags & (PS_FLAGS_INPUT_DISABLED | PS_FLAGS_1000)) {
+    if (playerStatus->flags & (PS_FLAG_INPUT_DISABLED | PS_FLAG_NO_STATIC_COLLISION)) {
         playerStatus->stickAxis[0] = 0;
         playerStatus->stickAxis[1] = 0;
         playerStatus->currentButtons = 0;
@@ -30,8 +30,8 @@ void update_player_input(void) {
         playerStatus->heldButtons = 0;
     }
 
-    if (playerStatus->animFlags & 8) {
-        playerStatus->animFlags |= PA_FLAGS_200000;
+    if (playerStatus->animFlags & PA_FLAG_FORCE_USE_PARTNER) {
+        playerStatus->animFlags |= PA_FLAG_PARTNER_USAGE_FORCED;
         playerStatus->pressedButtons |= 4;
     }
 }
@@ -44,9 +44,9 @@ void reset_player_status(void) {
 
     PeachDisguiseNpcIndex = -1;
     TweesterTouchingPartner = NULL;
-    D_8010C920 = 0;
-    D_8010C940 = 0;
-    D_8010C958 = 0;
+    PulseStoneNotificationCallback = NULL;
+    TalkNotificationCallback = NULL;
+    InteractNotificationCallback = NULL;
     D_8010C92C = 0;
     PrevPlayerDirection = 0;
     D_8010C980 = 0;
@@ -55,28 +55,28 @@ void reset_player_status(void) {
     D_8010C938 = 0;
     D_8010C990 = 0.0f;
     playerStatus->availableDisguiseType = 1;
-    playerStatus->renderMode = 0xD;
+    playerStatus->renderMode = RENDER_MODE_ALPHATEST;
 
     playerStatus->alpha1 = 255;
     playerStatus->alpha2 = 255;
-    gGameStatusPtr->peachFlags &= ~0x8;
-    gGameStatusPtr->peachFlags &= ~0x10;
+    gGameStatusPtr->peachFlags &= ~PEACH_STATUS_FLAG_8;
+    gGameStatusPtr->peachFlags &= ~PEACH_STATUS_FLAG_DEPRESSED;
 
     one = 1.0f;
 
-    if (gGameStatusPtr->peachFlags & 1) {
+    if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_IS_PEACH) {
         playerStatus->colliderHeight = 55;
         playerStatus->colliderDiameter = 38;
-        playerStatus->animFlags |= 0x1000;
+        playerStatus->animFlags |= PA_FLAG_USING_PEACH_PHYSICS;
 
-        if (gGameStatusPtr->peachFlags & 2) {
+        if (gGameStatusPtr->peachFlags & PEACH_STATUS_FLAG_DISGUISED) {
             D_8010C92C = 2;
             playerStatus->peachDisguise = gGameStatusPtr->peachDisguise;
         }
     } else {
         playerStatus->colliderHeight = 37;
         playerStatus->colliderDiameter = 26;
-        gGameStatusPtr->peachCookingIngredient = 0;
+        gGameStatusPtr->peachBakingIngredient = 0;
     }
 
     // TODO required to match

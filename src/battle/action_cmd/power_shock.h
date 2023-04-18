@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9310_42D220(void);
+API_CALLABLE(action_command_power_shock_init);
+API_CALLABLE(action_command_power_shock_start);
+void action_command_power_shock_update(void);
+void action_command_power_shock_draw(void);
+void action_command_power_shock_free(void);
 
 #endif

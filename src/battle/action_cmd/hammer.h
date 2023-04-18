@@ -3,9 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A936C_42236C(void);
-
-ApiStatus action_command_hammer_CreateHudElements(Evt* script, s32 isInitialCall);
-ApiStatus func_802A9258_422258(Evt* script, s32 isInitialCall);
+API_CALLABLE(action_command_hammer_init);
+API_CALLABLE(action_command_hammer_start);
+void action_command_hammer_update(void);
+void action_command_hammer_draw(void);
+void action_command_hammer_free(void);
 
 #endif

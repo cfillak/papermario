@@ -1,13 +1,24 @@
 #include "common.h"
 #include "effects_internal.h"
 
+extern Gfx D_09000898_40C438[];
+extern Gfx D_09000980_40C520[];
+extern Gfx D_09000998_40C538[];
+extern Gfx D_090009B0_40C550[];
+extern Gfx D_090009C8_40C568[];
+extern Gfx D_090009E0_40C580[];
+
+Gfx* D_E0120780[] = {
+    D_09000980_40C520, D_09000998_40C538, D_090009B0_40C550,
+    D_090009C8_40C568, D_090009E0_40C580
+};
+
+Gfx* D_E0120794[] = { D_09000898_40C438 };
+
 void sun_init(EffectInstance* effect);
 void sun_update(EffectInstance* effect);
 void sun_render(EffectInstance* effect);
 void sun_appendGfx(void* effect);
-
-Gfx* D_E0120780[] = { (Gfx*) 0x09000980, (Gfx*) 0x09000998, (Gfx*) 0x090009B0, (Gfx*) 0x090009C8, (Gfx*) 0x090009E0 };
-Gfx* D_E0120794[] = { (Gfx*) 0x09000898 };
 
 EffectInstance* sun_main(s32 shineFromRight, f32 offsetX, f32 offsetY, f32 offsetZ, f32 arg4, s32 duration) {
     EffectBlueprint bp;
@@ -65,8 +76,8 @@ void sun_update(EffectInstance* effect) {
     s32 time;
     s32 i;
 
-    if (effect->flags & EFFECT_INSTANCE_FLAGS_10) {
-        effect->flags &= ~EFFECT_INSTANCE_FLAGS_10;
+    if (effect->flags & EFFECT_INSTANCE_FLAG_10) {
+        effect->flags &= ~EFFECT_INSTANCE_FLAG_10;
         data->timeLeft = 16;
     }
     if (data->timeLeft < 1000) {
@@ -131,7 +142,7 @@ void sun_render(EffectInstance* effect) {
     renderTask.renderMode = RENDER_MODE_2D;
 
     retTask = shim_queue_render_task(&renderTask);
-    retTask->renderMode |= RENDER_TASK_FLAG_2;
+    retTask->renderMode |= RENDER_TASK_FLAG_REFLECT_FLOOR;
 }
 
 void sun_appendGfx(void* argEffect) {
@@ -149,8 +160,8 @@ void sun_appendGfx(void* argEffect) {
     fromRight = data->shineFromRight;
     
     if (alpha != 0) {
-        gDPPipeSync(gMasterGfxPos++);
-        gSPSegment(gMasterGfxPos++, 0x9, VIRTUAL_TO_PHYSICAL(effect->graphics->data));
+        gDPPipeSync(gMainGfxPos++);
+        gSPSegment(gMainGfxPos++, 0x9, VIRTUAL_TO_PHYSICAL(effect->graphics->data));
         
         if (!fromRight) {
             shim_guOrthoF(mtx, -1600.0f, 1600.0f, -1200.0f, 1200.0f, -100.0f, 100.0f, 1.0f);
@@ -159,25 +170,25 @@ void sun_appendGfx(void* argEffect) {
         }
         
         shim_guMtxF2L(mtx, &gDisplayContext->matrixStack[gMatrixListPos]);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
             G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
         shim_guTranslateF(mtx, 0.0f, 0.0f, 0.0f);
         shim_guMtxF2L(mtx, &gDisplayContext->matrixStack[gMatrixListPos]);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++],
             G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         
-        gDPSetPrimColor(gMasterGfxPos++, 0, 0, data->primColor.r, data->primColor.g, data->primColor.b, alpha >> 1);
-        gDPSetEnvColor(gMasterGfxPos++, data->envColor.r, data->envColor.g, data->envColor.b, data->envColor.a);
-        gSPDisplayList(gMasterGfxPos++, D_E0120794[0]);
+        gDPSetPrimColor(gMainGfxPos++, 0, 0, data->primColor.r, data->primColor.g, data->primColor.b, alpha >> 1);
+        gDPSetEnvColor(gMainGfxPos++, data->envColor.r, data->envColor.g, data->envColor.b, data->envColor.a);
+        gSPDisplayList(gMainGfxPos++, D_E0120794[0]);
 
         for (i = 0; i < ARRAY_COUNT(data->texScrollAmt); i++) {
             offsetS = data->texScrollAmt[i] * 4.0f;
-            gDPSetTileSize(gMasterGfxPos++, 1, offsetS + (44 * i), 0, offsetS + (44 * i) + 252, 124);
-            gSPDisplayList(gMasterGfxPos++, D_E0120780[i]);
+            gDPSetTileSize(gMainGfxPos++, 1, offsetS + (44 * i), 0, offsetS + (44 * i) + 252, 124);
+            gSPDisplayList(gMainGfxPos++, D_E0120780[i]);
         }
-        gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
-        gSPMatrix(gMasterGfxPos++, &gDisplayContext->camPerspMatrix[gCurrentCameraID],
+        gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+        gSPMatrix(gMainGfxPos++, &gDisplayContext->camPerspMatrix[gCurrentCameraID],
             G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
-        gDPPipeSync(gMasterGfxPos++);
+        gDPPipeSync(gMainGfxPos++);
     }
 }

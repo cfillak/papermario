@@ -3,6 +3,10 @@
 
 #include "common_structs.h"
 
-void func_802A9294_4295B4(void);
+API_CALLABLE(action_command_air_raid_init);
+API_CALLABLE(action_command_air_raid_start);
+void action_command_air_raid_update(void);
+void action_command_air_raid_draw(void);
+void action_command_air_raid_free(void);
 
 #endif

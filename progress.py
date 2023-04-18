@@ -42,7 +42,7 @@ def get_func_info():
     vrams = {}
 
     for line in nm_lines:
-        if " F " in line:
+        if " F " in line and "*ABS*" not in line:
             components = line.split()
             size = int(components[4], 16)
             name = components[5]
@@ -106,6 +106,9 @@ def main(args):
 
     sizes, vrams = get_func_info()
     total_size = sum(sizes.values())
+    # TODO hack for now since non-jp roms aren't mapped out
+    if args.version != "us":
+        total_size = 3718660
     all_funcs = set(sizes.keys())
 
     nonmatching_funcs = get_nonmatching_funcs()
@@ -121,7 +124,11 @@ def main(args):
         matching_ratio = (matching_size / total_size) * 100
 
     old_all_funcs, old_nonmatching_funcs, old_matching_funcs, old_total_size, old_nonmatching_size, old_matching_size = load_latest_progress(args.version)
-    old_matching_ratio = (old_matching_size / old_total_size) * 100
+
+    if old_total_size == 0:
+        old_matching_ratio = 0.0
+    else:
+        old_matching_ratio = (old_matching_size / old_total_size) * 100
 
     ratio_delta = matching_ratio - old_matching_ratio
     funcs_delta = len(matching_funcs) - old_matching_funcs
@@ -155,7 +162,10 @@ def main(args):
             print(f"{'🚀' * funcs_delta} This PR matches {funcs_delta} function{s} (+{ ratio_delta:.2f}%) on `{args.version}`.")
     else:
         if matching_size + nonmatching_size != total_size:
-            print("Warning: category/total size mismatch!\n")
+            print(f"Warning: category/total size mismatch on version {args.version}!\n")
+            print("Matching size: " + str(matching_size))
+            print("Nonmatching size: " + str(nonmatching_size))
+            print("Sum: " + str(matching_size + nonmatching_size) + " (should be " + str(total_size) + ")")
         print(f"{len(matching_funcs)} matched functions / {len(all_funcs)} total ({funcs_matching_ratio:.2f}%)")
         print(f"{matching_size} matching bytes / {total_size} total ({matching_ratio:.2f}%)")
 

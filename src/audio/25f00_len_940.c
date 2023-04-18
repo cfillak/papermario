@@ -3,6 +3,8 @@
 #include "nu/nualsgi.h"
 #include "audio.h"
 
+NOP_FIX
+
 u8 nuAuPreNMI = 0;
 NUAuPreNMIFunc nuAuPreNMIFunc = NULL;
 s32 nuAuDmaNext = 0;
@@ -12,22 +14,21 @@ u8 volatile AuSynUseStereo = TRUE;
 
 //bss
 extern Acmd* AlCmdListBuffers[3];
-extern NUScTask D_800A3520[3];
+extern NUScTask nuAuTasks[3];
 extern u8* D_800A3628[3];
 extern s32 AlFrameSize;
 extern s32 AlMinFrameSize;
 extern OSMesgQueue nuAuDmaMesgQ;
 extern OSMesg nuAuDmaMesgBuf[50];
 extern OSIoMesg nuAuDmaIOMesgBuf[];
-extern NUDMABuffer* D_800A3BD4;
 extern NUDMABuffer nuAuDmaBufList[50];
 extern AuSynDriver auSynDriver;
 extern u64 rspbootUcodeBuffer[];
-extern OSMesgQueue D_800DA444;
-extern s32 AlNumFields;
 extern u64 n_aspMain_text_bin[];
 extern u64 n_aspMain_data_bin[];
+
 extern u8 AuHeapBase[AUDIO_HEAP_SIZE];
+extern u64 AuStack[NU_AU_STACK_SIZE / sizeof(u64)];
 
 void create_audio_system(void) {
     u32 i;
@@ -38,9 +39,9 @@ void create_audio_system(void) {
     nuAuPreNMI = 0;
     alHeapInit(&nuAuHeap, AuHeapBase, AUDIO_HEAP_SIZE);
     config.num_pvoice = 24;
-    config.unk_num_gamma = 4;
+    config.num_bus = 4;
     outputRate = osAiSetFrequency(32000);
-    frameSize = (AlNumFields * outputRate + 59) / 60;
+    frameSize = (nusched.retraceCount * outputRate + 59) / 60;
     config.outputRate = outputRate;
     config.unk_0C = 0;
     config.heap = &nuAuHeap;
@@ -52,21 +53,26 @@ void create_audio_system(void) {
         AlCmdListBuffers[i] = alHeapAlloc(config.heap, 1, AUDIO_COMMAND_LIST_BUFFER_SIZE);
     }
 
-    for (i = 0; i < ARRAY_COUNT(D_800A3520); i++) {
-        D_800A3520[i].next = NULL;
-        D_800A3520[i].msg = 0;
-        D_800A3520[i].list.t.type = M_AUDTASK;
-        D_800A3520[i].list.t.ucode_boot = rspbootUcodeBuffer;
-        D_800A3520[i].list.t.ucode_boot_size = 0x100;
-        D_800A3520[i].list.t.ucode = n_aspMain_text_bin;
-        D_800A3520[i].list.t.ucode_data = n_aspMain_data_bin;
-        D_800A3520[i].list.t.ucode_data_size = SP_UCODE_DATA_SIZE;
-        D_800A3520[i].list.t.dram_stack = NULL;
-        D_800A3520[i].list.t.dram_stack_size = 0;
-        D_800A3520[i].list.t.output_buff = NULL;
-        D_800A3520[i].list.t.output_buff_size = 0;
-        D_800A3520[i].list.t.yield_data_ptr = NULL;
-        D_800A3520[i].list.t.yield_data_size = 0;
+    for (i = 0; i < ARRAY_COUNT(nuAuTasks); i++) {
+        nuAuTasks[i].next = NULL;
+        nuAuTasks[i].msg = 0;
+        nuAuTasks[i].list.t.type = M_AUDTASK;
+#if VERSION_IQUE
+        nuAuTasks[i].list.t.ucode_boot = (u64*) rspbootTextStart;
+        nuAuTasks[i].list.t.ucode_boot_size = (u32) rspbootTextEnd - (u32) rspbootTextStart;
+#else
+        nuAuTasks[i].list.t.ucode_boot = rspbootUcodeBuffer;
+        nuAuTasks[i].list.t.ucode_boot_size = 0x100;
+#endif
+        nuAuTasks[i].list.t.ucode = n_aspMain_text_bin;
+        nuAuTasks[i].list.t.ucode_data = n_aspMain_data_bin;
+        nuAuTasks[i].list.t.ucode_data_size = SP_UCODE_DATA_SIZE;
+        nuAuTasks[i].list.t.dram_stack = NULL;
+        nuAuTasks[i].list.t.dram_stack_size = 0;
+        nuAuTasks[i].list.t.output_buff = NULL;
+        nuAuTasks[i].list.t.output_buff_size = 0;
+        nuAuTasks[i].list.t.yield_data_ptr = NULL;
+        nuAuTasks[i].list.t.yield_data_size = 0;
     }
 
     for (i = 0; i < ARRAY_COUNT(D_800A3628); i++) {
@@ -81,10 +87,10 @@ void create_audio_system(void) {
     nuAuDmaBufList[i].ptr = alHeapAlloc(config.heap, 1, 0x500);
 
     osCreateMesgQueue(&nuAuDmaMesgQ, nuAuDmaMesgBuf, 50);
-    nuAuPreNMIFunc = func_8004B328;
+    nuAuPreNMIFunc = nuAuPreNMIProc;
     au_driver_init(&auSynDriver, &config);
     au_engine_init(config.outputRate);
-    osCreateThread(&nuAuMgrThread, NU_MAIN_THREAD_ID, nuAuMgr, NULL, &AlCmdListBuffers, NU_AU_MGR_THREAD_PRI); //why main thread?
+    osCreateThread(&nuAuMgrThread, NU_MAIN_THREAD_ID, nuAuMgr, NULL, &AuStack[NU_AU_STACK_SIZE / sizeof(u64)], NU_AU_MGR_THREAD_PRI); //why main thread?
     osStartThread(&nuAuMgrThread);
 }
 
@@ -127,10 +133,10 @@ void nuAuMgr(void* arg) {
         switch (*mesg_type) {
             case NU_SC_RETRACE_MSG:
                 if (cmdList_len != 0 && nuAuTaskStop == NU_AU_TASK_RUN) {
-                    D_800A3520[cmdListIndex].msgQ = &auRtnMesgQ;
-                    D_800A3520[cmdListIndex].list.t.data_ptr = (u64*)cmdListBuf;
-                    D_800A3520[cmdListIndex].list.t.data_size = (cmdListAfter_ptr - cmdListBuf) * sizeof(Acmd);
-                    osSendMesg(&D_800DA444, &D_800A3520[cmdListIndex], OS_MESG_BLOCK);
+                    nuAuTasks[cmdListIndex].msgQ = &auRtnMesgQ;
+                    nuAuTasks[cmdListIndex].list.t.data_ptr = (u64*)cmdListBuf;
+                    nuAuTasks[cmdListIndex].list.t.data_size = (cmdListAfter_ptr - cmdListBuf) * sizeof(Acmd);
+                    osSendMesg(&nusched.audioRequestMQ, &nuAuTasks[cmdListIndex], OS_MESG_BLOCK);
                     nuAuCleanDMABuffers();
                     osRecvMesg(&auRtnMesgQ, NULL, 1);
                     if (++bufferIndex == 3) {
@@ -188,7 +194,7 @@ s32 nuAuDmaCallBack(s32 addr, s32 len, void *state, u8 arg3) {
     }
 
     lastDmaPtr = NULL;
-    dmaPtr = D_800A3BD4;
+    dmaPtr = nuAuDmaState.firstUsed;
     addrEnd = addr + len;
 
     while (dmaPtr != NULL) {
@@ -293,39 +299,32 @@ void nuAuCleanDMABuffers(void) {
     } while (0);
 }
 
-// Nop issue
-// try again when bss is figured out up until this file
-// rename: default_nuAuPreNMIFunc
-#ifdef NON_MATCHING
-void func_8004B328(NUScMsg mesg_type, u32 frameCounter) {
-    s16 temp;
-    s32 temp2;
+void nuAuPreNMIProc(NUScMsg mesg_type, u32 frameCounter) {
+    s16 maxVol;
+    s32 vol;
 
     switch (mesg_type) {
-        case 2:
-            D_800A0F50 = func_80056D50();
-            func_80056D34();
+        case NU_SC_PRENMI_MSG:
+            AuInitialGlobalVolume = au_get_global_volume();
+            au_use_global_volume();
             break;
-        case 1:
-            temp = D_800A0F50;
-            temp2 = temp - (temp / 20) * frameCounter;
+        case NU_SC_RETRACE_MSG:
+            maxVol = AuInitialGlobalVolume;
+            vol = maxVol - (maxVol / 20) * frameCounter;
 
-            if (temp2 < 0) {
-                temp2 = 0;
+            if (vol < 0) {
+                vol = 0;
             }
 
-            temp2 = (temp2 * temp2) >> 15;
-            func_80056D44(temp2);
+            vol = SQ(vol) >> 15;
+            au_set_global_volume(vol);
 
-            if (temp2 == 0) {
+            if (vol == 0) {
                 nuAuTaskStop = NU_AU_TASK_STOP;
             }
             break;
     }
 }
-#else
-INCLUDE_ASM(s32, "audio/25f00_len_940", func_8004B328);
-#endif
 
 void alLink(ALLink* element, ALLink* after) {
     element->next = after->next;

@@ -25,7 +25,7 @@ void state_step_startup(void) {
     gameStatus->entryID = 0;
     gGameStatusPtr->unk_76 = 0;
     gGameStatusPtr->disableScripts = 0;
-    gGameStatusPtr->keepUsingPartnerOnMapChange = 0;
+    gGameStatusPtr->keepUsingPartnerOnMapChange = FALSE;
     gGameStatusPtr->creditsViewportMode = -1;
     gGameStatusPtr->demoFlags = 0;
     gGameStatusPtr->unk_A9 = -1;
@@ -33,10 +33,10 @@ void state_step_startup(void) {
 
     general_heap_create();
     clear_render_tasks();
-    clear_generic_entity_list();
+    clear_worker_list();
     clear_script_list();
     create_cameras_a();
-    spr_init_sprites(0);
+    spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
     clear_entity_models();
     clear_animator_list();
     clear_model_data();
@@ -71,7 +71,7 @@ void state_step_startup(void) {
 
     fio_has_valid_backup();
 
-    if (D_800D9620 == 0) {
+    if (D_800D95E8.saveSlot == 0) {
         gGameStatusPtr->soundOutputMode = SOUND_OUT_STEREO;
         audio_set_stereo();
     } else {

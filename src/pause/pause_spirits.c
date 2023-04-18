@@ -1,13 +1,13 @@
 #include "pause_common.h"
 #include "message_ids.h"
 #include "sprite.h"
-#include "sprite/npc/world_eldstar.h"
-#include "sprite/npc/world_mamar.h"
-#include "sprite/npc/world_skolar.h"
-#include "sprite/npc/world_muskular.h"
-#include "sprite/npc/world_misstar.h"
-#include "sprite/npc/world_klevar.h"
-#include "sprite/npc/world_kalmar.h"
+#include "sprite/npc/WorldEldstar.h"
+#include "sprite/npc/WorldMamar.h"
+#include "sprite/npc/WorldSkolar.h"
+#include "sprite/npc/WorldMuskular.h"
+#include "sprite/npc/WorldMisstar.h"
+#include "sprite/npc/WorldKlevar.h"
+#include "sprite/npc/WorldKalmar.h"
 
 extern Gfx gPauseDLSpiritsBg[];
 extern s8 pause_spirits_bg_png[];
@@ -32,45 +32,45 @@ Vp gPauseSpiritsViewport = {
 };
 s32 gPauseSpiritsSpriteAnims[][4] = {
     {
-        NPC_ANIM_world_eldstar_Palette_00_Anim_0,
-        NPC_ANIM_world_eldstar_Palette_00_Anim_1,
-        NPC_ANIM_world_eldstar_Palette_00_Anim_2,
+        ANIM_WorldEldstar_Still,
+        ANIM_WorldEldstar_Idle,
+        ANIM_WorldEldstar_Wave,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_mamar_Palette_00_Anim_0,
-        NPC_ANIM_world_mamar_Palette_00_Anim_1,
-        NPC_ANIM_world_mamar_Palette_00_Anim_2,
+        ANIM_WorldMamar_Still,
+        ANIM_WorldMamar_Idle,
+        ANIM_WorldMamar_TalkHappy,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_skolar_Palette_00_Anim_0,
-        NPC_ANIM_world_skolar_Palette_00_Anim_1,
-        NPC_ANIM_world_skolar_Palette_00_Anim_2,
+        ANIM_WorldSkolar_Still,
+        ANIM_WorldSkolar_Idle,
+        ANIM_WorldSkolar_TalkAngry,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_muskular_Palette_00_Anim_0,
-        NPC_ANIM_world_muskular_Palette_00_Anim_1,
-        NPC_ANIM_world_muskular_Palette_00_Anim_2,
+        ANIM_WorldMuskular_Still,
+        ANIM_WorldMuskular_Idle,
+        ANIM_WorldMuskular_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_misstar_Palette_00_Anim_0,
-        NPC_ANIM_world_misstar_Palette_00_Anim_1,
-        NPC_ANIM_world_misstar_Palette_00_Anim_2,
+        ANIM_WorldMisstar_Still,
+        ANIM_WorldMisstar_Idle,
+        ANIM_WorldMisstar_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_klevar_Palette_00_Anim_0,
-        NPC_ANIM_world_klevar_Palette_00_Anim_1,
-        NPC_ANIM_world_klevar_Palette_00_Anim_3,
+        ANIM_WorldKlevar_Still,
+        ANIM_WorldKlevar_Idle,
+        ANIM_WorldKlevar_Talk,
         ANIM_LIST_END
     },
     {
-        NPC_ANIM_world_kalmar_Palette_00_Anim_0,
-        NPC_ANIM_world_kalmar_Palette_00_Anim_1,
-        NPC_ANIM_world_kalmar_Palette_00_Anim_2,
+        ANIM_WorldKalmar_Still,
+        ANIM_WorldKalmar_Idle,
+        ANIM_WorldKalmar_Talk,
         ANIM_LIST_END
     }
 };
@@ -104,7 +104,7 @@ MenuWindowBP gPauseSpiritsWindowsBPs[] = {
         .pos = { .x = 3, .y = 16 },
         .width = 289,
         .height = 154,
-        .priority = 1,
+        .priority = WINDOW_PRIORITY_1,
         .fpDrawContents = &pause_spirits_draw_contents,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_MAIN,
@@ -118,7 +118,7 @@ MenuWindowBP gPauseSpiritsWindowsBPs[] = {
         .pos = { .x = 86, .y = 124 },
         .width = 120,
         .height = 20,
-        .priority = 0,
+        .priority = WINDOW_PRIORITY_0,
         .fpDrawContents = &pause_spirits_draw_title,
         .tab = NULL,
         .parentID = WINDOW_ID_PAUSE_SPIRITS,
@@ -147,8 +147,8 @@ void pause_spirits_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 widt
     Matrix4f matrix1;
     Matrix4f matrix2;
     s32 i, j;
-    s32 s0;
-    s32 s1;
+    s32 color;
+    s32 alpha;
     s32 index;
     f32 x, y;
     f32 offsetY;
@@ -157,24 +157,24 @@ void pause_spirits_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 widt
     f32 scale;
     PlayerData* playerData = get_player_data();
 
-    gDPPipeSync(gMasterGfxPos++);
-    gSPViewport(gMasterGfxPos++, &gPauseSpiritsViewport);
-    gSPDisplayList(gMasterGfxPos++, gPauseDLSpiritsBg);
+    gDPPipeSync(gMainGfxPos++);
+    gSPViewport(gMainGfxPos++, &gPauseSpiritsViewport);
+    gSPDisplayList(gMainGfxPos++, gPauseDLSpiritsBg);
 
     for (i = 0; i < 5; i++) {
-        gDPLoadTextureTile_4b(gMasterGfxPos++, pause_spirits_bg_png, G_IM_FMT_CI, 128, 110,
+        gDPLoadTextureTile_4b(gMainGfxPos++, pause_spirits_bg_png, G_IM_FMT_CI, 128, 110,
                                0, i * 22, 127, i * 22 + 21, 0,
                                G_TX_MIRROR, G_TX_CLAMP, 7, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
         pause_draw_rect((baseX + 15) * 4, (baseY + 22 + i * 22) * 4, (baseX + 271) * 4, (baseY + 22 + i * 22 + 22) * 4, 0, 16, 16 + i * 704, 0x400, 0x400);
-        gDPPipeSync(gMasterGfxPos++);
+        gDPPipeSync(gMainGfxPos++);
     }
 
     guOrthoF(matrix1, 0.0f, 320.0f, 240.0f, 0.0f, -1000.0f, 1000.0f, 1.0f);
     guMtxF2L(matrix1, &gDisplayContext->matrixStack[gMatrixListPos]);
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
     guTranslateF(matrix1, 0.0f, 0.0f, 0.0f);
     guMtxF2L(matrix1, &gDisplayContext->matrixStack[gMatrixListPos]);
-    gSPMatrix(gMasterGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
 
     for (i = 0; i < gPauseSpiritsNumSpirits; i++) {
@@ -184,19 +184,19 @@ void pause_spirits_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 widt
         y = gPauseSpiritsPositions[index].y;
 
         if (playerData->maxStarPower < index + 1) {
-            s0 = 0;
-            s1 = 0x80;
+            color = 0;
+            alpha = 128;
             offsetY = 0.0f;
         } else {
-            s0 = 0xFF;
-            s1 = 0xFF;
+            color = 255;
+            alpha = 255;
             offsetY = sin_deg(index * index * index + frameCounter * 0.4321 + frameCounter * (index * 0.02 + 0.1324))
                   * 5.0f
                   * sin_deg(index * 0.25 + frameCounter + frameCounter * (0.0432 - index * 0.01));
 
         }
 
-        func_802DE894(gPauseSpiritsSpriteIDs[gPauseSpiritsIndexes[index]], 8, s0, s0, s0, s1, 0x40);
+        func_802DE894(gPauseSpiritsSpriteIDs[gPauseSpiritsIndexes[index]], FOLD_UPD_SET_TINT, color, color, color, alpha, 64);
         guTranslateF(matrix1, baseX + 22 + x, baseY + 77 + y + offsetY, 0.0f);
         guRotateF(matrix2, 180.0f, 0.0f, 0.0f, 1.0f);
         guMtxCatF(matrix2, matrix1, matrix1);
@@ -211,7 +211,7 @@ void pause_spirits_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 widt
         spr_draw_npc_sprite(gPauseSpiritsSpriteIDs[gPauseSpiritsIndexes[index]], 0, 0, 0, matrix1);
     }
 
-    gSPPopMatrix(gMasterGfxPos++, G_MTX_MODELVIEW);
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 
     x1 = baseX + 7;
     y1 = baseY + 14;
@@ -236,7 +236,7 @@ void pause_spirits_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 widt
         y2 = SCREEN_HEIGHT - 1;
     }
 
-    gDPSetScissor(gMasterGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
+    gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, x1, y1, x2, y2);
     draw_box(0, &gPauseWS_25, baseX + 7, baseY + 14, 0, 272, 126, opacity, darkening, 1.0f, 1.0f, 0, 0, 0, 0, 0, 0, width, height, 0);
 
     if (gPauseMenuCurrentTab == 5) {
@@ -252,9 +252,9 @@ void pause_spirits_draw_title(MenuPanel* menu, s32 baseX, s32 baseY, s32 width, 
         if (playerData->maxStarPower > gPauseSpiritsIndexes[menu->selected]) {
             msgID = gPauseSpiritsIndexes[menu->selected] + MSG_Menus_SpiritName_Eldstar;
         } else {
-            msgID = pause_get_menu_msg(0x56);
+            msgID = pause_get_menu_msg(PAUSE_MSG_UNKNOWN_SPIRIT);
         }
-        draw_msg(msgID, baseX + ((width - get_msg_width(msgID, 0)) >> 1), baseY + 1, 255, 0, 0);
+        draw_msg(msgID, baseX + ((width - get_msg_width(msgID, 0)) >> 1), baseY + 1, 255, MSG_PAL_WHITE, 0);
     }
 }
 
@@ -373,7 +373,7 @@ void pause_spirits_handle_input(MenuPanel* panel) {
     gPauseCurrentDescIconScript = 0;
 
     if (get_player_data()->maxStarPower <= gPauseSpiritsIndexes[panel->selected]) {
-        gPauseCurrentDescMsg = pause_get_menu_msg(0x56);
+        gPauseCurrentDescMsg = pause_get_menu_msg(PAUSE_MSG_UNKNOWN_SPIRIT);
     } else {
         gPauseCurrentDescMsg = MSG_Menus_SpiritDesc_Eldstar + gPauseSpiritsIndexes[panel->selected];
     }
