@@ -135,7 +135,7 @@ s32 draw_ci_image_with_clipping(IMG_PTR raster, s32 width, s32 height, s32 fmt, 
         return 1;
     } else {
         gDPSetRenderMode(gMainGfxPos++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
-        gDPSetCombineLERP(gMainGfxPos++, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, TEXEL0, TEXEL0, 0, PRIMITIVE, 0);
+        gDPSetCombineMode(gMainGfxPos++, PM_CC_02, PM_CC_02);
         gDPSetPrimColor(gMainGfxPos++, 0, 0, 0, 0, 0, opacity);
     }
 
@@ -658,7 +658,7 @@ void draw_coin_sparkles(ItemEntity* itemEntity) {
     Matrix4f sp58;
     Matrix4f sp98;
     Matrix4f spD8;
-    FoldImageRecPart foldImage;
+    ImgFXTexture ifxImg;
 
     x = D_80155D8C;
     y = D_80155D8E;
@@ -687,14 +687,14 @@ void draw_coin_sparkles(ItemEntity* itemEntity) {
     gDPSetCombineKey(gMainGfxPos++, G_CK_NONE);
     gDPSetAlphaCompare(gMainGfxPos++, G_AC_NONE);
 
-    foldImage.raster = itemEntity->sparkleRaster;
-    foldImage.palette = itemEntity->sparklePalette;
-    foldImage.width = itemEntity->sparkleWidth;
-    foldImage.height = itemEntity->sparkleHeight;
-    foldImage.xOffset = -itemEntity->sparkleWidth / 2;
-    foldImage.yOffset = itemEntity->sparkleHeight / 2;
-    foldImage.opacity = 255;
-    fold_appendGfx_component(0, &foldImage, 0, spD8);
+    ifxImg.raster = itemEntity->sparkleRaster;
+    ifxImg.palette = itemEntity->sparklePalette;
+    ifxImg.width = itemEntity->sparkleWidth;
+    ifxImg.height = itemEntity->sparkleHeight;
+    ifxImg.xOffset = -itemEntity->sparkleWidth / 2;
+    ifxImg.yOffset = itemEntity->sparkleHeight / 2;
+    ifxImg.alpha = 255;
+    imgfx_appendGfx_component(0, &ifxImg, 0, spD8);
 
     gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     gDPPipeSync(gMainGfxPos++);
@@ -1416,8 +1416,7 @@ void appendGfx_item_entity(void* data) {
                              GBL_c1(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA),
                              AA_EN | IM_RD | CVG_DST_SAVE | ZMODE_OPA | FORCE_BL |
                              GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA));
-            gDPSetCombineLERP(gMainGfxPos++, PRIMITIVE, 0, TEXEL0, 0, PRIMITIVE, 0, TEXEL0, 0, PRIMITIVE, 0,
-                              TEXEL0, 0, TEXEL0, 0, PRIMITIVE, 0);
+            gDPSetCombineLERP(gMainGfxPos++, PRIMITIVE, 0, TEXEL0, 0, PRIMITIVE, 0, TEXEL0, 0, PRIMITIVE, 0, TEXEL0, 0, TEXEL0, 0, PRIMITIVE, 0);
             gDPSetPrimColor(gMainGfxPos++, 0, 0, 255, 255, 255, alpha);
         }
     }

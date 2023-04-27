@@ -135,15 +135,14 @@ EvtScript N(init) = {
 #include "battle/area/sam2/actor/img.png.inc.c"
 #include "battle/area/sam2/actor/img.pal.inc.c"
 
-FoldImageRecPart D_8021A2B8_63F498 = {
+ImgFXOverlayTexture N(MonstarDetailTexture) = {
     .raster = battle_area_sam2_actor_img_png,
     .palette = battle_area_sam2_actor_img_pal,
     .width = battle_area_sam2_actor_img_png_width,
     .height = battle_area_sam2_actor_img_png_height,
-    .xOffset = -1,
-    .yOffset = -4,
-    .opacity = 0,
-    .dlist = N(dlist),
+    .offsetX = -4,
+    .offsetY = 0,
+    .displayList = N(dlist),
 };
 
 API_CALLABLE(func_80218000_63D1E0) {
@@ -158,10 +157,10 @@ API_CALLABLE(func_80218000_63D1E0) {
         script->functionTemp[1] = 0;
         script->functionTemp[2] = 0;
         script->functionTemp[0] = 0;
-        func_802DE780(part->spriteInstanceID, 0, FOLD_UPD_ALLOC_COLOR_BUF, 20, 0, 0, 255, 0);
+        set_npc_imgfx_comp(part->spriteInstanceID, 0, IMGFX_ALLOC_COLOR_BUF, 20, 0, 0, 255, 0);
     }
 
-    func_802DE780(part->spriteInstanceID, 1, FOLD_TYPE_F, (s32)&D_8021A2B8_63F498, 255, 0, 255, 0);
+    set_npc_imgfx_comp(part->spriteInstanceID, 1, IMGFX_OVERLAY, (s32)&N(MonstarDetailTexture), 255, 0, 255, 0);
     script->functionTemp[1] += 10;
     if (script->functionTemp[1] >= 360) {
         script->functionTemp[1] %= 360;
@@ -174,7 +173,7 @@ API_CALLABLE(func_80218000_63D1E0) {
     }
 
     for (i = 0; i < 20; i++) {
-        func_802DE780(part->spriteInstanceID, 0, FOLD_UPD_COLOR_BUF_SET_C, i, colR[i] << 0x18 | colG[i] << 0x10 | colB[i] << 8 | 255, 0, 255, 0);
+        set_npc_imgfx_comp(part->spriteInstanceID, 0, IMGFX_COLOR_BUF_SET_MODULATE, i, colR[i] << 0x18 | colG[i] << 0x10 | colB[i] << 8 | 255, 0, 255, 0);
     }
 
     return ApiStatus_BLOCK;
@@ -237,7 +236,7 @@ EvtScript N(handleEvent) = {
         EVT_CASE_OR_EQ(EVENT_HIT)
             EVT_SET_CONST(LVar0, 1)
             EVT_SET_CONST(LVar1, ANIM_Monstar_Hurt)
-            EVT_EXEC_WAIT(DoNormalHit)
+            EVT_EXEC_WAIT(EVS_DoNormalHit)
         EVT_END_CASE_GROUP
         EVT_CASE_EQ(EVENT_BURN_HIT)
             EVT_SET(LVar0, 1)
@@ -278,7 +277,7 @@ EvtScript N(handleEvent) = {
         EVT_CASE_EQ(EVENT_DEATH)
             EVT_SET_CONST(LVar0, 1)
             EVT_SET_CONST(LVar1, ANIM_Monstar_Hurt)
-            EVT_EXEC_WAIT(DoNormalHit)
+            EVT_EXEC_WAIT(EVS_DoNormalHit)
             EVT_WAIT(10)
             EVT_SET_CONST(LVar0, 1)
             EVT_SET_CONST(LVar1, ANIM_Monstar_Hurt)
@@ -333,7 +332,7 @@ EvtScript N(unused) = {
     EVT_SUB(LVar2, 5)
     EVT_PLAY_EFFECT(EFFECT_RADIAL_SHIMMER, 10, LVar0, LVar1, LVar2, EVT_FLOAT(1.0), 300, 0)
     EVT_WAIT(75)
-    EVT_CALL(UseBattleCamPreset, BTL_CAM_PRESET_C)
+    EVT_CALL(UseBattleCamPreset, BTL_CAM_DEFAULT)
     EVT_CALL(MoveBattleCamOver, 20)
     EVT_CALL(SetActorVar, ACTOR_SELF, 1, 0)
     EVT_CALL(UseIdleAnimation, ACTOR_SELF, TRUE)
@@ -410,7 +409,7 @@ EvtScript N(attack) = {
         EVT_END_LOOP
     EVT_END_THREAD
     EVT_WAIT(8)
-    EVT_CALL(UseBattleCamPreset, BTL_CAM_PRESET_C)
+    EVT_CALL(UseBattleCamPreset, BTL_CAM_DEFAULT)
     EVT_CALL(MoveBattleCamOver, 10)
     EVT_CALL(GetActorPos, ACTOR_SELF, LVar0, LVar1, LVar2)
     EVT_ADD(LVar1, 50)
@@ -495,7 +494,7 @@ EvtScript N(takeTurn) = {
     EVT_END_SWITCH
     EVT_CALL(AddActorVar, ACTOR_SELF, 3, 1)
     EVT_CALL(UseIdleAnimation, ACTOR_SELF, TRUE)
-    EVT_CALL(UseBattleCamPreset, BTL_CAM_PRESET_C)
+    EVT_CALL(UseBattleCamPreset, BTL_CAM_DEFAULT)
     EVT_CALL(MoveBattleCamOver, 20)
     EVT_RETURN
     EVT_END
@@ -508,17 +507,17 @@ EvtScript N(OnDeath) = {
         EVT_CALL(SetAnimation, ACTOR_SELF, LVar0, LVar1)
         EVT_WAIT(10)
     EVT_END_IF
-    EVT_CALL(func_80269E80, LVar5)
+    EVT_CALL(GetDamageSource, LVar5)
     EVT_SWITCH(LVar5)
-        EVT_CASE_OR_EQ(10)
-        EVT_CASE_OR_EQ(14)
-        EVT_CASE_OR_EQ(12)
-        EVT_CASE_OR_EQ(16)
-        EVT_CASE_OR_EQ(11)
-        EVT_CASE_OR_EQ(15)
-        EVT_CASE_OR_EQ(13)
-        EVT_CASE_OR_EQ(17)
-        EVT_CASE_OR_EQ(2)
+        EVT_CASE_OR_EQ(DMG_SRC_NEXT_SLAP_LEFT)
+        EVT_CASE_OR_EQ(DMG_SRC_NEXT_FAN_SMACK_LEFT)
+        EVT_CASE_OR_EQ(DMG_SRC_LAST_SLAP_LEFT)
+        EVT_CASE_OR_EQ(DMG_SRC_LAST_FAN_SMACK_LEFT)
+        EVT_CASE_OR_EQ(DMG_SRC_NEXT_SLAP_RIGHT)
+        EVT_CASE_OR_EQ(DMG_SRC_NEXT_FAN_SMACK_RIGHT)
+        EVT_CASE_OR_EQ(DMG_SRC_LAST_SLAP_RIGHT)
+        EVT_CASE_OR_EQ(DMG_SRC_LAST_FAN_SMACK_RIGHT)
+        EVT_CASE_OR_EQ(DMG_SRC_SPIN_SMASH)
         EVT_END_CASE_GROUP
         EVT_CASE_DEFAULT
             EVT_SET(LocalFlag(0), 0)
@@ -553,8 +552,8 @@ EvtScript N(OnDeath) = {
         EVT_ADD(LVar3, 8)
         EVT_WAIT(1)
     EVT_END_LOOP
-    EVT_CALL(UseBattleCamPreset, BTL_CAM_PRESET_C)
-    EVT_EXEC_WAIT(ForceNextTarget)
+    EVT_CALL(UseBattleCamPreset, BTL_CAM_DEFAULT)
+    EVT_EXEC_WAIT(EVS_ForceNextTarget)
     EVT_CALL(RemoveActor, ACTOR_SELF)
     EVT_RETURN
     EVT_END
@@ -562,9 +561,9 @@ EvtScript N(OnDeath) = {
 
 EvtScript N(OnBurn) = {
     EVT_CALL(SetAnimation, ACTOR_SELF, LVar0, LVar1)
-    EVT_CALL(func_80269E80, LVar3)
+    EVT_CALL(GetDamageSource, LVar3)
     EVT_SWITCH(LVar3)
-        EVT_CASE_EQ(9)
+        EVT_CASE_EQ(DMG_SRC_FIRE_SHELL)
             EVT_CALL(GetOriginalActorType, ACTOR_SELF, LVar7)
             EVT_SWITCH(LVar7)
                 EVT_CASE_OR_EQ(ACTOR_TYPE_MONTY_MOLE)

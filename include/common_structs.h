@@ -251,12 +251,12 @@ typedef struct Npc {
     /* 0x08E */ s16 duration; // TODO: name less vaguely
     /* 0x090 */ Vec3s homePos;
     /* 0x096 */ s16 unk_96;
-    /* 0x098 */ s16 foldType;
-    /* 0x09A */ s16 foldArg1;
-    /* 0x09C */ s16 foldArg2;
-    /* 0x09E */ s16 foldArg3;
-    /* 0x0A0 */ s16 foldArg4;
-    /* 0x0A2 */ u16 foldFlags;
+    /* 0x098 */ s16 imgfxType;
+    /* 0x09A */ s16 imgfxArg1;
+    /* 0x09C */ s16 imgfxArg2;
+    /* 0x09E */ s16 imgfxArg3;
+    /* 0x0A0 */ s16 imgfxArg4;
+    /* 0x0A2 */ u16 imgfxFlags;
     /* 0x0A4 */ s8 npcID;
     /* 0x0A5 */ char unk_A5;
     /* 0x0A6 */ s16 collisionDiameter;
@@ -764,7 +764,7 @@ typedef struct Camera {
     /* 0x000 */ u16 flags;
     /* 0x002 */ s16 moveFlags;
     /* 0x004 */ s16 updateMode;
-    /* 0x006 */ s16 unk_06;
+    /* 0x006 */ s16 needsInit;
     /* 0x008 */ s16 isChangingMap;
     /* 0x00A */ s16 viewportW;
     /* 0x00C */ s16 viewportH;
@@ -956,7 +956,7 @@ typedef struct BattleStatus {
     /* 0x197 */ s8 targetHomeIndex; /* some sort of home index used for target list construction */
     /* 0x198 */ s8 powerBounceCounter;
     /* 0x199 */ s8 wasStatusInflicted; /* during last attack */
-    /* 0x19A */ u8 unk_19A;
+    /* 0x19A */ u8 currentDamageSource;
     /* 0x19B */ char unk_19B[5];
     /* 0x1A0 */ s16 currentTargetID; /* selected? */
     /* 0x1A2 */ s8 currentTargetPart; /* selected? */
@@ -1405,7 +1405,7 @@ typedef struct GameStatus {
     /* 0x06B */ s8 demoStickY;
     /* 0x06C */ s32 mainScriptID;
     /* 0x070 */ s8 isBattle;
-    /* 0x071 */ s8 demoState; /* (0 = not demo, 1 = map demo, 2 = demo map changing) */
+    /* 0x071 */ s8 demoState; // see DemoState enum
     /* 0x072 */ s8 nextDemoScene; /* which part of the demo to play next */
     /* 0x073 */ u8 contBitPattern;
     /* 0x074 */ s8 debugEnemyContact;
@@ -2273,17 +2273,17 @@ typedef struct SpriteRasterInfo {
     /* 0x0C */ s32 height;
 } SpriteRasterInfo; // size = 0x10
 
-typedef struct UnkEntityStruct {
-    /* 0x00 */ s32 foldID;
-    /* 0x04 */ s32 entityID;
+typedef struct KnockdownData {
+    /* 0x00 */ s32 imgfxIdx;
+    /* 0x04 */ s32 workerID;
     /* 0x08 */ s32 spriteIndex;
     /* 0x0C */ s32 rasterIndex;
     /* 0x10 */ Vec3f pos;
     /* 0x1C */ Vec3f rot;
     /* 0x28 */ Vec3f scale;
-    /* 0x34 */ f32 unk_34;
-    /* 0x38 */ f32 unk_38;
-} UnkEntityStruct; // size = 0x3C
+    /* 0x34 */ f32 width;
+    /* 0x38 */ f32 height;
+} KnockdownData; // size = 0x3C
 
 typedef struct VirtualEntity {
     /* 0x00 */ s32 entityModelIndex;
@@ -2302,18 +2302,18 @@ typedef struct VirtualEntity {
 typedef VirtualEntity* VirtualEntityList[0x40];
 
 typedef struct Message {
-    /* 0x00 */ s32 unk_00;
+    /* 0x00 */ b32 unk_00;
     /* 0x04 */ s32 unk_04;
     /* 0x08 */ Vec3f accel;
     /* 0x14 */ Vec3f vel;
-    /* 0x20 */ s32 unk_20;
+    /* 0x20 */ s32 appearTime;
     /* 0x24 */ s32 unk_24;
     /* 0x28 */ f32 rotZ;
     /* 0x2C */ f32 rotVelZ;
     /* 0x30 */ f32 rotY;
     /* 0x34 */ f32 scale;
     /* 0x38 */ Vec3f pos;
-    /* 0x44 */ s32 unk_44;
+    /* 0x44 */ s32 deleteTime;
     /* 0x48 */ f32 unk_48;
 } Message; // size = 0x4C
 
@@ -2327,8 +2327,8 @@ typedef struct PopupMessage {
     /* 0x10 */ s16 active;
     /* 0x12 */ s16 messageIndex;
     /* 0x14 */ s16 duration;
-    /* 0x16 */ s8 unk_16;
-    /* 0x17 */ s8 unk_17;
+    /* 0x16 */ s8 showMsgState;
+    /* 0x17 */ s8 needsInit;
     /* 0x18 */ Message* message;
 } PopupMessage; // size = 0x1C
 
@@ -2358,33 +2358,36 @@ typedef struct SpriteShadingProfile {
     /* 0xAF */ u8 ambientPower; // ?
 } SpriteShadingProfile; // size = 0xB0
 
-typedef struct FoldImageRecPart {
+typedef struct ImgFXOverlayTexture {
+    /* 0x00 */ IMG_PTR raster;
+    /* 0x04 */ PAL_PTR palette;
+    /* 0x08 */ u16 width;
+    /* 0x0A */ u16 height;
+    /* 0x0C */ s32 offsetX;
+    /* 0x10 */ s32 offsetY;
+    /* 0x14 */ Gfx* displayList;
+} ImgFXOverlayTexture; // size = 0x18
+
+typedef struct ImgFXTexture {
     /* 0x00 */ IMG_PTR raster;
     /* 0x04 */ PAL_PTR palette;
     /* 0x08 */ u16 width;
     /* 0x0A */ u16 height;
     /* 0x0C */ s16 xOffset;
     /* 0x0E */ s16 yOffset;
-    /* 0x10 */ u8 opacity; // alpha?
+    /* 0x10 */ u8 alpha;
     /* 0x11 */ char unk_11[3];
     /* 0x14 */ Gfx* dlist;
-} FoldImageRecPart; // size = 0x18
+} ImgFXTexture; // size = 0x18
 
-typedef struct FoldImageRec {
-    /* 0x00 */ IMG_PTR raster;
-    /* 0x04 */ PAL_PTR palette;
-    /* 0x08 */ u16 width;
-    /* 0x0A */ u16 height;
-    /* 0x0C */ s16 xOffset;
-    /* 0x0E */ s16 yOffset;
-    /* 0x10 */ u8 unk_10; // alpha?
-    /* 0x11 */ char unk_11[0x7];
+typedef struct ImgFXWorkingTexture {
+    /* 0x00 */ ImgFXTexture tex;
     /* 0x18 */ s16 unk_18;
     /* 0x1A */ char unk_1A[0x4];
     /* 0x1E */ s16 unk_1E;
     /* 0x20 */ char unk_20[0x4];
     /* 0x24 */ u8 alphaMultiplier;
-} FoldImageRec; // size = 0x25
+} ImgFXWorkingTexture; // size = 0x25
 
 typedef struct SongUpdateEvent {
     /* 0x00 */ s32 songName;

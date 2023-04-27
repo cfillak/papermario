@@ -555,16 +555,16 @@ dlabel screen_overlay_backZoom
 dlabel D_80156910
 .space 0x00000010
 
-dlabel D_80156920
+dlabel ImgFXCurrentTexture
 .space 0x00000028
 
-dlabel D_80156948
+dlabel ImgFXVtxBuffers
 .space 8
 
-dlabel fold_vtxBuf
+dlabel imgfx_vtxBuf
 .space 4
 
-dlabel D_80156954
+dlabel ImgFXInstances
 .space 4
 
 dlabel D_80156958
@@ -579,10 +579,10 @@ dlabel D_80156968
 dlabel D_80156970
 .space 0x00000010
 
-dlabel FoldAnimHeaders
+dlabel ImgFXAnimHeaders
 .space 0x000005a0
 
-dlabel fold_gfxDataCache
+dlabel ImgFXDataCache
 .space 0x00000040
 
 dlabel gHudElementsWorld
@@ -660,7 +660,7 @@ dlabel wSpriteShadingProfileAux
 dlabel bSpriteShadingProfileAux
 .space 0x000000b0
 
-dlabel D_80159880
+dlabel SpriteShadingPalette
 .space 0x00000020
 
 dlabel wEnvSounds
@@ -717,7 +717,7 @@ dlabel D_8015A57C
 dlabel mdl_textureHandles
 .space 0x00002200
 
-dlabel D_8015C790
+dlabel ScreenOverlays
 .space 0x00000030
 
 dlabel AmbientSoundData

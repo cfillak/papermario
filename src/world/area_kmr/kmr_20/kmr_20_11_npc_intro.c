@@ -77,8 +77,8 @@ EvtScript N(EVS_Player_EnterPipe_Intro) = {
             EVT_WAIT(1)
         EVT_END_LOOP
     EVT_END_THREAD
-    EVT_CALL(SetPlayerFoldFlags, FOLD_STATE_FLAG_800)
-    EVT_CALL(UpdatePlayerFold, ANIM_Mario1_Idle, FOLD_UPD_SET_ANIM, FOLD_ANIM_VERTICAL_PIPE_CURL, 1, 1, 0)
+    EVT_CALL(SetPlayerImgFXFlags, IMGFX_FLAG_800)
+    EVT_CALL(UpdatePlayerImgFX, ANIM_Mario1_Idle, IMGFX_SET_ANIM, IMGFX_ANIM_VERTICAL_PIPE_CURL, 1, 1, 0)
     EVT_WAIT(25)
     EVT_RETURN
     EVT_END
@@ -107,8 +107,8 @@ EvtScript N(EVS_Luigi_EnterPipe_Intro) = {
             EVT_WAIT(1)
         EVT_END_LOOP
     EVT_END_THREAD
-    EVT_CALL(SetNpcFoldFlags, NPC_Scene_Luigi, FOLD_STATE_FLAG_800)
-    EVT_CALL(SetNpcFoldParams, NPC_Scene_Luigi, FOLD_UPD_SET_ANIM, FOLD_ANIM_VERTICAL_PIPE_CURL, 1, 1, 0)
+    EVT_CALL(SetNpcImgFXFlags, NPC_Scene_Luigi, IMGFX_FLAG_800)
+    EVT_CALL(SetNpcImgFXParams, NPC_Scene_Luigi, IMGFX_SET_ANIM, IMGFX_ANIM_VERTICAL_PIPE_CURL, 1, 1, 0)
     EVT_WAIT(25)
     EVT_RETURN
     EVT_END
@@ -385,7 +385,7 @@ EvtScript N(EVS_Scene_BeginGame) = {
     EVT_CALL(SetMusicTrack, 0, SONG_PRISONER_PEACH_THEME, 0, 8)
     EVT_WAIT(5 * DT)
     EVT_CALL(ClearAmbientSounds, 250)
-    EVT_CALL(GotoMapSpecial, EVT_PTR("osr_00"), osr_00_ENTRY_3, TRANSITION_7)
+    EVT_CALL(GotoMapSpecial, EVT_PTR("osr_00"), osr_00_ENTRY_3, TRANSITION_SLOW_FADE_TO_WHITE)
     EVT_WAIT(15 * DT)
     EVT_CALL(ClearAmbientSounds, 250)
     EVT_WAIT(100 * DT)

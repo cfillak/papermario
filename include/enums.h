@@ -2172,7 +2172,7 @@ enum ItemTypeFlags {
     ITEM_TYPE_FLAG_BADGE                = 0x0040,
     ITEM_TYPE_FLAG_FOOD_OR_DRINK        = 0x0080,
     ITEM_TYPE_FLAG_USE_DRINK_ANIMATION  = 0x0100,
-    ITEM_TYPE_FLAG_ENTITY_COLLECTIBLE   = 0x0200,
+    ITEM_TYPE_FLAG_ENTITY_COLLECTABLE   = 0x0200,
     ITEM_TYPE_FLAG_ENTITY_FULLSIZE      = 0x1000,
 };
 
@@ -2668,6 +2668,36 @@ enum ActionRatings {
     ACTION_RATING_NICE_SUPER_COMBO  = 5  ///< 'Nice' but becomes 'Super' if nice hits > 2
 };
 
+enum DamageSources {
+    DMG_SRC_DEFAULT                 = 0,
+    DMG_SRC_BABY_BLOOPER_SELF       = 1,
+    DMG_SRC_SPIN_SMASH              = 2,
+    DMG_SRC_D_DOWN_POUND            = 3,
+    DMG_SRC_D_DOWN_JUMP             = 4,
+    DMG_SRC_TUTORIAL_GOOMBARIO      = 5,
+    DMG_SRC_SHELL_TOSS              = 6,
+    DMG_SRC_POWER_SHELL             = 7,
+    DMG_SRC_DIZZY_SHELL             = 8,
+    DMG_SRC_FIRE_SHELL              = 9,
+    DMG_SRC_NEXT_SLAP_LEFT          = 10,
+    DMG_SRC_NEXT_SLAP_RIGHT         = 11,
+    DMG_SRC_LAST_SLAP_LEFT          = 12,
+    DMG_SRC_LAST_SLAP_RIGHT         = 13,
+    DMG_SRC_NEXT_FAN_SMACK_LEFT     = 14,
+    DMG_SRC_NEXT_FAN_SMACK_RIGHT    = 15,
+    DMG_SRC_LAST_FAN_SMACK_LEFT     = 16,
+    DMG_SRC_LAST_FAN_SMACK_RIGHT    = 17,
+    DMG_SRC_SPOOK                   = 18,
+    DMG_SRC_ELECTRO_DASH            = 19,
+    DMG_SRC_HURRICANE               = 20,
+    DMG_SRC_FRIGHT_JAR              = 21,
+    DMG_SRC_POW_BLOCK               = 22,
+    DMG_SRC_TUBBA_SMASH             = 23,
+    DMG_SRC_CRUSH                   = 24,
+    DMG_SRC_CRUSH_PARTNER           = 25,
+    DMG_SRC_INK_BLAST               = 26,
+};
+
 enum Iters {
     ITER_FIRST       = -1,
     ITER_NEXT        = 0,
@@ -2931,63 +2961,88 @@ enum ItemSpawnModes {
 };
 
 enum Locations {
-    LOCATION_TOAD_TOWN                    = 0x00000001,
-    LOCATION_TOAD_TOWN_TUNNELS            = 0x00000002,
-    LOCATION_KOOPA_BROS_FORTRESS          = 0x00000007,
-    LOCATION_MT_RUGGED                    = 0x00000008,
-    LOCATION_DRY_DRY_OUTPOST              = 0x00000009,
-    LOCATION_DRY_DRY_DESERT               = 0x0000000A,
-    LOCATION_DRY_DRY_RUINS                = 0x0000000B,
-    LOCATION_FOREVER_FOREST               = 0x0000000C,
-    LOCATION_BOOS_MANSION                 = 0x0000000D,
-    LOCATION_TUBBAS_MANOR                 = 0x0000000F,
-    LOCATION_SHY_GUYS_TOYBOX              = 0x00000010,
-    LOCATION_MT_LAVALAVA                  = 0x00000012,
-    LOCATION_CRYSTAL_PALACE               = 0x00000015,
-    LOCATION_BOWSERS_CASTLE               = 0x00000016,
-    LOCATION_TESTING                      = 0x00000017,
-    LOCATION_NONE                         = 0x00000018,
-    LOCATION_PEACH_CASTLE_GROUNDS         = 0x00000019,
-    LOCATION_PEACHS_CASTLE                = 0x0000001A,
-    LOCATION_SHOOTING_STAR_SUMMIT         = 0x0000001B,
-    LOCATION_STAR_WAY                     = 0x0000001C,
-    LOCATION_STAR_HAVEN                   = 0x0000001D,
-    LOCATION_GOOMBA_VILLAGE               = 0x0000001E,
-    LOCATION_GOOMBA_ROAD                  = 0x0000001F,
-    LOCATION_PLEASANT_PATH                = 0x00000020,
-    LOCATION_KOOPA_VILLAGE                = 0x00000021,
-    LOCATION_GUSTY_GULCH                  = 0x00000022,
-    LOCATION_WINDY_MILL                   = 0x00000023,
-    LOCATION_JADE_JUNGLE                  = 0x00000024,
-    LOCATION_YOSHIS_VILLAGE               = 0x00000025,
-    LOCATION_FLOWER_FIELDS                = 0x00000026,
-    LOCATION_CLOUDY_CLIMB                 = 0x00000027,
-    LOCATION_SHIVER_CITY                  = 0x00000028,
-    LOCATION_SHIVER_SNOWFIELD             = 0x00000029,
-    LOCATION_STARBORN_VALLEY              = 0x0000002A,
-    LOCATION_SHIVER_MOUNTAIN              = 0x0000002B,
-    LOCATION_MARIOS_HOUSE                 = 0x0000002C,
+    LOCATION_TOAD_TOWN                  = 0x01,
+    LOCATION_TOAD_TOWN_TUNNELS          = 0x02,
+    LOCATION_KOOPA_BROS_FORTRESS        = 0x07,
+    LOCATION_MT_RUGGED                  = 0x08,
+    LOCATION_DRY_DRY_OUTPOST            = 0x09,
+    LOCATION_DRY_DRY_DESERT             = 0x0A,
+    LOCATION_DRY_DRY_RUINS              = 0x0B,
+    LOCATION_FOREVER_FOREST             = 0x0C,
+    LOCATION_BOOS_MANSION               = 0x0D,
+    LOCATION_TUBBAS_MANOR               = 0x0F,
+    LOCATION_SHY_GUYS_TOYBOX            = 0x10,
+    LOCATION_MT_LAVALAVA                = 0x12,
+    LOCATION_CRYSTAL_PALACE             = 0x15,
+    LOCATION_BOWSERS_CASTLE             = 0x16,
+    LOCATION_TESTING                    = 0x17,
+    LOCATION_NONE                       = 0x18,
+    LOCATION_PEACH_CASTLE_GROUNDS       = 0x19,
+    LOCATION_PEACHS_CASTLE              = 0x1A,
+    LOCATION_SHOOTING_STAR_SUMMIT       = 0x1B,
+    LOCATION_STAR_WAY                   = 0x1C,
+    LOCATION_STAR_HAVEN                 = 0x1D,
+    LOCATION_GOOMBA_VILLAGE             = 0x1E,
+    LOCATION_GOOMBA_ROAD                = 0x1F,
+    LOCATION_PLEASANT_PATH              = 0x20,
+    LOCATION_KOOPA_VILLAGE              = 0x21,
+    LOCATION_GUSTY_GULCH                = 0x22,
+    LOCATION_WINDY_MILL                 = 0x23,
+    LOCATION_JADE_JUNGLE                = 0x24,
+    LOCATION_YOSHIS_VILLAGE             = 0x25,
+    LOCATION_FLOWER_FIELDS              = 0x26,
+    LOCATION_CLOUDY_CLIMB               = 0x27,
+    LOCATION_SHIVER_CITY                = 0x28,
+    LOCATION_SHIVER_SNOWFIELD           = 0x29,
+    LOCATION_STARBORN_VALLEY            = 0x2A,
+    LOCATION_SHIVER_MOUNTAIN            = 0x2B,
+    LOCATION_MARIOS_HOUSE               = 0x2C,
 };
 
 typedef enum ScreenTransition {
-    TRANSITION_0        = 0,
-    TRANSITION_1        = 1,
-    TRANSITION_2        = 2,
-    TRANSITION_3        = 3,
-    TRANSITION_4        = 4,
-    TRANSITION_5        = 5,
-    TRANSITION_6        = 6,
-    TRANSITION_7        = 7,
-    TRANSITION_8        = 8,
-    TRANSITION_9        = 9,
-    TRANSITION_10       = 10,
-    TRANSITION_11       = 11,
-    TRANSITION_12       = 12,
-    TRANSITION_13       = 13,
-    TRANSITION_14       = 14,
-    TRANSITION_15       = 15,
-    TRANSITION_16       = 16,
+    TRANSITION_STANDARD                 = 0,    // fade to/from black
+    TRANSITION_TOY_TRAIN                = 1,    // similar to TRANSITION_TOY_TRAIN, but fade applies to whole screen
+    TRANSITION_END_DEMO_SCENE_BLACK     = 2,    // rapidly fade to black
+    TRANSITION_END_DEMO_SCENE_WHITE     = 3,    // slow fade to white -> rapid fade in from white
+    TRANSITION_BEGIN_OR_END_GAME        = 4,    // slow fade to/from black
+    TRANSITION_OUTRO_END_SCENE          = 5,    // slow fade to/from black
+    TRANSITION_BEGIN_OR_END_CHAPTER     = 6,    // white fade in/out; standard transition for entering kmr_22 (Begin Chapter) or leaving kmr_23 (End of Chapter)
+    TRANSITION_SLOW_FADE_TO_WHITE       = 7,    // slow fade to/from white
+    TRANSITION_ENTER_WORLD              = 8,    // black Mario stencil in/out
+    TRANSITION_MARIO_WHITE              = 9,    // white Mario stencil -> white fade in; used in post ch5 scene, fading to Save and Continue? screen
+    TRANSITION_MARIO_BLACK              = 10,   // black Mario stencil -> black fade in; used after Goombaria finds Mario and he wakes up in the inn
+    TRANSITION_AFTER_SAVE_PROMPT        = 11,   // white fade out -> white star stencil
+    TRANSITION_END_PEACH_INTERLUDE      = 12,   // white star stencil -> white Mario stencil
+    TRANSITION_PEACH_CAPTURED           = 13,   // black star stencil -> black fade in
+    TRANSITION_GET_STAR_CARD            = 14,   // used for entering kmr_23 (Get Star Card / End Chapter)
+    TRANSITION_END_CHAPTER_INTERRUPTED  = 15,   // white fade out -> white Mario stencil; used in kzn_19 for Ch5
+    TRANSITION_SLOW_BLUR_MOTION         = 16,   // unused?
 } ScreenTransition;
+
+enum ScreenLayer {
+    SCREEN_LAYER_FRONT              = 0,
+    SCREEN_LAYER_BACK               = 1,
+};
+
+typedef enum ScreenOverlayType {
+    OVERLAY_NONE                    = -1,
+    OVERLAY_SCREEN_COLOR            = 0,
+    OVERLAY_VIEWPORT_COLOR          = 1,
+    OVERLAY_TYPE_2                  = 2,
+    OVERLAY_VIEWPORT_SPOTLIGHT      = 3,
+    OVERLAY_VIEWPORT_MARIO          = 4,
+    OVERLAY_VIEWPORT_STAR           = 5,
+    OVERLAY_SCREEN_SPOTLIGHT        = 6,
+    OVERLAY_SCREEN_MARIO            = 7,
+    OVERLAY_SCREEN_STAR             = 8,
+    OVERLAY_TYPE_9                  = 9,
+    OVERLAY_START_BATTLE            = 10,
+    OVERLAY_WORLD_DARKNESS          = 11,
+    OVERLAY_BLUR                    = 12,
+    OVERLAY_BATTLE_DARKNESS         = 13,
+    OVERLAY_UNUSED_1                = 14,
+    OVERLAY_UNUSED_2                = 15,
+} ScreenOverlayType;
 
 enum DoorSounds {
     DOOR_SOUNDS_BASIC               = 0,
@@ -4340,6 +4395,8 @@ enum DemoState {
     DEMO_STATE_NONE         = 0,
     DEMO_STATE_ACTIVE       = 1,
     DEMO_STATE_CHANGE_MAP   = 2,
+    DEMO_STATE_4            = 4,
+    DEMO_STATE_DONE         = 5,
 };
 
 enum MapLoadType {
@@ -4865,91 +4922,91 @@ enum BattlePartnerMenuSubstates {
 };
 
 enum BattleMessages {
-    BTL_MSG_00      = 0x00,
-    BTL_MSG_01      = 0x01,
-    BTL_MSG_02      = 0x02,
-    BTL_MSG_03      = 0x03,
-    BTL_MSG_04      = 0x04,
-    BTL_MSG_05      = 0x05,
-    BTL_MSG_06      = 0x06,
-    BTL_MSG_07      = 0x07,
-    BTL_MSG_08      = 0x08,
-    BTL_MSG_09      = 0x09,
-    BTL_MSG_0A      = 0x0A,
-    BTL_MSG_0B      = 0x0B,
-    BTL_MSG_0C      = 0x0C,
-    BTL_MSG_0D      = 0x0D,
-    BTL_MSG_0E      = 0x0E,
-    BTL_MSG_0F      = 0x0F,
-    BTL_MSG_10      = 0x10,
-    BTL_MSG_11      = 0x11,
-    BTL_MSG_12      = 0x12,
-    BTL_MSG_13      = 0x13,
-    BTL_MSG_14      = 0x14,
-    BTL_MSG_15      = 0x15,
-    BTL_MSG_16      = 0x16,
-    BTL_MSG_17      = 0x17,
-    BTL_MSG_18      = 0x18,
-    BTL_MSG_19      = 0x19,
-    BTL_MSG_1A      = 0x1A,
-    BTL_MSG_1B      = 0x1B,
-    BTL_MSG_1C      = 0x1C,
-    BTL_MSG_1D      = 0x1D,
-    BTL_MSG_1E      = 0x1E,
-    BTL_MSG_1F      = 0x1F,
-    BTL_MSG_20      = 0x20,
-    BTL_MSG_21      = 0x21,
-    BTL_MSG_22      = 0x22,
-    BTL_MSG_23      = 0x23,
-    BTL_MSG_24      = 0x24,
-    BTL_MSG_25      = 0x25,
-    BTL_MSG_26      = 0x26,
-    BTL_MSG_27      = 0x27,
-    BTL_MSG_28      = 0x28,
-    BTL_MSG_29      = 0x29,
-    BTL_MSG_2A      = 0x2A,
-    BTL_MSG_2B      = 0x2B,
-    BTL_MSG_2C      = 0x2C,
-    BTL_MSG_2D      = 0x2D,
-    BTL_MSG_2E      = 0x2E,
-    BTL_MSG_2F      = 0x2F,
-    BTL_MSG_30      = 0x30,
-    BTL_MSG_31      = 0x31,
-    BTL_MSG_32      = 0x32,
-    BTL_MSG_33      = 0x33,
-    BTL_MSG_34      = 0x34,
-    BTL_MSG_35      = 0x35,
-    BTL_MSG_36      = 0x36,
-    BTL_MSG_37      = 0x37,
-    BTL_MSG_38      = 0x38,
-    BTL_MSG_39      = 0x39,
-    BTL_MSG_3A      = 0x3A,
-    BTL_MSG_3B      = 0x3B,
-    BTL_MSG_3C      = 0x3C,
-    BTL_MSG_3D      = 0x3D,
-    BTL_MSG_3E      = 0x3E,
-    BTL_MSG_3F      = 0x3F,
-    BTL_MSG_40      = 0x40,
-    BTL_MSG_41      = 0x41,
-    BTL_MSG_42      = 0x42,
-    BTL_MSG_43      = 0x43,
-    BTL_MSG_44      = 0x44,
-    BTL_MSG_45      = 0x45,
-    BTL_MSG_46      = 0x46,
-    BTL_MSG_47      = 0x47,
-    BTL_MSG_48      = 0x48,
-    BTL_MSG_49      = 0x49,
-    BTL_MSG_4A      = 0x4A,
-    BTL_MSG_4B      = 0x4B,
-    BTL_MSG_4C      = 0x4C,
-    BTL_MSG_4D      = 0x4D,
-    BTL_MSG_4E      = 0x4E,
-    BTL_MSG_4F      = 0x4F,
-    BTL_MSG_50      = 0x50,
-    BTL_MSG_51      = 0x51,
-    BTL_MSG_52      = 0x52,
-    BTL_MSG_53      = 0x53,
-    BTL_MSG_54      = 0x54,
+    BTL_MSG_MERLEE_ATK_UP               = 0x00,
+    BTL_MSG_MERLEE_DEF_UP               = 0x01,
+    BTL_MSG_MERLEE_EXP_UP               = 0x02,
+    BTL_MSG_MERLEE_DONE                 = 0x03,
+    BTL_MSG_CHARGE_HAMMER               = 0x04,
+    BTL_MSG_CHARGE_HAMMER_MORE          = 0x05,
+    BTL_MSG_CHARGE_JUMP                 = 0x06,
+    BTL_MSG_CHARGE_JUMP_MORE            = 0x07,
+    BTL_MSG_CANT_CHARGE                 = 0x08,
+    BTL_MSG_ENEMY_MISSED                = 0x09,
+    BTL_MSG_PLAYER_DAZED                = 0x0A,
+    BTL_MSG_PLAYER_ASLEEP               = 0x0B,
+    BTL_MSG_PLAYER_FROZEN               = 0x0C,
+    BTL_MSG_PLAYER_POISONED             = 0x0D,
+    BTL_MSG_PLAYER_SHRUNK               = 0x0E,
+    BTL_MSG_PLAYER_PARALYZED            = 0x0F,
+    BTL_MSG_PLAYER_CHARGED              = 0x10,
+    BTL_MSG_PLAYER_TRANSPARENT          = 0x11,
+    BTL_MSG_ENEMY_DAZED                 = 0x12,
+    BTL_MSG_ENEMY_ASLEEP                = 0x13,
+    BTL_MSG_ENEMY_FROZEN                = 0x14,
+    BTL_MSG_ENEMY_POISONED              = 0x15,
+    BTL_MSG_ENEMY_SHRUNK                = 0x16,
+    BTL_MSG_ENEMY_PARALYZED             = 0x17,
+    BTL_MSG_ENEMY_ELECTRIFIED           = 0x18,
+    BTL_MSG_ENEMY_CANT_MOVE             = 0x19,
+    BTL_MSG_STAR_POWER_RECHARGED        = 0x1A,
+    BTL_MSG_STAR_POWER_MAXED            = 0x1B,
+    BTL_MSG_STAR_POWER_FILLED           = 0x1C,
+    BTL_MSG_ATTACK_UP                   = 0x1D,
+    BTL_MSG_DEFENCE_UP                  = 0x1E,
+    BTL_MSG_1F                          = 0x1F,
+    BTL_MSG_20                          = 0x20,
+    BTL_MSG_ENEMY_TRANSPARENT           = 0x21,
+    BTL_MSG_ENEMY_CHARGED               = 0x22,
+    BTL_MSG_PARTNER_INJURED             = 0x23,
+    BTL_MSG_CHARGE_GOOMBARIO            = 0x24,
+    BTL_MSG_CHARGE_GOOMBARIO_MORE       = 0x25,
+    BTL_MSG_WATER_BLOCK_BEGIN           = 0x26,
+    BTL_MSG_WATER_BLOCK_END             = 0x27,
+    BTL_MSG_CLOUD_NINE_BEGIN            = 0x28,
+    BTL_MSG_CLOUD_NINE_END              = 0x29,
+    BTL_MSG_TURBO_CHARGE_BEGIN          = 0x2A,
+    BTL_MSG_TURBO_CHARGE_END            = 0x2B,
+    BTL_MSG_CHILL_OUT_BEGIN             = 0x2C,
+    BTL_MSG_UNUSED_CLOUD_NINE           = 0x2D,
+    BTL_MSG_ACTION_TIP_00               = 0x2E,
+    BTL_MSG_ACTION_TIP_01               = 0x2F,
+    BTL_MSG_ACTION_TIP_02               = 0x30,
+    BTL_MSG_ACTION_TIP_03               = 0x31,
+    BTL_MSG_ACTION_TIP_04               = 0x32,
+    BTL_MSG_ACTION_TIP_05               = 0x33,
+    BTL_MSG_ACTION_TIP_06               = 0x34,
+    BTL_MSG_ACTION_TIP_07               = 0x35,
+    BTL_MSG_ACTION_TIP_08               = 0x36,
+    BTL_MSG_ACTION_TIP_09               = 0x37,
+    BTL_MSG_ACTION_TIP_0A               = 0x38,
+    BTL_MSG_ACTION_TIP_0B               = 0x39,
+    BTL_MSG_ACTION_TIP_0C               = 0x3A,
+    BTL_MSG_ACTION_TIP_0D               = 0x3B,
+    BTL_MSG_ACTION_TIP_0E               = 0x3C,
+    BTL_MSG_ACTION_TIP_0F               = 0x3D,
+    BTL_MSG_ACTION_TIP_10               = 0x3E,
+    BTL_MSG_ACTION_TIP_11               = 0x3F,
+    BTL_MSG_ACTION_TIP_12               = 0x40,
+    BTL_MSG_ACTION_TIP_13               = 0x41,
+    BTL_MSG_ACTION_TIP_14               = 0x42,
+    BTL_MSG_NO_JUMP_TARGET              = 0x43,
+    BTL_MSG_NO_HAMMER_TARGET            = 0x44,
+    BTL_MSG_NO_ITEM_TARGET              = 0x45,
+    BTL_MSG_46                          = 0x46,
+    BTL_MSG_47                          = 0x47,
+    BTL_MSG_CANT_SELECT_NOW             = 0x48,
+    BTL_MSG_HAMMER_DISABLED_1           = 0x49,
+    BTL_MSG_HAMMER_DISABLED_2           = 0x4A,
+    BTL_MSG_HAMMER_DISABLED_3           = 0x4B,
+    BTL_MSG_JUMP_DISABLED_1             = 0x4C,
+    BTL_MSG_JUMP_DISABLED_2             = 0x4D,
+    BTL_MSG_JUMP_DISABLED_3             = 0x4E,
+    BTL_MSG_ITEMS_DISABLED              = 0x4F,
+    BTL_MSG_CANT_SWITCH                 = 0x50,
+    BTL_MSG_CANT_MOVE                   = 0x51,
+    BTL_MSG_CANT_SWITCH_UNUSED          = 0x52,
+    BTL_MSG_CANT_MOVE_UNUSED            = 0x53,
+    BTL_MSG_CANT_SELECT_NOW_ALT         = 0x54,
 };
 
 // BattleMenuState
@@ -5461,7 +5518,7 @@ enum CameraInitDataFlags {
 
 enum CameraFlags {
     CAMERA_FLAG_1                   = 0x00000001,
-    CAMERA_FLAG_ENABLED             = 0x00000002,
+    CAMERA_FLAG_DISABLED            = 0x00000002,
     CAMERA_FLAG_LEAD_PLAYER         = 0x00000004,
     CAMERA_FLAG_SHAKING             = 0x00000008,
     CAMERA_FLAG_ORTHO               = 0x00000010,
@@ -5501,12 +5558,12 @@ enum CameraMoveFlags {
 };
 
 enum CameraUpdateType {
-    CAM_UPDATE_MODE_0               = 0,
-    CAM_UPDATE_MODE_1               = 1,
+    CAM_UPDATE_MODE_INIT            = 0,
+    CAM_UPDATE_UNUSED_1             = 1,
     CAM_UPDATE_MODE_2               = 2,
-    CAM_UPDATE_MODE_3               = 3,
-    CAM_UPDATE_MODE_4               = 4,
-    CAM_UPDATE_MODE_5               = 5,
+    CAM_UPDATE_FROM_ZONE            = 3,
+    CAM_UPDATE_UNUSED_4             = 4,
+    CAM_UPDATE_UNUSED_5             = 5,
     CAM_UPDATE_MODE_6               = 6,
 };
 
@@ -5548,80 +5605,92 @@ enum CameraControlType {
 };
 
 enum BtlCameraPreset {
-    BTL_CAM_PRESET_A  = 0,
-    BTL_CAM_PRESET_B,
-    BTL_CAM_PRESET_C,
-    BTL_CAM_PRESET_D,
-    BTL_CAM_PRESET_E,
-    BTL_CAM_PRESET_F,
-    BTL_CAM_PRESET_G,
-    BTL_CAM_PRESET_H,
-    BTL_CAM_PRESET_I,
-    BTL_CAM_PRESET_9,
-    BTL_CAM_PRESET_10,
-    BTL_CAM_PRESET_11,
-    BTL_CAM_PRESET_12,
-    BTL_CAM_PRESET_13,
-    BTL_CAM_PRESET_14,
-    BTL_CAM_PRESET_15,
-    BTL_CAM_PRESET_16,
-    BTL_CAM_PRESET_17,
-    BTL_CAM_PRESET_18,
-    BTL_CAM_PRESET_19,
-    BTL_CAM_PRESET_20,
-    BTL_CAM_PRESET_21,
-    BTL_CAM_PRESET_22,
-    BTL_CAM_PRESET_23,
-    BTL_CAM_PRESET_24,
-    BTL_CAM_PRESET_25,
-    BTL_CAM_PRESET_26,
-    BTL_CAM_PRESET_27,
-    BTL_CAM_PRESET_28,
-    BTL_CAM_PRESET_29,
-    BTL_CAM_PRESET_30,
-    BTL_CAM_PRESET_31,
-    BTL_CAM_PRESET_32,
-    BTL_CAM_PRESET_33,
-    BTL_CAM_PRESET_34,
-    BTL_CAM_PRESET_35,
-    BTL_CAM_PRESET_36,
-    BTL_CAM_PRESET_37,
-    BTL_CAM_PRESET_38,
-    BTL_CAM_PRESET_39,
-    BTL_CAM_PRESET_40,
-    BTL_CAM_PRESET_41,
-    BTL_CAM_PRESET_42,
-    BTL_CAM_PRESET_43,
-    BTL_CAM_PRESET_44,
-    BTL_CAM_PRESET_45,
-    BTL_CAM_PRESET_46,
-    BTL_CAM_PRESET_47,
-    BTL_CAM_PRESET_48,
-    BTL_CAM_PRESET_49,
-    BTL_CAM_PRESET_50,
-    BTL_CAM_PRESET_51,
-    BTL_CAM_PRESET_52,
-    BTL_CAM_PRESET_53,
-    BTL_CAM_PRESET_54,
-    BTL_CAM_PRESET_55,
-    BTL_CAM_PRESET_56,
-    BTL_CAM_PRESET_57,
-    BTL_CAM_PRESET_58,
-    BTL_CAM_PRESET_59,
-    BTL_CAM_PRESET_60,
-    BTL_CAM_PRESET_61,
-    BTL_CAM_PRESET_62,
-    BTL_CAM_PRESET_63,
-    BTL_CAM_PRESET_64,
-    BTL_CAM_PRESET_65,
-    BTL_CAM_PRESET_66,
-    BTL_CAM_PRESET_67,
-    BTL_CAM_PRESET_68,
-    BTL_CAM_PRESET_69,
-    BTL_CAM_PRESET_70,
-    BTL_CAM_PRESET_71,
-    BTL_CAM_PRESET_72,
-    BTL_CAM_PRESET_73,
+    BTL_CAM_PRESET_00               = 0,    // unused?
+    BTL_CAM_PRESET_01               = 1,    // STOP
+    BTL_CAM_DEFAULT                 = 2,
+    BTL_CAM_PRESET_03               = 3,
+    BTL_CAM_PRESET_04               = 4,
+    BTL_CAM_PRESET_05               = 5,
+    BTL_CAM_PRESET_06               = 6,   // unused?
+    BTL_CAM_PRESET_07               = 7,
+    BTL_CAM_PRESET_08               = 8,
+    BTL_CAM_PRESET_09               = 9,    // unused?
+    BTL_CAM_PRESET_10               = 10,
+    BTL_CAM_PRESET_11               = 11,
+    BTL_CAM_PRESET_12               = 12,   // unused?
+    BTL_CAM_PRESET_13               = 13,
+    BTL_CAM_PRESET_14               = 14,
+    BTL_CAM_PRESET_15               = 15,
+    BTL_CAM_PRESET_16               = 16,   // unused?
+    BTL_CAM_PRESET_17               = 17,   // unused?
+    BTL_CAM_PRESET_18               = 18,   // unused?
+    BTL_CAM_PRESET_19               = 19,
+    BTL_CAM_PRESET_20               = 20,   // unused?
+    BTL_CAM_PRESET_21               = 21,   // unused?
+    BTL_CAM_PLAYER_ENTRY            = 22,
+    BTL_CAM_VICTORY                 = 23,   // closeup on party while star points are tallied
+    BTL_CAM_PRESET_24               = 24,
+    BTL_CAM_PRESET_25               = 25,   // closeup on player used when running away or being defeated
+    BTL_CAM_PLAYER_ATTACK_APPROACH  = 26,
+    BTL_CAM_PRESET_27               = 27,
+    BTL_CAM_PRESET_28               = 28,
+    BTL_CAM_PRESET_29               = 29,
+    BTL_CAM_PLAYER_HIT_SPIKE        = 30,   // player hurt via spike contact
+    BTL_CAM_PLAYER_HIT_HAZARD       = 31,   // player hurt via burn or shock contact
+    BTL_CAM_PLAYER_CHARGE_UP        = 32,
+    BTL_CAM_PLAYER_STATUS_AFFLICTED = 33,
+    BTL_CAM_PRESET_34               = 34,
+    BTL_CAM_PRESET_35               = 35,
+    BTL_CAM_PRESET_36               = 36,   // unused?
+    BTL_CAM_PRESET_37               = 37,
+    BTL_CAM_PRESET_38               = 38,
+    BTL_CAM_PRESET_39               = 39,
+    BTL_CAM_PRESET_40               = 40,
+    BTL_CAM_PRESET_41               = 41,   // unused?
+    BTL_CAM_PRESET_42               = 42,   // unused?
+    BTL_CAM_PLAYER_AIM_HAMMER       = 43,
+    BTL_CAM_PLAYER_HAMMER_STRIKE    = 44,
+    BTL_CAM_PRESET_45               = 45,   // unused?
+    BTL_CAM_PRESET_46               = 46,
+    BTL_CAM_PRESET_47               = 47,
+    BTL_CAM_PRESET_48               = 48,
+    BTL_CAM_PRESET_49               = 49,   // unused?
+    BTL_CAM_PRESET_50               = 50,
+    BTL_CAM_PRESET_51               = 51,
+    BTL_CAM_PRESET_52               = 52,
+    BTL_CAM_PRESET_53               = 53,
+    BTL_CAM_PARTNER_INJURED         = 54,   // closeup on partner after being injured
+    BTL_CAM_PRESET_55               = 55,
+    BTL_CAM_PRESET_56               = 56,   // unused?
+    BTL_CAM_PRESET_57               = 57,   // unused?
+    BTL_CAM_PRESET_58               = 58,   // unused?
+    BTL_CAM_PRESET_59               = 59,
+    BTL_CAM_PRESET_60               = 60,   // unused?
+    BTL_CAM_PRESET_61               = 61,
+    BTL_CAM_PRESET_62               = 62,
+    BTL_CAM_PRESET_63               = 63,
+    BTL_CAM_PRESET_64               = 64,   // unused?
+    BTL_CAM_PRESET_65               = 65,   // unused?
+    BTL_CAM_PRESET_66               = 66,
+    BTL_CAM_PRESET_67               = 67,   // unused?
+    BTL_CAM_PRESET_68               = 68,   // unused?
+    BTL_CAM_PRESET_69               = 69,
+    BTL_CAM_PRESET_70               = 70,   // unused?
+    BTL_CAM_PRESET_71               = 71,   // unused?
+    BTL_CAM_PRESET_72               = 72,   // unused?
+    BTL_CAM_PRESET_73               = 73,
+};
+
+enum BattleCamXModes {
+    BTL_CAM_MODEX_0         = 0,
+    BTL_CAM_MODEX_1         = 1,
+};
+
+enum BattleCamYModes {
+    BTL_CAM_MODEY_MINUS_2   = -2,
+    BTL_CAM_MODEY_MINUS_1   = -1,
+    BTL_CAM_MODEY_0         = 0,
+    BTL_CAM_MODEY_1         = 1,
 };
 
 enum MoveActionTips {
@@ -5959,101 +6028,119 @@ enum NpcDropFlags {
     NPC_DROP_FLAG_80                = 0x80,
 };
 
-enum FoldStateFlags {
-    FOLD_STATE_FLAG_ENABLED           = 0x00000001,
-    FOLD_STATE_FLAG_G_CULL_BACK       = 0x00000002,
-    FOLD_STATE_FLAG_G_CULL_FRONT      = 0x00000004,
-    FOLD_STATE_FLAG_8                 = 0x00000008,
-    FOLD_STATE_FLAG_SKIP_GFX_SETUP    = 0x00000010,
-    FOLD_STATE_FLAG_SKIP_TEX_SETUP    = 0x00000020,
-    FOLD_STATE_FLAG_40                = 0x00000040,
-    FOLD_STATE_FLAG_LOOP_ANIM         = 0x00000080,
-    FOLD_STATE_FLAG_REVERSE_ANIM      = 0x00000100, // fold animation plays backwards (from end to start)
-    FOLD_STATE_FLAG_200               = 0x00000200,
-    FOLD_STATE_FLAG_400               = 0x00000400,
-    FOLD_STATE_FLAG_800               = 0x00000800,
-    FOLD_STATE_FLAG_ANIM_DONE         = 0x00001000,
-    FOLD_STATE_FLAG_2000              = 0x00002000,
-    FOLD_STATE_FLAG_4000              = 0x00004000,
-    FOLD_STATE_FLAG_8000              = 0x00008000,
-    FOLD_STATE_FLAG_NO_FILTERING      = 0x00010000,
-    FOLD_STATE_FLAG_20000             = 0x00020000,
-    FOLD_STATE_FLAG_40000             = 0x00040000,
-    FOLD_STATE_FLAG_80000             = 0x00080000,
-    FOLD_STATE_FLAG_100000            = 0x00100000,
+enum ImgFXStateFlags {
+    IMGFX_FLAG_IN_USE               = 0x00000001,
+    IMGFX_FLAG_G_CULL_BACK          = 0x00000002,
+    IMGFX_FLAG_G_CULL_FRONT         = 0x00000004,
+    IMGFX_FLAG_8                    = 0x00000008,
+    IMGFX_FLAG_SKIP_GFX_SETUP       = 0x00000010,
+    IMGFX_FLAG_SKIP_TEX_SETUP       = 0x00000020,
+    IMGFX_FLAG_40                   = 0x00000040,
+    IMGFX_FLAG_LOOP_ANIM            = 0x00000080,
+    IMGFX_FLAG_REVERSE_ANIM         = 0x00000100, // fold animation plays backwards (from end to start)
+    IMGFX_FLAG_200                  = 0x00000200,
+    IMGFX_FLAG_400                  = 0x00000400,
+    IMGFX_FLAG_800                  = 0x00000800,
+    IMGFX_FLAG_ANIM_DONE            = 0x00001000,
+    IMGFX_FLAG_2000                 = 0x00002000,
+    IMGFX_FLAG_4000                 = 0x00004000,
+    IMGFX_FLAG_8000                 = 0x00008000,
+    IMGFX_FLAG_NO_FILTERING         = 0x00010000,
+    IMGFX_FLAG_20000                = 0x00020000,
+    IMGFX_FLAG_40000                = 0x00040000,
+    IMGFX_FLAG_80000                = 0x00080000,
+    IMGFX_FLAG_100000               = 0x00100000,
 };
 
-typedef enum FoldType {
-    FOLD_UPD_CLEAR                    = 0x0,    // or FOLD_UPD_INIT?
-    FOLD_TYPE_1                       = 0x1,    // unused?
-    FOLD_TYPE_2                       = 0x2,    // unused?
-    FOLD_TYPE_3                       = 0x3,    // after goomba 'sticker' ambush in kmr_09 unfurls
-    FOLD_UPD_WAVY                     = 0x4,    // Kolorado when injured and Sushie when underwater (* note: Sushie fold rendering is bugged and only occurs *before* going underwater)
-    FOLD_UPD_SET_ANIM                 = 0x5,
-    FOLD_UPD_SET_COLOR                = 0x6,    // modulate color (args: R, G, B)
-    FOLD_UPD_SET_ALPHA                = 0x7,    // modulate alpha (args: A)
-    FOLD_UPD_SET_TINT                 = 0x8,    // modulate color+alpha (args: R, G, B, A)
-    FOLD_TYPE_9                       = 0x9,
-    FOLD_TYPE_A                       = 0xA,
-    FOLD_UPD_COLOR_BUF_SET_B          = 0xB,
-    FOLD_UPD_COLOR_BUF_SET_C          = 0xC,
-    FOLD_UPD_HOLOGRAM                 = 0xD,    // ghostly star spirits and merlar (args: ???, staticAmt, ???, alphaAmt)
-    FOLD_TYPE_E                       = 0xE,
-    FOLD_TYPE_F                       = 0xF,
-    FOLD_TYPE_10                      = 0x10,   // unused?
-    FOLD_UPD_ALLOC_COLOR_BUF          = 0x11,   // args: count
-} FoldType;
+typedef enum ImgFXType {
+    IMGFX_CLEAR                     = 0x0,
+    IMGFX_UNK_1                     = 0x1,    // unused?
+    IMGFX_UNK_2                     = 0x2,    // unused?
+    IMGFX_RESET                     = 0x3,    // after goomba 'sticker' ambush in kmr_09 unfurls. might be to force-terminate ANIM.
+    IMGFX_SET_WAVY                  = 0x4,    // Kolorado when injured and Sushie when underwater (* note: Sushie fold rendering is bugged and only occurs *before* going underwater)
+    IMGFX_SET_ANIM                  = 0x5,
+    IMGFX_SET_COLOR                 = 0x6,    // modulate color (args: R, G, B)
+    IMGFX_SET_ALPHA                 = 0x7,    // modulate alpha (args: A)
+    IMGFX_SET_TINT                  = 0x8,    // modulate color+alpha (args: R, G, B, A)
+    IMGFX_SET_WHITE_FADE            = 0x9,
+    IMGFX_SET_CREDITS_FADE          = 0xA,
+    IMGFX_COLOR_BUF_SET_MULTIPLY    = 0xB,
+    IMGFX_COLOR_BUF_SET_MODULATE    = 0xC,
+    IMGFX_HOLOGRAM                  = 0xD,    // ghostly star spirits and merlar (args: ???, staticAmt, ???, alphaAmt)
+    IMGFX_FILL_COLOR                = 0xE,    // used to create boss silhouettes in chapter introduction sceens
+    IMGFX_OVERLAY                   = 0xF,
+    IMGFX_OVERLAY_XLU               = 0x10,   // unused?
+    IMGFX_ALLOC_COLOR_BUF           = 0x11,   // args: count
+} ImgFXType;
 
-typedef enum FoldAnim {
-    FOLD_ANIM_SHOCK                   = 0x00, // used for Goombaria and Goompapa when Kammy drops the hammer block
-    FOLD_ANIM_SHIVER                  = 0x01, // used when Goombaria gives Mario a kiss
-    FOLD_ANIM_VERTICAL_PIPE_CURL      = 0x02, // vertical pipe curl
-    FOLD_ANIM_HORIZONTAL_PIPE_CURL    = 0x03, // horizontal pipe curl
-    FOLD_ANIM_STARTLE                 = 0x04, // used when Koopa Bros are surprised by Mario
-    FOLD_ANIM_FLUTTER_DOWN            = 0x05, // player falling like paper
-    FOLD_ANIM_UNFURL                  = 0x06, // used by Goomba 'stickers' that ambush Mario in area_kmr
-    FOLD_ANIM_GET_IN_BED              = 0x07, // Mario gets into bed
-    FOLD_ANIM_SPIRIT_CAPTURE          = 0x08, // Eldstar being captured
-    FOLD_ANIM_UNUSED_1                = 0x09, // unused
-    FOLD_ANIM_UNUSED_2                = 0x0A, // unused
-    FOLD_ANIM_UNUSED_3                = 0x0B, // unused
-    FOLD_ANIM_TUTANKOOPA_GATHER       = 0x0C, // tutankoopa 3
-    FOLD_ANIM_TUTANKOOPA_SWIRL_2      = 0x0D, // tutankoopa 2
-    FOLD_ANIM_TUTANKOOPA_SWIRL_1      = 0x0E, // tutankoopa 1
-    FOLD_ANIM_SHUFFLE_CARDS           = 0x0F, // merlee spell-casting card shuffle
-    FOLD_ANIM_FLIP_CARD_1             = 0x10, // merlee spell-casting card flip 1
-    FOLD_ANIM_FLIP_CARD_2             = 0x11, // merlee spell-casting card flip 2
-    FOLD_ANIM_FLIP_CARD_3             = 0x12, // merlee spell-casting card flip 3
-    FOLD_ANIM_CYMBAL_CRUSH            = 0x13, // used when Mario is crushed in a Cymbal Plant
-} FoldAnim;
+typedef enum ImgFXAnim {
+    IMGFX_ANIM_SHOCK                   = 0x00, // used for Goombaria and Goompapa when Kammy drops the hammer block
+    IMGFX_ANIM_SHIVER                  = 0x01, // used when Goombaria gives Mario a kiss
+    IMGFX_ANIM_VERTICAL_PIPE_CURL      = 0x02, // vertical pipe curl
+    IMGFX_ANIM_HORIZONTAL_PIPE_CURL    = 0x03, // horizontal pipe curl
+    IMGFX_ANIM_STARTLE                 = 0x04, // used when Koopa Bros are surprised by Mario
+    IMGFX_ANIM_FLUTTER_DOWN            = 0x05, // player falling like paper
+    IMGFX_ANIM_UNFURL                  = 0x06, // used by Goomba 'stickers' that ambush Mario in area_kmr
+    IMGFX_ANIM_GET_IN_BED              = 0x07, // Mario gets into bed
+    IMGFX_ANIM_SPIRIT_CAPTURE          = 0x08, // Eldstar being captured
+    IMGFX_ANIM_UNUSED_1                = 0x09, // unused
+    IMGFX_ANIM_UNUSED_2                = 0x0A, // unused
+    IMGFX_ANIM_UNUSED_3                = 0x0B, // unused
+    IMGFX_ANIM_TUTANKOOPA_GATHER       = 0x0C, // tutankoopa 3
+    IMGFX_ANIM_TUTANKOOPA_SWIRL_2      = 0x0D, // tutankoopa 2
+    IMGFX_ANIM_TUTANKOOPA_SWIRL_1      = 0x0E, // tutankoopa 1
+    IMGFX_ANIM_SHUFFLE_CARDS           = 0x0F, // merlee spell-casting card shuffle
+    IMGFX_ANIM_FLIP_CARD_1             = 0x10, // merlee spell-casting card flip 1
+    IMGFX_ANIM_FLIP_CARD_2             = 0x11, // merlee spell-casting card flip 2
+    IMGFX_ANIM_FLIP_CARD_3             = 0x12, // merlee spell-casting card flip 3
+    IMGFX_ANIM_CYMBAL_CRUSH            = 0x13, // used when Mario is crushed in a Cymbal Plant
+} ImgFXAnim;
 
-typedef enum FoldRenderType {
-    FOLD_RENDER_TYPE_0                = 0x0,
-    FOLD_RENDER_TYPE_1                = 0x1,
-    FOLD_RENDER_TYPE_2                = 0x2,
-    FOLD_RENDER_TYPE_3                = 0x3,
-    FOLD_RENDER_TYPE_4                = 0x4,
-    FOLD_RENDER_TYPE_5                = 0x5,
-    FOLD_RENDER_TYPE_6                = 0x6,
-    FOLD_RENDER_TYPE_7                = 0x7,
-    FOLD_RENDER_TYPE_8                = 0x8,
-    FOLD_RENDER_TYPE_9                = 0x9,
-    FOLD_RENDER_TYPE_A                = 0xA,
-    FOLD_RENDER_TYPE_B                = 0xB,
-    FOLD_RENDER_HOLOGRAM              = 0xC,
-    FOLD_RENDER_TYPE_D                = 0xD,
-    FOLD_RENDER_TYPE_E                = 0xE,
-    FOLD_RENDER_TYPE_F                = 0xF,
-    FOLD_RENDER_TYPE_10               = 0x10,
-} FoldRenderType;
+typedef enum ImgFXRenderType {
+    IMGFX_RENDER_DEFAULT               = 0x00,
+    IMGFX_RENDER_MULTIPLY_RGB          = 0x01,
+    IMGFX_RENDER_MULTIPLY_ALPHA        = 0x02,
+    IMGFX_RENDER_MULTIPLY_RGBA         = 0x03,
+    IMGFX_RENDER_MODULATE_PRIM_RGB     = 0x04,
+    IMGFX_RENDER_MODULATE_PRIM_RGBA    = 0x05,
+    IMGFX_RENDER_MULTIPLY_SHADE_RGB    = 0x06,
+    IMGFX_RENDER_MULTIPLY_SHADE_ALPHA  = 0x07,
+    IMGFX_RENDER_MULTIPLY_SHADE_RGBA   = 0x08,
+    IMGFX_RENDER_MODULATE_SHADE_RGB    = 0x09,
+    IMGFX_RENDER_MODULATE_SHADE_RGBA   = 0x0A,
+    IMGFX_RENDER_ANIM                  = 0x0B,
+    IMGFX_RENDER_HOLOGRAM              = 0x0C,
+    IMGFX_RENDER_COLOR_FILL            = 0x0D,
+    IMGFX_RENDER_OVERLAY_RGB           = 0x0E,
+    IMGFX_RENDER_OVERLAY_RGBA          = 0x0F,
+    IMGFX_RENDER_UNUSED                = 0x10,
+} ImgFXRenderType;
 
-typedef enum FoldMeshType {
-    FOLD_MESH_TYPE_0                  = 0x0,
-    FOLD_MESH_TYPE_1                  = 0x1,
-    FOLD_MESH_ANIMATED                = 0x2,
-    FOLD_MESH_TYPE_3                  = 0x3,
-    FOLD_MESH_TYPE_4                  = 0x4,
-} FoldMeshType;
+enum ImgFXRenderModeFlags {
+    IMGFX_RENDER_NO_OVERRIDE      = 1,
+};
+
+typedef enum ImgFXMeshType {
+    IMGFX_MESH_DEFAULT                 = 0x0,
+    IMGFX_MESH_GRID_WAVY               = 0x1,
+    IMGFX_MESH_ANIMATED                = 0x2,
+    IMGFX_MESH_GRID_UNUSED             = 0x3,
+    IMGFX_MESH_STRIP                   = 0x4,
+} ImgFXMeshType;
+
+enum ImgFXHologramTypes {
+    IMGFX_HOLOGRAM_NOISE               = 0,
+    IMGFX_HOLOGRAM_DITHER              = 1,
+    IMGFX_HOLOGRAM_THRESHOLD           = 2,
+};
+
+enum SpriteCompImgFXFlags {
+    SPR_IMGFX_FLAG_10000000             = 0x10000000,
+    SPR_IMGFX_FLAG_20000000             = 0x20000000,
+    SPR_IMGFX_FLAG_40000000             = 0x40000000,
+    SPR_IMGFX_FLAG_80000000             = 0x80000000,
+    SPR_IMGFX_FLAG_ALL                  = 0xF0000000,
+};
 
 enum MoveType {
     MOVE_TYPE_NONE          = 0,

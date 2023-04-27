@@ -61,8 +61,8 @@ EvtScript N(EVS_NpcIdle_Kammy_Broom) = {
         EVT_END_IF
         EVT_WAIT(1)
     EVT_END_LOOP
-    EVT_CALL(SetPlayerFoldFlags, FOLD_STATE_FLAG_2000)
-    EVT_CALL(UpdatePlayerFold, ANIM_Mario1_Idle, FOLD_UPD_SET_TINT, 0, 0, 0, 0)
+    EVT_CALL(SetPlayerImgFXFlags, IMGFX_FLAG_2000)
+    EVT_CALL(UpdatePlayerImgFX, ANIM_Mario1_Idle, IMGFX_SET_TINT, 0, 0, 0, 0)
     EVT_CALL(HidePlayerShadow, TRUE)
     EVT_CALL(DisablePartnerAI, 0)
     EVT_WAIT(1)
@@ -78,7 +78,7 @@ EvtScript N(EVS_NpcIdle_Kammy_Broom) = {
 
 API_CALLABLE(N(func_80240020_B06A20)) {
     increment_status_menu_disabled();
-    set_screen_overlay_params_back(0, 255.0f);
+    set_screen_overlay_params_back(OVERLAY_SCREEN_COLOR, 255.0f);
 
     return ApiStatus_DONE2;
 }
